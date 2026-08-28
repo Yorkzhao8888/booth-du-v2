@@ -32,11 +32,19 @@ export function signToken(user: {
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
+  // Prefer Authorization: Bearer header; fall back to ?token= query param
+  // (EventSource/SSE cannot set custom headers).
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7);
+  } else if (typeof req.query.token === 'string') {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'Missing or invalid token' });
   }
-  const token = authHeader.slice(7);
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     // @ts-ignore
