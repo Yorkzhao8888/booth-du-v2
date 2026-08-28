@@ -38,8 +38,24 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     token = authHeader.slice(7);
-  } else if (typeof req.query.token === 'string') {
+  } else if (typeof req.query.token === 'string' && req.query.token) {
     token = req.query.token;
+  } else {
+    // Fallback: manually parse token from raw URL (in case proxy strips query)
+    try {
+      const rawUrl = req.url || '';
+      const qIdx = rawUrl.indexOf('?');
+      if (qIdx !== -1) {
+        const params = new URLSearchParams(rawUrl.slice(qIdx));
+        const t = params.get('token');
+        if (t) token = t;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Debug log for production troubleshooting
+  if (!token) {
+    console.warn('[auth] No token found. headers.authorization:', !!authHeader, 'query:', JSON.stringify(req.query), 'url:', req.url);
   }
 
   if (!token) {
