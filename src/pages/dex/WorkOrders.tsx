@@ -40,8 +40,8 @@ const ExWorkOrders: React.FC = () => {
     setLoading(true);
     try {
       const query = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await apiGet<WorkOrder[]>(`/dex/work-orders${query}`);
-      setOrders(res);
+      const res = await apiGet<{ items: WorkOrder[]; total: number }>(`/dex/work-orders${query}`);
+      setOrders(res.items);
     } catch {
       // ignore
     } finally {

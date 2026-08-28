@@ -20,13 +20,13 @@ interface Fulfillment {
 }
 
 interface DashboardData {
-  fulfillments: Fulfillment[];
-  pendingCount: number;
-  preparingCount: number;
-  lowStock: { id: number; skuCode: string; name: string; quantity: number; safetyStock: number; unit: string }[];
+  pendingFulfillments: Fulfillment[];
+  fabPending: number;
+  fabPreparing: number;
+  lowStockAlerts: { sku_id: number; sku_code: string; name: string; qty_on_hand: number; safety_stock: number; unit: string }[];
 }
 
-const ExDashboard: React.FC = () => {
+const DexDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dispatching, setDispatching] = useState<number | null>(null);
@@ -68,10 +68,10 @@ const ExDashboard: React.FC = () => {
       <Title level={4} style={{ marginBottom: 24 }}>履约工作台</Title>
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12}>
-          <StatCard title="待接单工单" value={data?.pendingCount ?? 0} color="#1890ff" />
+          <StatCard title="待接单工单" value={data?.fabPending ?? 0} color="#1890ff" />
         </Col>
         <Col xs={24} sm={12}>
-          <StatCard title="制作中工单" value={data?.preparingCount ?? 0} color="#fa8c16" />
+          <StatCard title="制作中工单" value={data?.fabPreparing ?? 0} color="#fa8c16" />
         </Col>
       </Row>
 
@@ -79,7 +79,7 @@ const ExDashboard: React.FC = () => {
         <Col xs={24} lg={16}>
           <Card title="待处理履约单" size="small" loading={loading}>
             <List
-              dataSource={data?.fulfillments || []}
+              dataSource={data?.pendingFulfillments || []}
               locale={{ emptyText: '暂无待处理订单' }}
               renderItem={(item) => (
                 <List.Item
@@ -98,18 +98,13 @@ const ExDashboard: React.FC = () => {
                   <List.Item.Meta
                     title={
                       <span>
-                        {item.orderNo}
-                        <Tag color="blue" style={{ marginLeft: 8 }}>
-                          {dayjs(item.requiredTime).format('MM-DD HH:mm')}
-                        </Tag>
+                        <Text strong>{item.items.map((i) => i.productName).join(', ')}</Text>
                       </span>
                     }
                     description={
-                      <div>
-                        {item.items?.map((it, idx) => (
-                          <Tag key={idx}>{it.productName} x{it.qty}</Tag>
-                        ))}
-                      </div>
+                      <Text type="secondary">
+                        {item.items.map((i) => `${i.productName} x${i.qty}`).join(' | ')}
+                      </Text>
                     }
                   />
                 </List.Item>
@@ -119,21 +114,23 @@ const ExDashboard: React.FC = () => {
         </Col>
         <Col xs={24} lg={8}>
           <Card title="库存预警" size="small">
-            {data?.lowStock && data.lowStock.length > 0 ? (
+            {data?.lowStockAlerts && data.lowStockAlerts.length > 0 ? (
               <List
                 size="small"
-                dataSource={data.lowStock}
+                dataSource={data.lowStockAlerts}
                 renderItem={(item) => (
                   <List.Item>
                     <Text>{item.name}</Text>
-                    <Text type="danger" strong>
-                      {item.quantity}{item.unit} / 安全 {item.safetyStock}{item.unit}
-                    </Text>
+                    <Tag color="red">
+                      {item.qty_on_hand}/{item.safety_stock} {item.unit}
+                    </Tag>
                   </List.Item>
                 )}
               />
             ) : (
-              <Alert message="库存充足" type="success" showIcon />
+              <div style={{ color: '#999', textAlign: 'center', padding: 16 }}>
+                所有物料库存充足
+              </div>
             )}
           </Card>
         </Col>
@@ -142,4 +139,4 @@ const ExDashboard: React.FC = () => {
   );
 };
 
-export default ExDashboard;
+export default DexDashboard;

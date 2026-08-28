@@ -9,11 +9,13 @@ const { Title } = Typography;
 
 interface DashboardData {
   todayOrders: number;
-  todayRevenue: number;
-  grossProfit: number;
+  todayRevenue?: number;
+  todayGrossProfit?: number;
+  grossMargin?: number;
   pendingWorkOrders: number;
-  statusDistribution: { status: string; count: number }[];
-  lowStock: { id: number; skuCode: string; name: string; quantity: number; safetyStock: number; unit: string }[];
+  preparingWorkOrders: number;
+  lowStockCount: number;
+  workOrderStats: Record<string, number>;
 }
 
 const statusLabels: Record<string, string> = {
@@ -24,7 +26,7 @@ const statusLabels: Record<string, string> = {
   cancelled: '已取消',
 };
 
-const EuDashboard: React.FC = () => {
+const DuDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -46,22 +48,11 @@ const EuDashboard: React.FC = () => {
     return () => window.removeEventListener('booth:refresh', handler);
   }, [fetchData]);
 
-  const totalStatus = data?.statusDistribution.reduce((s, d) => s + d.count, 0) || 1;
-
-  const lowStockColumns: ColumnsType<DashboardData['lowStock'][0]> = [
-    { title: 'SKU', dataIndex: 'skuCode', key: 'skuCode' },
-    { title: '名称', dataIndex: 'name', key: 'name' },
-    {
-      title: '库存',
-      key: 'qty',
-      render: (_, r) => (
-        <span style={{ color: r.quantity <= r.safetyStock ? '#ff4d4f' : undefined }}>
-          {r.quantity} {r.unit}
-        </span>
-      ),
-    },
-    { title: '安全库存', dataIndex: 'safetyStock', key: 'safetyStock' },
-  ];
+  // Convert workOrderStats object to array for rendering
+  const statusEntries = data?.workOrderStats
+    ? Object.entries(data.workOrderStats).filter(([, count]) => count > 0)
+    : [];
+  const totalStatus = statusEntries.reduce((s, [, count]) => s + count, 0) || 1;
 
   return (
     <div>
@@ -71,10 +62,10 @@ const EuDashboard: React.FC = () => {
           <StatCard title="今日订单" value={data?.todayOrders ?? 0} color="#1890ff" />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="今日营收" value={data ? <PriceText value={data.todayRevenue} /> : '-'} color="#52c41a" />
+          <StatCard title="今日营收" value={data?.todayRevenue != null ? <PriceText value={data.todayRevenue} /> : '-'} color="#52c41a" />
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="毛利" value={data ? <PriceText value={data.grossProfit} /> : '-'} color="#fa8c16" />
+          <StatCard title="毛利" value={data?.todayGrossProfit != null ? <PriceText value={data.todayGrossProfit} /> : '-'} color="#fa8c16" />
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatCard title="待处理工单" value={data?.pendingWorkOrders ?? 0} color="#ff4d4f" />
@@ -85,46 +76,62 @@ const EuDashboard: React.FC = () => {
         <Col xs={24} lg={12}>
           <div style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}>
             <Title level={5}>工单状态分布</Title>
-            {data?.statusDistribution.map((item) => (
-              <div key={item.status} style={{ marginBottom: 12 }}>
+            {statusEntries.length > 0 ? statusEntries.map(([status, count]) => (
+              <div key={status} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span>{statusLabels[item.status] || item.status}</span>
-                  <span>{item.count}</span>
+                  <span>{statusLabels[status] || status}</span>
+                  <span>{count}</span>
                 </div>
                 <Progress
-                  percent={Math.round((item.count / totalStatus) * 100)}
+                  percent={Math.round((count / totalStatus) * 100)}
                   showInfo={false}
                   strokeColor={
-                    item.status === 'pending' ? '#1890ff' :
-                    item.status === 'accepted' ? '#13c2c2' :
-                    item.status === 'preparing' ? '#fa8c16' :
-                    item.status === 'completed' ? '#52c41a' : '#ff4d4f'
+                    status === 'pending' ? '#1890ff' :
+                    status === 'accepted' ? '#13c2c2' :
+                    status === 'preparing' ? '#fa8c16' :
+                    status === 'completed' ? '#52c41a' : '#ff4d4f'
                   }
                 />
               </div>
-            ))}
+            )) : (
+              <div style={{ color: '#999', textAlign: 'center', padding: 24 }}>暂无工单数据</div>
+            )}
           </div>
         </Col>
         <Col xs={24} lg={12}>
           <div style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}>
             <Title level={5}>库存预警</Title>
-            {data?.lowStock && data.lowStock.length > 0 ? (
-              <Table
-                columns={lowStockColumns}
-                dataSource={data.lowStock}
-                rowKey="id"
-                size="small"
-                pagination={false}
-                loading={loading}
+            {data?.lowStockCount != null && data.lowStockCount > 0 ? (
+              <Alert
+                type="warning"
+                showIcon
+                message={`${data.lowStockCount} 种物料库存低于安全线`}
+                description="请前往库存页面查看详情并及时补货"
+                style={{ marginTop: 8 }}
               />
             ) : (
-              <Alert message="暂无库存预警" type="success" showIcon />
+              <div style={{ color: '#999', textAlign: 'center', padding: 24 }}>
+                所有物料库存充足
+              </div>
             )}
           </div>
         </Col>
       </Row>
+
+      {data?.grossMargin != null && (
+        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+          <Col xs={24}>
+            <Alert
+              type="info"
+              showIcon
+              message={`今日毛利率: ${data.grossMargin}%`}
+              description={`营收 ${data.todayRevenue != null ? `¥${(data.todayRevenue / 100).toFixed(2)}` : '-'} | 毛利 ${data.todayGrossProfit != null ? `¥${(data.todayGrossProfit / 100).toFixed(2)}` : '-'}`}
+            />
+          </Col>
+        </Row>
+      )}
     </div>
   );
 };
 
-export default EuDashboard;
+export default DuDashboard;
