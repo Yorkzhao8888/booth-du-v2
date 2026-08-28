@@ -109,6 +109,15 @@ export async function migrate() {
       for (const row of orgs.rows) {
         orgModes.set(row.id, row.mode);
       }
+
+      // Cleanup: mark stale outbox events (retry_count >= MAX_RETRIES) as dead
+      const staleResult = await client.query(
+        `UPDATE booth_outbox SET status = 'dead' WHERE status = 'pending' AND retry_count >= 10`
+      );
+      if (staleResult.rowCount && staleResult.rowCount > 0) {
+        console.log(`[migrate] Marked ${staleResult.rowCount} stale outbox events as dead.`);
+      }
+
       await client.query('COMMIT');
       console.log('[migrate] Tables verified, seed data already exists.');
       return;
