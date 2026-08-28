@@ -78,6 +78,119 @@ CREATE TABLE IF NOT EXISTS booth_outbox (
   status VARCHAR(20) NOT NULL DEFAULT 'pending', retry_count INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), sent_at TIMESTAMPTZ
 );
+
+-- ====== V2 MODULE TABLES ======
+
+-- DU: SKU moving-weighted-average cost
+CREATE TABLE IF NOT EXISTS booth_sku_cost (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  sku_id INTEGER NOT NULL REFERENCES booth_skus(id),
+  unit_cost NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total_qty NUMERIC(12,3) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, sku_id)
+);
+
+-- DU: Purchase orders
+CREATE TABLE IF NOT EXISTS booth_purchase_orders (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  po_no TEXT NOT NULL UNIQUE, supplier TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  total_amount NUMERIC(12,2) DEFAULT 0,
+  created_by INTEGER REFERENCES booth_users(id),
+  approved_by INTEGER REFERENCES booth_users(id),
+  submitted_at TIMESTAMPTZ, approved_at TIMESTAMPTZ, received_at TIMESTAMPTZ,
+  remark TEXT, items JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- DU: Profit snapshots
+CREATE TABLE IF NOT EXISTS booth_profit_snapshots (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  fulfillment_id INTEGER REFERENCES booth_fulfillments(id),
+  work_order_id INTEGER, revenue NUMERIC(12,2) DEFAULT 0,
+  material_cost NUMERIC(12,2) DEFAULT 0, gross_profit NUMERIC(12,2) DEFAULT 0,
+  margin NUMERIC(6,2) DEFAULT 0,
+  cost_detail JSONB DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, fulfillment_id)
+);
+
+-- CORE: Stock batches
+CREATE TABLE IF NOT EXISTS booth_stock_batches (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  sku_id INTEGER NOT NULL REFERENCES booth_skus(id),
+  batch_no TEXT, qty NUMERIC(12,3) NOT NULL DEFAULT 0,
+  expiry_date DATE, received_at TIMESTAMPTZ DEFAULT NOW(),
+  source_type TEXT, source_id BIGINT, location TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CORE: Stocktake orders
+CREATE TABLE IF NOT EXISTS booth_stocktake_orders (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  st_no TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'draft',
+  created_by INTEGER REFERENCES booth_users(id),
+  approved_by INTEGER REFERENCES booth_users(id),
+  submitted_at TIMESTAMPTZ, approved_at TIMESTAMPTZ,
+  remark TEXT, lines JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CORE: FAB operations (工序)
+CREATE TABLE IF NOT EXISTS booth_fab_operations (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  work_order_id BIGINT NOT NULL, seq INT NOT NULL, name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  operator_id INTEGER REFERENCES booth_users(id),
+  planned_qty NUMERIC(12,3) DEFAULT 0,
+  reported_qty NUMERIC(12,3) DEFAULT 0,
+  started_at TIMESTAMPTZ, completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CORE: Quality checks
+CREATE TABLE IF NOT EXISTS booth_quality_checks (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  work_order_id BIGINT NOT NULL,
+  result TEXT NOT NULL DEFAULT 'pass',
+  qty_pass NUMERIC(12,3) DEFAULT 0, qty_reject NUMERIC(12,3) DEFAULT 0,
+  reject_reason TEXT, inspector_id INTEGER REFERENCES booth_users(id),
+  checked_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CORE: Delivery tasks
+CREATE TABLE IF NOT EXISTS booth_dl_tasks (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  task_no TEXT NOT NULL UNIQUE, fulfillment_id BIGINT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  assignee_id INTEGER REFERENCES booth_users(id),
+  pickup_addr TEXT, delivery_addr TEXT,
+  customer_name TEXT, customer_phone TEXT,
+  assigned_at TIMESTAMPTZ, accepted_at TIMESTAMPTZ,
+  picked_at TIMESTAMPTZ, delivering_at TIMESTAMPTZ, signed_at TIMESTAMPTZ,
+  signer TEXT, exception_reason TEXT, remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- CORE: Service tasks
+CREATE TABLE IF NOT EXISTS booth_svc_tasks (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  task_no TEXT NOT NULL UNIQUE, fulfillment_id BIGINT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  assignee_id INTEGER REFERENCES booth_users(id),
+  service_content TEXT, customer_name TEXT, customer_phone TEXT,
+  required_at TIMESTAMPTZ,
+  assigned_at TIMESTAMPTZ, accepted_at TIMESTAMPTZ,
+  started_at TIMESTAMPTZ, completed_at TIMESTAMPTZ,
+  exception_reason TEXT, remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 const INDEXES = `
@@ -87,6 +200,19 @@ CREATE INDEX IF NOT EXISTS idx_fulfill_org_status ON booth_fulfillments(org_id, 
 CREATE INDEX IF NOT EXISTS idx_inv_txn_org_sku ON booth_inventory_txn(org_id, sku_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bom_items_bom ON booth_bom_items(bom_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON booth_outbox(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_batches_org_sku_exp ON booth_stock_batches(org_id, sku_id, expiry_date);
+CREATE INDEX IF NOT EXISTS idx_fab_ops_wo ON booth_fab_operations(work_order_id);
+CREATE INDEX IF NOT EXISTS idx_qc_wo ON booth_quality_checks(work_order_id);
+CREATE INDEX IF NOT EXISTS idx_dl_org_status ON booth_dl_tasks(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_svc_org_status ON booth_svc_tasks(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_po_org_status ON booth_purchase_orders(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_st_org_status ON booth_stocktake_orders(org_id, status);
+`;
+
+const ALTERS = `
+ALTER TABLE booth_skus ADD COLUMN IF NOT EXISTS safety_stock_num NUMERIC(12,3) DEFAULT 0;
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT false;
 `;
 
 // In-memory store for org modes
@@ -100,6 +226,7 @@ export async function migrate() {
     // Execute DDL
     await client.query(DDL);
     await client.query(INDEXES);
+    await client.query(ALTERS);
 
     // Check if seed data already exists
     const orgCheck = await client.query('SELECT COUNT(*) as cnt FROM booth_orgs');
@@ -143,6 +270,24 @@ export async function migrate() {
         console.log('[migrate] Added dx user: 店长 / 13800000004.');
       }
 
+      // Update dexx hats to include all modules
+      await client.query(
+        `UPDATE booth_users SET hats = '{FAB,WH,DL,SVC}' WHERE role = 'dexx' AND org_id = 1`
+      );
+
+      // Seed sku_cost for all existing SKUs if not exists
+      const skuCostCheck = await client.query('SELECT COUNT(*) as cnt FROM booth_sku_cost WHERE org_id = 1');
+      if (parseInt(skuCostCheck.rows[0].cnt) === 0) {
+        const skus = await client.query('SELECT id FROM booth_skus WHERE org_id = 1');
+        for (const sku of skus.rows) {
+          await client.query(
+            `INSERT INTO booth_sku_cost (org_id, sku_id, unit_cost, total_qty) VALUES (1, $1, 0, 0)`,
+            [sku.id]
+          );
+        }
+        console.log(`[migrate] Seeded sku_cost for ${skus.rows.length} SKUs.`);
+      }
+
       await client.query('COMMIT');
       console.log('[migrate] Tables verified, seed data already exists.');
       return;
@@ -173,7 +318,7 @@ export async function migrate() {
     );
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (4, 1, '铺员', '13800000003', $1, 'dexx', '{FAB,WH}')`,
+       VALUES (4, 1, '铺员', '13800000003', $1, 'dexx', '{FAB,WH,DL,SVC}')`,
       [passwordHash]
     );
 
