@@ -24,8 +24,8 @@ const FabActive: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<WorkOrderData[]>('/dexx/fab/active');
-      setOrders(res);
+      const res = await apiGet<{ items: WorkOrderData[]; total: number }>('/dexx/fab/active');
+      setOrders(res.items);
     } catch {
       // ignore
     } finally {

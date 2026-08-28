@@ -158,6 +158,54 @@ router.get('/orders', async (req, res, next) => {
   }
 });
 
+// GET /fulfillments - alias for /orders (fulfillment list with full price fields)
+router.get('/fulfillments', async (req, res, next) => {
+  try {
+    // @ts-ignore
+    const user = req.user as JwtPayload;
+    const orgId = user.orgId;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const offset = (page - 1) * pageSize;
+    const status = req.query.status as string;
+
+    let whereClause = 'WHERE org_id = $1';
+    const params: any[] = [orgId];
+    let paramIdx = 2;
+
+    if (status) {
+      whereClause += ` AND status = $${paramIdx}`;
+      params.push(status);
+      paramIdx++;
+    }
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*) as cnt FROM booth_fulfillments ${whereClause}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].cnt);
+
+    const dataRes = await pool.query(
+      `SELECT * FROM booth_fulfillments ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, pageSize, offset]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        items: dataRes.rows,
+        total,
+        page,
+        pageSize,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /work-orders
 router.get('/work-orders', async (req, res, next) => {
   try {

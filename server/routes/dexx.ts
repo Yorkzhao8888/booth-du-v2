@@ -28,7 +28,7 @@ router.get('/fab/queue', requireHat('FAB'), async (req, res, next) => {
       [orgId]
     );
 
-    res.json({ success: true, data: stripPriceFields(result.rows) });
+    res.json({ success: true, data: { items: stripPriceFields(result.rows), total: result.rows.length } });
   } catch (err) {
     next(err);
   }
@@ -52,7 +52,7 @@ router.get('/fab/active', requireHat('FAB'), async (req, res, next) => {
       [orgId]
     );
 
-    res.json({ success: true, data: stripPriceFields(result.rows) });
+    res.json({ success: true, data: { items: stripPriceFields(result.rows), total: result.rows.length } });
   } catch (err) {
     next(err);
   }
