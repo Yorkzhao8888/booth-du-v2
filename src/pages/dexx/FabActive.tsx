@@ -24,7 +24,7 @@ const FabActive: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<WorkOrderData[]>('/exx/fab/active');
+      const res = await apiGet<WorkOrderData[]>('/dexx/fab/active');
       setOrders(res);
     } catch {
       // ignore
@@ -43,7 +43,7 @@ const FabActive: React.FC = () => {
   const handleStart = async (id: number) => {
     setActionId(id);
     try {
-      await apiPost(`/exx/fab/work-orders/${id}/start`);
+      await apiPost(`/dexx/fab/work-orders/${id}/start`);
       message.success('开始制作，原料已领用');
       fetchData();
     } catch (err: unknown) {
@@ -61,7 +61,7 @@ const FabActive: React.FC = () => {
   const handleComplete = async (id: number) => {
     setActionId(id);
     try {
-      await apiPost(`/exx/fab/work-orders/${id}/complete`);
+      await apiPost(`/dexx/fab/work-orders/${id}/complete`);
       message.success('出餐完成');
       fetchData();
     } catch (err: unknown) {

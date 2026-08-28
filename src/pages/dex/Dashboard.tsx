@@ -33,7 +33,7 @@ const ExDashboard: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<DashboardData>('/ex/dashboard');
+      const res = await apiGet<DashboardData>('/dex/dashboard');
       setData(res);
     } catch {
       // ignore
@@ -52,7 +52,7 @@ const ExDashboard: React.FC = () => {
   const handleDispatch = async (id: number) => {
     setDispatching(id);
     try {
-      await apiPost(`/ex/fulfillments/${id}/dispatch`);
+      await apiPost(`/dex/fulfillments/${id}/dispatch`);
       message.success('拆单成功，工单已创建');
       fetchData();
     } catch (err: unknown) {

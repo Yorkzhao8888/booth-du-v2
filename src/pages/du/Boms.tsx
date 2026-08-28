@@ -31,7 +31,7 @@ const EuBoms: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<Bom[]>('/eu/boms');
+      const res = await apiGet<Bom[]>('/du/boms');
       setBoms(res);
     } catch {
       // ignore

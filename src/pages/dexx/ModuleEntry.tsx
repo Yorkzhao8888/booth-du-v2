@@ -17,7 +17,7 @@ const ModuleEntry: React.FC = () => {
         {hasHat('FAB') && (
           <Card
             hoverable
-            onClick={() => navigate('/exx/fab/queue')}
+            onClick={() => navigate('/dexx/fab/queue')}
             style={{ textAlign: 'center', borderRadius: 12, padding: '8px 0' }}
           >
             <ToolOutlined style={{ fontSize: 48, color: '#1890ff', marginBottom: 12 }} />
@@ -28,7 +28,7 @@ const ModuleEntry: React.FC = () => {
         {hasHat('WH') && (
           <Card
             hoverable
-            onClick={() => navigate('/exx/wh/inventory')}
+            onClick={() => navigate('/dexx/wh/inventory')}
             style={{ textAlign: 'center', borderRadius: 12, padding: '8px 0' }}
           >
             <InboxOutlined style={{ fontSize: 48, color: '#52c41a', marginBottom: 12 }} />

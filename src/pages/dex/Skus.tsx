@@ -26,7 +26,7 @@ const ExSkus: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<Sku[]>('/ex/skus');
+      const res = await apiGet<Sku[]>('/dex/skus');
       setSkus(res);
     } catch {
       // ignore
@@ -56,10 +56,10 @@ const ExSkus: React.FC = () => {
       const values = await form.validateFields();
       setSubmitting(true);
       if (editingId) {
-        await apiPut(`/ex/skus/${editingId}`, values);
+        await apiPut(`/dex/skus/${editingId}`, values);
         message.success('SKU 更新成功');
       } else {
-        await apiPost('/ex/skus', values);
+        await apiPost('/dex/skus', values);
         message.success('SKU 创建成功');
       }
       setModalOpen(false);
@@ -75,7 +75,7 @@ const ExSkus: React.FC = () => {
 
   const handleDeactivate = async (id: number) => {
     try {
-      await apiPut(`/ex/skus/${id}`, { isActive: false });
+      await apiPut(`/dex/skus/${id}`, { isActive: false });
       message.success('已停用');
       fetchData();
     } catch (err: unknown) {

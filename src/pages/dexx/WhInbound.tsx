@@ -26,7 +26,7 @@ const WhInbound: React.FC = () => {
 
   const fetchSkus = useCallback(async () => {
     try {
-      const res = await apiGet<SkuOption[]>('/exx/wh/inventory');
+      const res = await apiGet<SkuOption[]>('/dexx/wh/inventory');
       setSkus(res);
     } catch {
       setSkus([]);
@@ -57,7 +57,7 @@ const WhInbound: React.FC = () => {
     }
     setSubmitting(true);
     try {
-      await apiPost('/exx/wh/inbound', {
+      await apiPost('/dexx/wh/inbound', {
         items: validLines.map((l) => ({ skuId: l.skuId, qty: l.qty })),
       });
       message.success('入库成功');

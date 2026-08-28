@@ -6,7 +6,7 @@ import { orgModes } from '../migrate.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('eu'));
+router.use(requireAuth, requireRole('du', 'dx'));
 
 // Helper to get org mode
 function getOrgMode(orgId: number): string {

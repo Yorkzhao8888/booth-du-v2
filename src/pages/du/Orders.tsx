@@ -39,7 +39,7 @@ const EuOrders: React.FC = () => {
   const fetchData = useCallback(async (p: number) => {
     setLoading(true);
     try {
-      const res = await apiGet<{ items: Order[]; total: number }>(`/eu/orders?page=${p}&pageSize=10`);
+      const res = await apiGet<{ items: Order[]; total: number }>(`/du/orders?page=${p}&pageSize=10`);
       setOrders(res.items);
       setTotal(res.total);
     } catch {

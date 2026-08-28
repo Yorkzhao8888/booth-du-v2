@@ -27,7 +27,7 @@ const EuWorkOrders: React.FC = () => {
     setLoading(true);
     try {
       const query = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await apiGet<WorkOrder[]>(`/eu/work-orders${query}`);
+      const res = await apiGet<WorkOrder[]>(`/du/work-orders${query}`);
       setOrders(res);
     } catch {
       // ignore

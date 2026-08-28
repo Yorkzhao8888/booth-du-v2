@@ -15,7 +15,7 @@ const FabHistory: React.FC = () => {
   const fetchData = useCallback(async (p: number) => {
     try {
       const res = await apiGet<{ items: WorkOrderData[]; total: number }>(
-        `/exx/fab/history?page=${p}&pageSize=${pageSize}`
+        `/dexx/fab/history?page=${p}&pageSize=${pageSize}`
       );
       setOrders(res.items);
       setTotal(res.total);

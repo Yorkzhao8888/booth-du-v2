@@ -11,9 +11,9 @@ import type { JwtPayload } from './auth.js';
 
 import authRoutes from './routes/auth.js';
 import internalRoutes from './routes/internal.js';
-import euRoutes from './routes/eu.js';
-import exRoutes from './routes/ex.js';
-import exxRoutes from './routes/exx.js';
+import duRoutes from './routes/du.js';
+import dexRoutes from './routes/dex.js';
+import dexxRoutes from './routes/dexx.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,9 +52,9 @@ app.get('/api/booth/stream', requireAuth, (req, res) => {
 // Mount routes
 app.use('/api/booth/auth', authRoutes);
 app.use('/api/booth/internal', internalRoutes);
-app.use('/api/booth/eu', euRoutes);
-app.use('/api/booth/ex', exRoutes);
-app.use('/api/booth/exx', exxRoutes);
+app.use('/api/booth/du', duRoutes);
+app.use('/api/booth/dex', dexRoutes);
+app.use('/api/booth/dexx', dexxRoutes);
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

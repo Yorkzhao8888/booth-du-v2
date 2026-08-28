@@ -26,7 +26,7 @@ const WhOutbound: React.FC = () => {
 
   const fetchSkus = useCallback(async () => {
     try {
-      const res = await apiGet<SkuOption[]>('/exx/wh/inventory');
+      const res = await apiGet<SkuOption[]>('/dexx/wh/inventory');
       setSkus(res);
     } catch {
       setSkus([]);
@@ -67,7 +67,7 @@ const WhOutbound: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await apiPost('/exx/wh/outbound', {
+      await apiPost('/dexx/wh/outbound', {
         items: validLines.map((l) => ({ skuId: l.skuId, qty: l.qty })),
       });
       message.success('出库成功');

@@ -41,7 +41,7 @@ const ExBoms: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<Bom[]>('/ex/boms');
+      const res = await apiGet<Bom[]>('/dex/boms');
       setBoms(res);
     } catch {
       // ignore
@@ -56,7 +56,7 @@ const ExBoms: React.FC = () => {
 
   const loadSkus = async () => {
     try {
-      const res = await apiGet<SkuOption[]>('/ex/skus');
+      const res = await apiGet<SkuOption[]>('/dex/skus');
       setSkus(res);
     } catch {
       setSkus([]);
@@ -107,10 +107,10 @@ const ExBoms: React.FC = () => {
       };
 
       if (editingId) {
-        await apiPut(`/ex/boms/${editingId}`, payload);
+        await apiPut(`/dex/boms/${editingId}`, payload);
         message.success('BOM 更新成功');
       } else {
-        await apiPost('/ex/boms', payload);
+        await apiPost('/dex/boms', payload);
         message.success('BOM 创建成功');
       }
       setModalOpen(false);
@@ -126,7 +126,7 @@ const ExBoms: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      await apiDelete(`/ex/boms/${id}`);
+      await apiDelete(`/dex/boms/${id}`);
       message.success('删除成功');
       fetchData();
     } catch (err: unknown) {

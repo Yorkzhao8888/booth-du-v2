@@ -32,7 +32,7 @@ const WhTxns: React.FC = () => {
     setLoading(true);
     try {
       const query = typeFilter ? `?type=${typeFilter}` : '';
-      const res = await apiGet<Txn[]>(`/exx/wh/txns${query}`);
+      const res = await apiGet<Txn[]>(`/dexx/wh/txns${query}`);
       setTxns(res);
     } catch {
       // ignore

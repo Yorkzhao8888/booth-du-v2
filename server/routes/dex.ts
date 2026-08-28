@@ -8,7 +8,7 @@ import { sanitizeFulfillment } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('ex'));
+router.use(requireAuth, requireRole('dex'));
 
 // GET /dashboard
 router.get('/dashboard', async (req, res, next) => {

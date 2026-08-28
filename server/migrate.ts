@@ -118,6 +118,31 @@ export async function migrate() {
         console.log(`[migrate] Marked ${staleResult.rowCount} stale outbox events as dead.`);
       }
 
+      // Role migration: eu→du, ex→dex, exx→dexx (idempotent)
+      const roleUpdates = [
+        { from: 'eu', to: 'du' },
+        { from: 'ex', to: 'dex' },
+        { from: 'exx', to: 'dexx' },
+      ];
+      for (const { from, to } of roleUpdates) {
+        const r = await client.query(`UPDATE booth_users SET role = $1 WHERE role = $2`, [to, from]);
+        if (r.rowCount && r.rowCount > 0) {
+          console.log(`[migrate] Renamed role '${from}' → '${to}' (${r.rowCount} users).`);
+        }
+      }
+
+      // Add dx (店长) user if not exists
+      const dxCheck = await client.query(`SELECT id FROM booth_users WHERE phone = '13800000004'`);
+      if (dxCheck.rows.length === 0) {
+        const hash = bcrypt.hashSync('123456', 10);
+        await client.query(
+          `INSERT INTO booth_users (org_id, name, phone, password_hash, role, hats)
+           VALUES (1, '店长', '13800000004', $1, 'dx', '{}')`,
+          [hash]
+        );
+        console.log('[migrate] Added dx user: 店长 / 13800000004.');
+      }
+
       await client.query('COMMIT');
       console.log('[migrate] Tables verified, seed data already exists.');
       return;
@@ -133,22 +158,27 @@ export async function migrate() {
     // Seed users
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (1, 1, '店主', '13800000001', $1, 'eu', '{}')`,
+       VALUES (1, 1, '店主', '13800000001', $1, 'du', '{}')`,
       [passwordHash]
     );
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (2, 1, '铺长', '13800000002', $1, 'ex', '{}')`,
+       VALUES (2, 1, '店长', '13800000004', $1, 'dx', '{}')`,
       [passwordHash]
     );
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (3, 1, '执行员', '13800000003', $1, 'exx', '{FAB,WH}')`,
+       VALUES (3, 1, '交付长', '13800000002', $1, 'dex', '{}')`,
+      [passwordHash]
+    );
+    await client.query(
+      `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
+       VALUES (4, 1, '铺员', '13800000003', $1, 'dexx', '{FAB,WH}')`,
       [passwordHash]
     );
 
     // Fix sequence for users
-    await client.query(`SELECT setval('booth_users_id_seq', 3, true)`);
+    await client.query(`SELECT setval('booth_users_id_seq', 4, true)`);
 
     // Seed SKUs
     const skus = [

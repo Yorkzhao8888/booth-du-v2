@@ -18,7 +18,7 @@ const WhInventory: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<InventoryItem[]>('/exx/wh/inventory');
+      const res = await apiGet<InventoryItem[]>('/dexx/wh/inventory');
       setItems(res);
       setFiltered(res);
     } catch {

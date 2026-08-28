@@ -5,24 +5,24 @@ import SSEListener from './components/SSEListener';
 import AppLayout from './components/AppLayout';
 import MobileLayout from './components/MobileLayout';
 import Login from './pages/Login';
-import EuDashboard from './pages/eu/Dashboard';
-import EuOrders from './pages/eu/Orders';
-import EuWorkOrders from './pages/eu/WorkOrders';
-import EuInventory from './pages/eu/Inventory';
-import EuBoms from './pages/eu/Boms';
-import ExDashboard from './pages/ex/Dashboard';
-import ExWorkOrders from './pages/ex/WorkOrders';
-import ExBoms from './pages/ex/Boms';
-import ExSkus from './pages/ex/Skus';
-import ExInventory from './pages/ex/Inventory';
-import ExxModuleEntry from './pages/exx/ModuleEntry';
-import ExxFabQueue from './pages/exx/FabQueue';
-import ExxFabActive from './pages/exx/FabActive';
-import ExxFabHistory from './pages/exx/FabHistory';
-import ExxWhInventory from './pages/exx/WhInventory';
-import ExxWhInbound from './pages/exx/WhInbound';
-import ExxWhOutbound from './pages/exx/WhOutbound';
-import ExxWhTxns from './pages/exx/WhTxns';
+import DuDashboard from './pages/du/Dashboard';
+import DuOrders from './pages/du/Orders';
+import DuWorkOrders from './pages/du/WorkOrders';
+import DuInventory from './pages/du/Inventory';
+import DuBoms from './pages/du/Boms';
+import DexDashboard from './pages/dex/Dashboard';
+import DexWorkOrders from './pages/dex/WorkOrders';
+import DexBoms from './pages/dex/Boms';
+import DexSkus from './pages/dex/Skus';
+import DexInventory from './pages/dex/Inventory';
+import DexxModuleEntry from './pages/dexx/ModuleEntry';
+import DexxFabQueue from './pages/dexx/FabQueue';
+import DexxFabActive from './pages/dexx/FabActive';
+import DexxFabHistory from './pages/dexx/FabHistory';
+import DexxWhInventory from './pages/dexx/WhInventory';
+import DexxWhInbound from './pages/dexx/WhInbound';
+import DexxWhOutbound from './pages/dexx/WhOutbound';
+import DexxWhTxns from './pages/dexx/WhTxns';
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuthStore();
@@ -36,14 +36,15 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const role = user.role;
     const path = location.pathname;
 
-    if (role === 'eu' && !path.startsWith('/eu')) {
-      return <Navigate to="/eu" replace />;
+    // du and dx share the same /du routes
+    if ((role === 'du' || role === 'dx') && !path.startsWith('/du')) {
+      return <Navigate to="/du" replace />;
     }
-    if (role === 'ex' && !path.startsWith('/ex')) {
-      return <Navigate to="/ex" replace />;
+    if (role === 'dex' && !path.startsWith('/dex')) {
+      return <Navigate to="/dex" replace />;
     }
-    if (role === 'exx' && !path.startsWith('/exx')) {
-      return <Navigate to="/exx" replace />;
+    if (role === 'dexx' && !path.startsWith('/dexx')) {
+      return <Navigate to="/dexx" replace />;
     }
   }
 
@@ -53,7 +54,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const RoleRedirect: React.FC = () => {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
-  const home: Record<string, string> = { eu: '/eu', ex: '/ex', exx: '/exx' };
+  const home: Record<string, string> = { du: '/du', dx: '/du', dex: '/dex', dexx: '/dexx' };
   return <Navigate to={home[user.role] || '/login'} replace />;
 };
 
@@ -64,55 +65,55 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        {/* EU routes */}
+        {/* DU routes (du + dx share) */}
         <Route
-          path="/eu"
+          path="/du"
           element={
             <RequireAuth>
               <AppLayout />
             </RequireAuth>
           }
         >
-          <Route index element={<EuDashboard />} />
-          <Route path="orders" element={<EuOrders />} />
-          <Route path="work-orders" element={<EuWorkOrders />} />
-          <Route path="inventory" element={<EuInventory />} />
-          <Route path="boms" element={<EuBoms />} />
+          <Route index element={<DuDashboard />} />
+          <Route path="orders" element={<DuOrders />} />
+          <Route path="work-orders" element={<DuWorkOrders />} />
+          <Route path="inventory" element={<DuInventory />} />
+          <Route path="boms" element={<DuBoms />} />
         </Route>
 
-        {/* EX routes */}
+        {/* DEX routes */}
         <Route
-          path="/ex"
+          path="/dex"
           element={
             <RequireAuth>
               <AppLayout />
             </RequireAuth>
           }
         >
-          <Route index element={<ExDashboard />} />
-          <Route path="work-orders" element={<ExWorkOrders />} />
-          <Route path="boms" element={<ExBoms />} />
-          <Route path="skus" element={<ExSkus />} />
-          <Route path="inventory" element={<ExInventory />} />
+          <Route index element={<DexDashboard />} />
+          <Route path="work-orders" element={<DexWorkOrders />} />
+          <Route path="boms" element={<DexBoms />} />
+          <Route path="skus" element={<DexSkus />} />
+          <Route path="inventory" element={<DexInventory />} />
         </Route>
 
-        {/* EXX routes */}
+        {/* DEXX routes */}
         <Route
-          path="/exx"
+          path="/dexx"
           element={
             <RequireAuth>
               <MobileLayout />
             </RequireAuth>
           }
         >
-          <Route index element={<ExxModuleEntry />} />
-          <Route path="fab/queue" element={<ExxFabQueue />} />
-          <Route path="fab/active" element={<ExxFabActive />} />
-          <Route path="fab/history" element={<ExxFabHistory />} />
-          <Route path="wh/inventory" element={<ExxWhInventory />} />
-          <Route path="wh/inbound" element={<ExxWhInbound />} />
-          <Route path="wh/outbound" element={<ExxWhOutbound />} />
-          <Route path="wh/txns" element={<ExxWhTxns />} />
+          <Route index element={<DexxModuleEntry />} />
+          <Route path="fab/queue" element={<DexxFabQueue />} />
+          <Route path="fab/active" element={<DexxFabActive />} />
+          <Route path="fab/history" element={<DexxFabHistory />} />
+          <Route path="wh/inventory" element={<DexxWhInventory />} />
+          <Route path="wh/inbound" element={<DexxWhInbound />} />
+          <Route path="wh/outbound" element={<DexxWhOutbound />} />
+          <Route path="wh/txns" element={<DexxWhTxns />} />
         </Route>
 
         <Route path="*" element={<RoleRedirect />} />

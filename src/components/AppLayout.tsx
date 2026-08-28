@@ -16,20 +16,20 @@ import { useAuthStore } from '../store';
 
 const { Header, Sider, Content } = Layout;
 
-const euMenuItems = [
-  { key: '/eu', icon: <DashboardOutlined />, label: '看板' },
-  { key: '/eu/orders', icon: <ShoppingCartOutlined />, label: '订单' },
-  { key: '/eu/work-orders', icon: <ToolOutlined />, label: '工单' },
-  { key: '/eu/inventory', icon: <InboxOutlined />, label: '库存' },
-  { key: '/eu/boms', icon: <ProfileOutlined />, label: 'BOM' },
+const duMenuItems = [
+  { key: '/du', icon: <DashboardOutlined />, label: '看板' },
+  { key: '/du/orders', icon: <ShoppingCartOutlined />, label: '订单' },
+  { key: '/du/work-orders', icon: <ToolOutlined />, label: '工单' },
+  { key: '/du/inventory', icon: <InboxOutlined />, label: '库存' },
+  { key: '/du/boms', icon: <ProfileOutlined />, label: 'BOM' },
 ];
 
-const exMenuItems = [
-  { key: '/ex', icon: <DashboardOutlined />, label: '工作台' },
-  { key: '/ex/work-orders', icon: <ToolOutlined />, label: '工单' },
-  { key: '/ex/boms', icon: <ProfileOutlined />, label: 'BOM管理' },
-  { key: '/ex/skus', icon: <TagsOutlined />, label: 'SKU管理' },
-  { key: '/ex/inventory', icon: <InboxOutlined />, label: '库存' },
+const dexMenuItems = [
+  { key: '/dex', icon: <DashboardOutlined />, label: '工作台' },
+  { key: '/dex/work-orders', icon: <ToolOutlined />, label: '工单' },
+  { key: '/dex/boms', icon: <ProfileOutlined />, label: 'BOM管理' },
+  { key: '/dex/skus', icon: <TagsOutlined />, label: 'SKU管理' },
+  { key: '/dex/inventory', icon: <InboxOutlined />, label: '库存' },
 ];
 
 const AppLayout: React.FC = () => {
@@ -37,19 +37,26 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const menuItems = user?.role === 'ex' ? exMenuItems : euMenuItems;
+  const menuItems = user?.role === 'dex' ? dexMenuItems : duMenuItems;
 
   const selectedKey = menuItems
     .map((m) => m.key)
-    .filter((k) => location.pathname === k || (k !== `/${user?.role}` && location.pathname.startsWith(k)))
-    .sort((a, b) => b.length - a.length)[0] || `/${user?.role}`;
+    .filter((k) => {
+      if (location.pathname === k) return true;
+      // For du/dx shared routes, match /du prefix
+      if ((user?.role === 'du' || user?.role === 'dx') && k.startsWith('/du') && location.pathname.startsWith('/du')) return true;
+      if (user?.role === 'dex' && k.startsWith('/dex') && location.pathname.startsWith('/dex')) return true;
+      return false;
+    })
+    .sort((a, b) => b.length - a.length)[0] || (user?.role === 'dex' ? '/dex' : '/du');
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const roleLabel = user?.role === 'eu' ? '经营单元' : user?.role === 'ex' ? '履约中心' : user?.role;
+  const roleLabel: Record<string, string> = { du: '店主', dx: '店长', dex: '交付长' };
+  const displayRole = roleLabel[user?.role || ''] || user?.role;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -84,7 +91,7 @@ const AppLayout: React.FC = () => {
               <Space>
                 <UserOutlined />
                 {user?.name}
-                <span style={{ color: '#999', fontSize: 12 }}>({roleLabel})</span>
+                <span style={{ color: '#999', fontSize: 12 }}>({displayRole})</span>
               </Space>
             </Button>
           </Dropdown>

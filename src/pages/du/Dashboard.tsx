@@ -30,7 +30,7 @@ const EuDashboard: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<DashboardData>('/eu/dashboard');
+      const res = await apiGet<DashboardData>('/du/dashboard');
       setData(res);
     } catch {
       // ignore

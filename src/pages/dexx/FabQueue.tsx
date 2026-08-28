@@ -12,7 +12,7 @@ const FabQueue: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<WorkOrderData[]>('/exx/fab/queue');
+      const res = await apiGet<WorkOrderData[]>('/dexx/fab/queue');
       setOrders(res);
     } catch {
       // ignore
@@ -31,7 +31,7 @@ const FabQueue: React.FC = () => {
   const handleAccept = async (id: number) => {
     setAccepting(id);
     try {
-      await apiPost(`/exx/fab/work-orders/${id}/accept`);
+      await apiPost(`/dexx/fab/work-orders/${id}/accept`);
       message.success('接单成功');
       fetchData();
     } catch (err: unknown) {

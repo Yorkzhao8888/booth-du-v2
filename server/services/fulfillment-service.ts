@@ -137,10 +137,11 @@ export async function cancelFromOrderEvent(event: {
 }
 
 /**
- * Sanitize fulfillment for EX/EXX roles: remove price and totalAmount from items.
+ * Sanitize fulfillment for dex/dexx roles: remove price and totalAmount from items.
+ * du/dx roles see full data including prices.
  */
 export function sanitizeFulfillment(fulfillment: any, user: JwtPayload) {
-  if (user.role === 'eu') {
+  if (user.role === 'du' || user.role === 'dx') {
     return fulfillment;
   }
 

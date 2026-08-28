@@ -23,7 +23,7 @@ const EuInventory: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<InventoryItem[]>('/eu/inventory');
+      const res = await apiGet<InventoryItem[]>('/du/inventory');
       setItems(res);
     } catch {
       // ignore

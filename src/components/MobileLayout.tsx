@@ -15,16 +15,16 @@ import { useAuthStore } from '../store';
 const { Header, Content } = Layout;
 
 const fabTabs = [
-  { key: '/exx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
-  { key: '/exx/fab/active', label: '制作中', icon: <SyncOutlined /> },
-  { key: '/exx/fab/history', label: '历史', icon: <HistoryOutlined /> },
+  { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
+  { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
+  { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
 ];
 
 const whTabs = [
-  { key: '/exx/wh/inventory', label: '库存', icon: <InboxOutlined /> },
-  { key: '/exx/wh/inbound', label: '入库', icon: <LoginOutlined /> },
-  { key: '/exx/wh/outbound', label: '出库', icon: <LogoutOutlined /> },
-  { key: '/exx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
+  { key: '/dexx/wh/inventory', label: '库存', icon: <InboxOutlined /> },
+  { key: '/dexx/wh/inbound', label: '入库', icon: <LoginOutlined /> },
+  { key: '/dexx/wh/outbound', label: '出库', icon: <LogoutOutlined /> },
+  { key: '/dexx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
 ];
 
 const MobileLayout: React.FC = () => {
@@ -50,9 +50,9 @@ const MobileLayout: React.FC = () => {
   const handleModuleChange = (val: 'fab' | 'wh') => {
     setModule(val);
     if (val === 'fab') {
-      navigate('/exx/fab/queue');
+      navigate('/dexx/fab/queue');
     } else {
-      navigate('/exx/wh/inventory');
+      navigate('/dexx/wh/inventory');
     }
   };
 

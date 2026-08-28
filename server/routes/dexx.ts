@@ -7,7 +7,7 @@ import { inbound, outbound } from '../services/inventory-service.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('exx'));
+router.use(requireAuth, requireRole('dexx'));
 
 // ==================== FAB Routes (require FAB hat) ====================
 

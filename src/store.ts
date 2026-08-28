@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   canSeePrice: () => {
     const user = get().user;
-    return !!user && user.role === 'eu' && user.orgMode === 'du';
+    return !!user && (user.role === 'du' || user.role === 'dx') && user.orgMode === 'du';
   },
 
   fetchUser: () => {

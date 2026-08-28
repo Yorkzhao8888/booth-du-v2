@@ -121,10 +121,11 @@ export async function outbound(orgId: number, items: InventoryItem[], userId: nu
 }
 
 /**
- * Get inventory list. EX/EXX roles do not see cost_price.
+ * Get inventory list. dex/dexx roles do not see cost_price.
+ * du/dx roles see full data including cost_price.
  */
 export async function getInventory(orgId: number, role: string) {
-  const includeCost = role === 'eu';
+  const includeCost = role === 'du' || role === 'dx';
 
   const sql = `
     SELECT i.id, i.org_id, i.sku_id, i.qty_on_hand, i.updated_at,
