@@ -21,14 +21,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
-  if (res.status === 401) {
+  const data = await res.json();
+
+  // For non-login endpoints, 401 means token expired/invalid → clear session & redirect
+  if (res.status === 401 && !path.startsWith('/auth/login')) {
     localStorage.removeItem('booth_token');
     localStorage.removeItem('booth_user');
     window.location.href = '/login';
-    throw new Error('Unauthorized');
+    const err = new Error('Unauthorized') as ApiError;
+    err.code = 401;
+    err.error = 'Unauthorized';
+    throw err;
   }
-
-  const data = await res.json();
 
   if (!res.ok) {
     const err = new Error(data.error || 'Request failed') as ApiError;
@@ -37,7 +41,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw err;
   }
 
-  return data as T;
+  // Unwrap the standard envelope: { success: true, data: <business_body> }
+  return (data.data !== undefined ? data.data : data) as T;
 }
 
 export function apiGet<T = unknown>(path: string): Promise<T> {
