@@ -4,7 +4,7 @@ import { requireAuth, requireRole } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { dispatchFulfillment, cancelWorkOrder } from '../services/work-order-service.js';
 import { getInventory } from '../services/inventory-service.js';
-import { sanitizeFulfillment } from '../services/fulfillment-service.js';
+import { sanitizeFulfillment, stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
@@ -202,7 +202,7 @@ router.get('/work-orders', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: { items: dataRes.rows, total, page, pageSize },
+      data: { items: stripPriceFields(dataRes.rows), total, page, pageSize },
     });
   } catch (err) {
     next(err);
@@ -258,7 +258,7 @@ router.post('/work-orders', async (req, res, next) => {
       [orgId, productName, qty, JSON.stringify(bomsData)]
     );
 
-    res.json({ success: true, data: result.rows[0] });
+    res.json({ success: true, data: stripPriceFields(result.rows[0]) });
   } catch (err) {
     next(err);
   }

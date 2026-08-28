@@ -137,20 +137,39 @@ export async function cancelFromOrderEvent(event: {
 }
 
 /**
- * Sanitize fulfillment for dex/dexx roles: remove price and totalAmount from items.
+ * Recursively strip all price/money/amount fields from an object or array.
+ * Covers camelCase and snake_case variants.
+ */
+const PRICE_KEYS = new Set([
+  'price', 'salePrice', 'sale_price', 'costPrice', 'cost_price',
+  'unitPrice', 'unit_price', 'totalAmount', 'total_amount', 'amount',
+  'grossProfit', 'gross_profit', 'grossMargin', 'gross_margin',
+  'margin', 'revenue', 'totalCost', 'total_cost',
+]);
+
+export function stripPriceFields<T = any>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => stripPriceFields(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj as any)) {
+      if (PRICE_KEYS.has(key)) continue;
+      result[key] = stripPriceFields(value);
+    }
+    return result as T;
+  }
+  return obj;
+}
+
+/**
+ * Sanitize fulfillment for dex/dexx roles: recursively remove all price fields.
  * du/dx roles see full data including prices.
  */
 export function sanitizeFulfillment(fulfillment: any, user: JwtPayload) {
   if (user.role === 'du' || user.role === 'dx') {
     return fulfillment;
   }
-
-  const sanitized = { ...fulfillment };
-  if (Array.isArray(sanitized.items)) {
-    sanitized.items = sanitized.items.map((item: any) => {
-      const { price, totalAmount, ...rest } = item;
-      return rest;
-    });
-  }
-  return sanitized;
+  return stripPriceFields(fulfillment);
 }

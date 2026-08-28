@@ -4,6 +4,7 @@ import { requireAuth, requireRole, requireHat } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { acceptWorkOrder, startWorkOrder, completeWorkOrder } from '../services/work-order-service.js';
 import { inbound, outbound } from '../services/inventory-service.js';
+import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get('/fab/queue', requireHat('FAB'), async (req, res, next) => {
       [orgId]
     );
 
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: stripPriceFields(result.rows) });
   } catch (err) {
     next(err);
   }
@@ -51,7 +52,7 @@ router.get('/fab/active', requireHat('FAB'), async (req, res, next) => {
       [orgId]
     );
 
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: stripPriceFields(result.rows) });
   } catch (err) {
     next(err);
   }
@@ -88,7 +89,7 @@ router.get('/fab/history', requireHat('FAB'), async (req, res, next) => {
 
     res.json({
       success: true,
-      data: { items: dataRes.rows, total, page, pageSize },
+      data: { items: stripPriceFields(dataRes.rows), total, page, pageSize },
     });
   } catch (err) {
     next(err);
