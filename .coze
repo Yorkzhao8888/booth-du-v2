@@ -1,0 +1,10 @@
+[project]
+requires = ["nodejs-24"]
+
+[dev]
+build = ["pnpm", "install"]
+run = ["sh", "-c", "DATABASE_URL='postgresql://postgres:S2JBIHy15ia0hhY96D@cp-bonny-shore-8cf560b3.pg2.aidap-global.cn-beijing.volces.com:5432/postgres?sslmode=require&channel_binding=require' JWT_SECRET='shop-mvp-secret-key-2024' BOOTH_EVENT_KEY='xbus-mvp-key-2024' NODE_ENV=production npx tsx server/index.ts"]
+
+[deploy]
+build = ["bash", "-c", "pnpm install && npx vite build && npx tsc -p tsconfig.server.json"]
+run = ["sh", "-c", "PORT=${DEPLOY_RUN_PORT:-5001} DATABASE_URL='postgresql://postgres:S2JBIHy15ia0hhY96D@cp-bonny-shore-8cf560b3.pg2.aidap-global.cn-beijing.volces.com:5432/postgres?sslmode=require&channel_binding=require' JWT_SECRET='shop-mvp-secret-key-2024' BOOTH_EVENT_KEY='xbus-mvp-key-2024' NODE_ENV=production node dist/server/index.js"]
