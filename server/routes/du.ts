@@ -7,13 +7,28 @@ import { checkAndBroadcastSlaAlerts } from '../sse.js';
 
 const router = Router();
 
-// 中间件：允许 du/dx/dm/dxx 访问 /du/* 端点
+// 中间件：允许 du/dx/dm/dxx/dexx 访问 /du/* 端点
 // - dm: 只读（GET 放行，POST/PUT/DELETE 403）
 // - dxx: 放行但返回时 stripCostFields（隐藏采购价/毛利）
-// - dex/dexx: 拒绝 403（零价隔离）
+// - dexx: 只读调拨列表（GET /transfers），其他接口 403
+// - dex: 拒绝 403（零价隔离）
 router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
+  
+  // DEXX 特殊处理：只能读调拨列表
+  if (user.role === 'dexx') {
+    const isTransferRead = req.path === '/transfers' && req.method === 'GET';
+    if (!isTransferRead) {
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
+    }
+    // dexx 可以读调拨，strip cost fields
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      return originalJson(stripCostFields(body));
+    };
+    return next();
+  }
   
   const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
   if (!allowedRoles.includes(user.role)) {
@@ -23,6 +38,11 @@ router.use(requireAuth, (req, res, next) => {
   // DM 只读：写接口 403
   if (user.role === 'dm' && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
+  }
+  
+  // DXX 只读：写接口 403
+  if (user.role === 'dxx' && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DXX 店员为只读角色，无写权限' });
   }
   
   // DXX：拦截 res.json 以 stripCostFields
