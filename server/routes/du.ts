@@ -327,7 +327,7 @@ router.get('/inventory', async (req, res, next) => {
     const orgId = user.orgId;
     const warehouseType = req.query.warehouse_type as string;
 
-    let query = `SELECT i.id, i.org_id, i.sku_id, i.qty_on_hand, i.warehouse_type, i.location, i.updated_at,
+    let query = `SELECT i.id, i.org_id, i.sku_id, i.qty_on_hand, i.warehouse_type, i.updated_at,
             s.sku_code, s.name, s.unit, s.safety_stock, s.cost_price, s.is_active
      FROM booth_inventory i
      JOIN booth_skus s ON s.id = i.sku_id
