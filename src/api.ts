@@ -60,3 +60,11 @@ export function apiPut<T = unknown>(path: string, body?: unknown): Promise<T> {
 export function apiDelete<T = unknown>(path: string): Promise<T> {
   return request<T>(path, { method: 'DELETE' });
 }
+
+// Unified api object for convenience
+export const api = {
+  get: apiGet,
+  post: apiPost,
+  put: apiPut,
+  delete: apiDelete,
+};

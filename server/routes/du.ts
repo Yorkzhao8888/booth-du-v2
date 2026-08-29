@@ -3,6 +3,7 @@ import { pool } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { orgModes } from '../migrate.js';
+import { checkAndBroadcastSlaAlerts } from '../sse.js';
 
 const router = Router();
 
@@ -144,10 +145,26 @@ router.get('/orders', async (req, res, next) => {
       [...params, pageSize, offset]
     );
 
+    // Add SLA calculation
+    const now = Date.now();
+    const items = dataRes.rows.map((row: any) => {
+      if (['completed', 'cancelled'].includes(row.status)) {
+        return { ...row, slaStatus: 'normal', minutesToDue: null };
+      }
+      const deadline = new Date(row.created_at).getTime() + 24 * 60 * 60 * 1000;
+      const minutesToDue = Math.round((deadline - now) / 60000);
+      let slaStatus = 'normal';
+      if (minutesToDue <= 0) slaStatus = 'overdue';
+      else if (minutesToDue <= 120) slaStatus = 'due_soon';
+      return { ...row, slaStatus, minutesToDue };
+    });
+
+    checkAndBroadcastSlaAlerts(orgId, items);
+
     res.json({
       success: true,
       data: {
-        items: dataRes.rows,
+        items,
         total,
         page,
         pageSize,
@@ -244,10 +261,27 @@ router.get('/work-orders', async (req, res, next) => {
       [...params, pageSize, offset]
     );
 
+    // Add SLA calculation
+    const now = Date.now();
+    const items = dataRes.rows.map((row: any) => {
+      if (['completed', 'cancelled'].includes(row.status)) {
+        return { ...row, slaStatus: 'normal', minutesToDue: null };
+      }
+      // Use created_at + 24h as SLA deadline
+      const deadline = new Date(row.created_at).getTime() + 24 * 60 * 60 * 1000;
+      const minutesToDue = Math.round((deadline - now) / 60000);
+      let slaStatus = 'normal';
+      if (minutesToDue <= 0) slaStatus = 'overdue';
+      else if (minutesToDue <= 120) slaStatus = 'due_soon'; // 2 hours
+      return { ...row, slaStatus, minutesToDue };
+    });
+
+    checkAndBroadcastSlaAlerts(orgId, items);
+
     res.json({
       success: true,
       data: {
-        items: dataRes.rows,
+        items,
         total,
         page,
         pageSize,

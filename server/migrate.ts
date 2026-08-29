@@ -213,6 +213,10 @@ const ALTERS = `
 ALTER TABLE booth_skus ADD COLUMN IF NOT EXISTS safety_stock_num NUMERIC(12,3) DEFAULT 0;
 ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
 ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT false;
+ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS picked_at TIMESTAMPTZ;
+ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS signer TEXT;
+ALTER TABLE booth_svc_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
 `;
 
 // In-memory store for org modes

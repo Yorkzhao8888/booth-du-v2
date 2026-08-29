@@ -123,8 +123,35 @@ export async function startWorkOrder(id: number, userId: number) {
       throw { statusCode: 409, code: 'INSUFFICIENT_STOCK', error: 'Insufficient stock', shortages };
     }
 
-    // Deduct inventory and record transactions
+    // Deduct inventory using FEFO (First Expiry First Out) batch deduction
     for (const [skuId, req] of requiredMap) {
+      let remaining = req.qty;
+
+      // Get batches for this SKU ordered by expiry date (FEFO)
+      const batchRes = await client.query(
+        `SELECT * FROM booth_stock_batches
+         WHERE org_id = $1 AND sku_id = $2 AND qty > 0
+         ORDER BY expiry_date ASC NULLS LAST, created_at ASC
+         FOR UPDATE`,
+        [wo.org_id, skuId]
+      );
+
+      for (const batch of batchRes.rows) {
+        if (remaining <= 0) break;
+        const deduct = Math.min(remaining, batch.qty);
+        await client.query(
+          `UPDATE booth_stock_batches SET qty = qty - $1, updated_at = NOW() WHERE id = $2`,
+          [deduct, batch.id]
+        );
+        remaining -= deduct;
+      }
+
+      if (remaining > 0) {
+        // Should not happen since we checked inventory above, but safety check
+        throw { statusCode: 409, code: 'INSUFFICIENT_STOCK', error: `Batch shortage for SKU ${skuId}`, shortages: [{ skuId, skuName: req.skuName, required: req.qty, available: req.qty - remaining }] };
+      }
+
+      // Deduct from aggregate inventory
       await client.query(
         `UPDATE booth_inventory
          SET qty_on_hand = qty_on_hand - $1, updated_at = NOW()
@@ -133,7 +160,7 @@ export async function startWorkOrder(id: number, userId: number) {
       );
       await client.query(
         `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, ref_type, ref_id, operator_id)
-         VALUES ($1, $2, $3, 'consume', 'work_order', $4, $5)`,
+         VALUES ($1, $2, $3, 'wo_issue', 'work_order', $4, $5)`,
         [wo.org_id, skuId, -req.qty, id, userId]
       );
     }
@@ -201,11 +228,13 @@ export async function completeWorkOrder(id: number, userId: number) {
 
     // Write outbox event
     await client.query(
-      `INSERT INTO booth_outbox (event_type, payload)
-       VALUES ('fab.workorder.completed', $1)`,
-      [JSON.stringify({
+      `INSERT INTO booth_outbox (org_id, event_type, payload)
+       VALUES ($1, 'fab.workorder.completed', $2)`,
+      [wo.org_id, JSON.stringify({
         workOrderId: id,
-        shopOrderId,
+        fulfillmentId: wo.fulfillment_id,
+        orgId: wo.org_id,
+        completedQty: wo.qty,
         completedAt: new Date().toISOString(),
       })]
     );

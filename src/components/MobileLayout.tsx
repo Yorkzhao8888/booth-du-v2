@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Tabs, Segmented, Space, Button } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -9,14 +9,23 @@ import {
   LoginOutlined,
   UnorderedListOutlined,
   LogoutOutlined,
+  ToolOutlined,
+  CheckSquareOutlined,
+  AuditOutlined,
+  CarOutlined,
+  CustomerServiceOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
 const { Header, Content } = Layout;
 
+type ModuleType = 'fab' | 'wh' | 'dl' | 'svc' | 'stocktake';
+
 const fabTabs = [
   { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
   { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
+  { key: '/dexx/fab/operations', label: '报工', icon: <ToolOutlined /> },
+  { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
 ];
 
@@ -27,19 +36,57 @@ const whTabs = [
   { key: '/dexx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
 ];
 
+const dlTabs = [
+  { key: '/dexx/dl', label: '配送任务', icon: <CarOutlined /> },
+];
+
+const svcTabs = [
+  { key: '/dexx/svc', label: '服务任务', icon: <CustomerServiceOutlined /> },
+];
+
+const stocktakeTabs = [
+  { key: '/dexx/stocktake', label: '盘点', icon: <AuditOutlined /> },
+];
+
 const MobileLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, hasHat, logout } = useAuthStore();
-  const [module, setModule] = useState<'fab' | 'wh'>(() =>
-    location.pathname.includes('/wh/') ? 'wh' : 'fab'
-  );
+
+  const getInitialModule = (): ModuleType => {
+    const p = location.pathname;
+    if (p.includes('/wh/')) return 'wh';
+    if (p.includes('/dl')) return 'dl';
+    if (p.includes('/svc')) return 'svc';
+    if (p.includes('/stocktake')) return 'stocktake';
+    return 'fab';
+  };
+
+  const [module, setModule] = useState<ModuleType>(getInitialModule);
 
   const showFab = hasHat('FAB');
   const showWh = hasHat('WH');
-  const showSwitch = showFab && showWh;
+  const showDl = hasHat('DL');
+  const showSvc = hasHat('SVC');
 
-  const currentTabs = module === 'fab' ? fabTabs : whTabs;
+  const segmentedOptions = [
+    showFab ? { label: '生产', value: 'fab' as ModuleType } : null,
+    showWh ? { label: '仓储', value: 'wh' as ModuleType } : null,
+    showDl ? { label: '配送', value: 'dl' as ModuleType } : null,
+    showSvc ? { label: '服务', value: 'svc' as ModuleType } : null,
+  ].filter(Boolean) as { label: string; value: ModuleType }[];
+
+  const showSwitch = segmentedOptions.length > 1;
+
+  const tabsMap: Record<ModuleType, typeof fabTabs> = {
+    fab: fabTabs,
+    wh: whTabs,
+    dl: dlTabs,
+    svc: svcTabs,
+    stocktake: stocktakeTabs,
+  };
+
+  const currentTabs = module === 'stocktake' ? stocktakeTabs : (tabsMap[module] || fabTabs);
   const activeKey = currentTabs.find((t) => location.pathname === t.key)?.key || currentTabs[0].key;
 
   const handleLogout = () => {
@@ -47,13 +94,17 @@ const MobileLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const handleModuleChange = (val: 'fab' | 'wh') => {
+  const moduleDefaultPath: Record<ModuleType, string> = {
+    fab: '/dexx/fab/queue',
+    wh: '/dexx/wh/inventory',
+    dl: '/dexx/dl',
+    svc: '/dexx/svc',
+    stocktake: '/dexx/stocktake',
+  };
+
+  const handleModuleChange = (val: ModuleType) => {
     setModule(val);
-    if (val === 'fab') {
-      navigate('/dexx/fab/queue');
-    } else {
-      navigate('/dexx/wh/inventory');
-    }
+    navigate(moduleDefaultPath[val]);
   };
 
   return (
@@ -76,11 +127,8 @@ const MobileLayout: React.FC = () => {
             <Segmented
               size="small"
               value={module}
-              onChange={(v) => handleModuleChange(v as 'fab' | 'wh')}
-              options={[
-                { label: '生产', value: 'fab' },
-                { label: '仓储', value: 'wh' },
-              ]}
+              onChange={(v) => handleModuleChange(v as ModuleType)}
+              options={segmentedOptions}
             />
           )}
           <Button type="text" size="small" icon={<LogoutOutlined />} onClick={handleLogout} />

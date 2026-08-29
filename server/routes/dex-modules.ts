@@ -220,4 +220,35 @@ router.get('/inventory/alerts', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ====== Users list (for dispatch assignment) ======
+router.get('/users', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const r = await pool.query(
+      `SELECT id, name, phone, hats, role FROM booth_users WHERE org_id = $1 AND role = 'dexx' AND is_active = true ORDER BY name`,
+      [user.orgId]
+    );
+    res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
+  } catch (err) { next(err); }
+});
+
+// ====== Restock request ======
+router.post('/restock/request', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'items required', code: 'INVALID_PARAMS' });
+    }
+    // Write to outbox
+    for (const item of items) {
+      await pool.query(
+        `INSERT INTO booth_outbox (org_id, event_type, payload) VALUES ($1, 'restock.requested', $2)`,
+        [user.orgId, JSON.stringify({ skuId: item.skuId, skuName: item.skuName || '', qty: item.qty, orgId: user.orgId })]
+      );
+    }
+    res.json({ success: true, data: { count: items.length } });
+  } catch (err) { next(err); }
+});
+
 export default router;

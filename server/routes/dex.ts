@@ -5,6 +5,7 @@ import type { JwtPayload } from '../auth.js';
 import { dispatchFulfillment, cancelWorkOrder } from '../services/work-order-service.js';
 import { getInventory } from '../services/inventory-service.js';
 import { sanitizeFulfillment, stripPriceFields } from '../services/fulfillment-service.js';
+import { checkAndBroadcastSlaAlerts } from '../sse.js';
 
 const router = Router();
 
@@ -94,7 +95,21 @@ router.get('/fulfillments', async (req, res, next) => {
       [...params, pageSize, offset]
     );
 
-    const items = dataRes.rows.map((f: any) => sanitizeFulfillment(f, user));
+    const items = dataRes.rows.map((f: any) => {
+      const sanitized = sanitizeFulfillment(f, user);
+      if (['completed', 'cancelled'].includes(f.status)) {
+        return { ...sanitized, slaStatus: 'normal', minutesToDue: null };
+      }
+      const now = Date.now();
+      const deadline = new Date(f.created_at).getTime() + 24 * 60 * 60 * 1000;
+      const minutesToDue = Math.round((deadline - now) / 60000);
+      let slaStatus = 'normal';
+      if (minutesToDue <= 0) slaStatus = 'overdue';
+      else if (minutesToDue <= 120) slaStatus = 'due_soon';
+      return { ...sanitized, slaStatus, minutesToDue };
+    });
+
+    checkAndBroadcastSlaAlerts(orgId, items);
 
     res.json({
       success: true,
@@ -200,9 +215,25 @@ router.get('/work-orders', async (req, res, next) => {
       [...params, pageSize, offset]
     );
 
+    // Add SLA calculation
+    const now = Date.now();
+    const slaItems = dataRes.rows.map((row: any) => {
+      if (['completed', 'cancelled'].includes(row.status)) {
+        return { ...row, slaStatus: 'normal', minutesToDue: null };
+      }
+      const deadline = new Date(row.created_at).getTime() + 24 * 60 * 60 * 1000;
+      const minutesToDue = Math.round((deadline - now) / 60000);
+      let slaStatus = 'normal';
+      if (minutesToDue <= 0) slaStatus = 'overdue';
+      else if (minutesToDue <= 120) slaStatus = 'due_soon';
+      return { ...row, slaStatus, minutesToDue };
+    });
+
+    checkAndBroadcastSlaAlerts(orgId, slaItems);
+
     res.json({
       success: true,
-      data: { items: stripPriceFields(dataRes.rows), total, page, pageSize },
+      data: { items: stripPriceFields(slaItems), total, page, pageSize },
     });
   } catch (err) {
     next(err);

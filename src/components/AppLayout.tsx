@@ -11,6 +11,12 @@ import {
   UserOutlined,
   AppstoreOutlined,
   TagsOutlined,
+  DollarOutlined,
+  CarOutlined,
+  CustomerServiceOutlined,
+  DatabaseOutlined,
+  AuditOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -22,6 +28,13 @@ const duMenuItems = [
   { key: '/du/work-orders', icon: <ToolOutlined />, label: '工单' },
   { key: '/du/inventory', icon: <InboxOutlined />, label: '库存' },
   { key: '/du/boms', icon: <ProfileOutlined />, label: 'BOM' },
+  { type: 'divider' },
+  { key: '/du/purchase-orders', icon: <ShoppingCartOutlined />, label: '采购管理' },
+  { key: '/du/profit', icon: <DollarOutlined />, label: '毛利分析' },
+  { key: '/du/batches', icon: <DatabaseOutlined />, label: '批次库存' },
+  { type: 'divider' },
+  { key: '/du/dl', icon: <CarOutlined />, label: '配送任务' },
+  { key: '/du/svc', icon: <CustomerServiceOutlined />, label: '服务任务' },
 ];
 
 const dexMenuItems = [
@@ -30,6 +43,11 @@ const dexMenuItems = [
   { key: '/dex/boms', icon: <ProfileOutlined />, label: 'BOM管理' },
   { key: '/dex/skus', icon: <TagsOutlined />, label: 'SKU管理' },
   { key: '/dex/inventory', icon: <InboxOutlined />, label: '库存' },
+  { type: 'divider' },
+  { key: '/dex/stocktakes', icon: <AuditOutlined />, label: '盘点审批' },
+  { type: 'divider' },
+  { key: '/dex/dl-dispatch', icon: <SendOutlined />, label: '配送派单' },
+  { key: '/dex/svc-dispatch', icon: <CustomerServiceOutlined />, label: '服务派单' },
 ];
 
 const AppLayout: React.FC = () => {
@@ -40,15 +58,15 @@ const AppLayout: React.FC = () => {
   const menuItems = user?.role === 'dex' ? dexMenuItems : duMenuItems;
 
   const selectedKey = menuItems
-    .map((m) => m.key)
-    .filter((k) => {
+    .filter((m: any) => m.key)
+    .map((m: any) => m.key)
+    .filter((k: string) => {
       if (location.pathname === k) return true;
-      // For du/dx shared routes, match /du prefix
       if ((user?.role === 'du' || user?.role === 'dx') && k.startsWith('/du') && location.pathname.startsWith('/du')) return true;
       if (user?.role === 'dex' && k.startsWith('/dex') && location.pathname.startsWith('/dex')) return true;
       return false;
     })
-    .sort((a, b) => b.length - a.length)[0] || (user?.role === 'dex' ? '/dex' : '/du');
+    .sort((a: string, b: string) => b.length - a.length)[0] || (user?.role === 'dex' ? '/dex' : '/du');
 
   const handleLogout = () => {
     logout();
