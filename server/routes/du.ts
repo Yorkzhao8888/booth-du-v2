@@ -7,10 +7,10 @@ import { checkAndBroadcastSlaAlerts } from '../sse.js';
 
 const router = Router();
 
-// 中间件：允许 du/dx/dm/dxx/dexx 访问 /du/* 端点
+// 中间件：允许 du/dx/dm/dxx 访问 /du/* 端点
 // - dm: 只读（GET 放行，POST/PUT/DELETE 403）
 // - dxx: 放行但返回时 stripCostFields（隐藏采购价/毛利）
-// - dexx: 只读调拨列表（GET /transfers），其他接口 403
+// - dexx: 只允许 GET /dashboard，其他接口 403
 // - dex: 拒绝 403（零价隔离）
 router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
@@ -18,15 +18,16 @@ router.use(requireAuth, (req, res, next) => {
   
   console.log(`[du.ts guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}`);
   
-  // DEXX 特殊处理：只能 GET 访问（只读），写操作 403
+  // DEXX 特殊处理：只允许 GET /dashboard，其他一律 403
   if (user.role === 'dexx') {
-    console.log(`[du.ts guard] dexx branch: path=${req.path}, method=${req.method}`);
-    if (req.method !== 'GET') {
-      console.log(`[du.ts guard] dexx REJECT: not GET`);
+    const isDashboardRead = req.path === '/dashboard' && req.method === 'GET';
+    console.log(`[du.ts guard] dexx branch: path=${req.path}, method=${req.method}, isDashboardRead=${isDashboardRead}`);
+    if (!isDashboardRead) {
+      console.log(`[du.ts guard] dexx REJECT: not dashboard read`);
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
     }
-    // dexx 可以 GET 访问，strip cost fields
-    console.log(`[du.ts guard] dexx ALLOW: GET request`);
+    // dexx 可以 GET /dashboard，strip cost fields
+    console.log(`[du.ts guard] dexx ALLOW: dashboard read`);
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));
@@ -34,7 +35,7 @@ router.use(requireAuth, (req, res, next) => {
     return next();
   }
   
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx', 'dexx'];
+  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
   if (!allowedRoles.includes(user.role)) {
     console.log(`[du.ts guard] REJECT: role ${user.role} not in allowedRoles`);
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });

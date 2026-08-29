@@ -7,25 +7,17 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-// 中间件：允许 du/dx/dm/dxx/dexx 访问
+// 中间件：允许 du/dx/dm/dxx 访问（dexx 不允许访问采购单）
 router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
-  // DEXX 特殊处理：只能 GET 访问（只读），写操作 403
+  // DEXX 不允许访问采购单（价格敏感）
   if (user.role === 'dexx') {
-    if (req.method !== 'GET') {
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
-    }
-    // dexx 可以 GET 访问，strip cost fields
-    const originalJson = res.json.bind(res);
-    res.json = (body: unknown) => {
-      return originalJson(stripCostFields(body));
-    };
-    return next();
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员无权访问采购单' });
   }
   
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx', 'dexx'];
+  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
   if (!allowedRoles.includes(user.role)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
