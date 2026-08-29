@@ -16,25 +16,27 @@ duRouter.use(requireAuth, (req, res, next) => {
   // Debug log for troubleshooting
   console.log(`[du-modules guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}, userId=${user.userId || 'N/A'}`);
   
-  // 使用正则匹配 /transfers 路径（处理查询参数、尾部斜杠等情况）
-  const transferReadRegex = /^\/transfers(\/.*)?(\?.*)?$/;
-  const isTransferRead = transferReadRegex.test(req.path) && req.method === 'GET';
-  const isTransferWrite = transferReadRegex.test(req.path) && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
-  
   // 基础角色列表（可访问 du 路由）
   const baseRoles = ['du', 'dx', 'dm', 'dxx'];
   
-  // DEXX 特殊处理：只能读调拨列表
+  // DEXX 特殊处理：只能 GET 访问（只读），写操作 403
   if (user.role === 'dexx') {
-    console.log(`[du-modules guard] dexx branch: isTransferRead=${isTransferRead}`);
-    if (!isTransferRead) {
-      console.log(`[du-modules guard] dexx REJECT: not transfer read`);
+    console.log(`[du-modules guard] dexx branch: path=${req.path}, method=${req.method}`);
+    if (req.method !== 'GET') {
+      console.log(`[du-modules guard] dexx REJECT: not GET`);
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
     }
-    // dexx 可以读调拨，继续处理
-    console.log(`[du-modules guard] dexx ALLOW: transfer read`);
-  } else if (!baseRoles.includes(user.role)) {
-    // 其他角色（如 dex）不允许访问
+    // dexx 可以 GET 访问，strip cost fields
+    console.log(`[du-modules guard] dexx ALLOW: GET request`);
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      return originalJson(stripCostFields(body));
+    };
+    return next();
+  }
+  
+  // 其他角色检查
+  if (!baseRoles.includes(user.role)) {
     console.log(`[du-modules guard] REJECT: role ${user.role} not in baseRoles`);
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
@@ -44,13 +46,8 @@ duRouter.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DEXX 只读：调拨写接口 403
-  if (user.role === 'dexx' && isTransferWrite) {
-    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员为只读角色，无调拨写权限' });
-  }
-  
-  // DXX/DEXX：拦截 res.json 以 stripCostFields（价格隔离）
-  if (user.role === 'dxx' || user.role === 'dexx') {
+  // DXX：拦截 res.json 以 stripCostFields（价格隔离）
+  if (user.role === 'dxx') {
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));

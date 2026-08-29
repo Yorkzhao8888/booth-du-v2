@@ -18,18 +18,15 @@ router.use(requireAuth, (req, res, next) => {
   
   console.log(`[du.ts guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}`);
   
-  // DEXX 特殊处理：只能读调拨列表
+  // DEXX 特殊处理：只能 GET 访问（只读），写操作 403
   if (user.role === 'dexx') {
-    // 使用正则匹配 /transfers 路径（处理查询参数、尾部斜杠等情况）
-    const transferReadRegex = /^\/transfers(\/.*)?(\?.*)?$/;
-    const isTransferRead = transferReadRegex.test(req.path) && req.method === 'GET';
-    console.log(`[du.ts guard] dexx branch: path=${req.path}, isTransferRead=${isTransferRead}`);
-    if (!isTransferRead) {
-      console.log(`[du.ts guard] dexx REJECT: not transfer read`);
+    console.log(`[du.ts guard] dexx branch: path=${req.path}, method=${req.method}`);
+    if (req.method !== 'GET') {
+      console.log(`[du.ts guard] dexx REJECT: not GET`);
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
     }
-    // dexx 可以读调拨，strip cost fields
-    console.log(`[du.ts guard] dexx ALLOW: transfer read`);
+    // dexx 可以 GET 访问，strip cost fields
+    console.log(`[du.ts guard] dexx ALLOW: GET request`);
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));
