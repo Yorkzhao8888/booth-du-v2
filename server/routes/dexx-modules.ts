@@ -130,15 +130,18 @@ router.post('/fab/qc/execute', requireHat('FAB'), async (req, res, next) => {
 });
 
 // ====== FAB: Get my QC pending ======
+// Pending QC: work orders completed but no QC record, or QC result=fail (need re-inspection)
 router.get('/fab/qc/pending', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const r = await pool.query(
-      `SELECT qc.*, wo.product_name, wo.qty as wo_qty
-       FROM booth_quality_checks qc
-       JOIN booth_work_orders wo ON wo.id = qc.work_order_id
-       WHERE qc.org_id = $1 AND qc.status = 'pending'
-       ORDER BY qc.created_at`,
+      `SELECT wo.id as work_order_id, wo.fulfillment_id, wo.product_name, wo.qty as wo_qty,
+              wo.completed_at, qc.id as qc_id, qc.result as qc_result, qc.qty_pass, qc.qty_reject
+       FROM booth_work_orders wo
+       LEFT JOIN booth_quality_checks qc ON qc.work_order_id = wo.id
+       WHERE wo.org_id = $1 AND wo.status = 'completed'
+         AND (qc.id IS NULL OR qc.result = 'fail')
+       ORDER BY wo.completed_at`,
       [user.orgId]
     );
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
