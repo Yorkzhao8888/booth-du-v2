@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
+import { verifyOASToken, oasPayloadToBoothUser, isOASEnabled, type BoothUserFromOAS } from './services/oas-client.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'booth-dev-secret';
 
+// Legacy JWT payload (for backward compatibility during transition)
 export interface JwtPayload {
   userId: number;
   orgId: number;
@@ -10,6 +12,12 @@ export interface JwtPayload {
   role: string;
   hats: string[];
   orgMode: string;
+  // OAS fields (when using OAS tokens)
+  identityId?: string;
+  subRole?: string;
+  nhiFlag?: boolean;
+  msAccess?: string[];
+  source?: 'oas' | 'legacy';
 }
 
 export function signToken(user: {
@@ -27,8 +35,29 @@ export function signToken(user: {
     role: user.role,
     hats: user.hats || [],
     orgMode: user.orgMode,
+    source: 'legacy',
   };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+
+/**
+ * Sign a token from OAS user info
+ */
+export function signTokenFromOAS(user: BoothUserFromOAS): string {
+  const payload: JwtPayload = {
+    userId: 0, // OAS users don't have local IDs
+    orgId: user.orgId,
+    name: user.name,
+    role: user.role,
+    hats: user.hats,
+    orgMode: user.orgMode,
+    identityId: user.identityId,
+    subRole: user.subRole,
+    nhiFlag: user.nhiFlag,
+    msAccess: user.msAccess,
+    source: 'oas',
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' }); // Shorter expiry for OAS tokens
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
@@ -61,12 +90,42 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   if (!token) {
     return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'Missing or invalid token' });
   }
+
+  // Try OAS JWT verification first if OAS is enabled
+  if (isOASEnabled()) {
+    const oasPayload = verifyOASToken(token);
+    if (oasPayload) {
+      const boothUser = oasPayloadToBoothUser(oasPayload);
+      if (boothUser) {
+        // @ts-ignore
+        req.user = {
+          userId: 0,
+          orgId: boothUser.orgId,
+          name: boothUser.name,
+          role: boothUser.role,
+          hats: boothUser.hats,
+          orgMode: boothUser.orgMode,
+          identityId: boothUser.identityId,
+          subRole: boothUser.subRole,
+          nhiFlag: boothUser.nhiFlag,
+          msAccess: boothUser.msAccess,
+          source: 'oas',
+        } as JwtPayload;
+        return next();
+      }
+    }
+    // If OAS verification fails, fall through to legacy verification
+    // This allows for graceful migration
+  }
+
+  // Legacy JWT verification
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     // @ts-ignore
     req.user = decoded;
     next();
   } catch {
+    // Fail-closed: if both OAS and legacy verification fail, deny access
     next({ statusCode: 401, code: 'INVALID_TOKEN', error: 'Token verification failed' });
   }
 }
@@ -98,69 +157,58 @@ export function requireWriteAccess(req: Request, _res: Response, next: NextFunct
   // @ts-ignore
   const user = req.user as JwtPayload;
   if (user?.role === 'dm') {
-    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
+    const method = req.method?.toUpperCase();
+    if (method && method !== 'GET' && method !== 'HEAD') {
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM role is read-only' });
+    }
   }
   next();
 }
 
-// 价格可见性矩阵
-// DM/DU/DX: 全价可见
-// DXX: 仅售价可见（隐藏采购价/毛利）
-// DEX/DEXX: 零价（任何价格字段都不返回）
-export function canSeeFullPrice(role: string): boolean {
-  return ['dm', 'du', 'dx'].includes(role);
-}
+// Price isolation: strip cost/price fields for DXX role
+export function stripCostFields<T>(obj: T): T {
+  // @ts-ignore
+  const user = { role: 'unknown' } as JwtPayload; // Will be overridden by middleware context
+  
+  const COST_FIELDS = [
+    'costPrice', 'cost_price', 'unitCost', 'unit_cost', 'totalCost', 'total_cost',
+    'purchasePrice', 'purchase_price', 'margin', 'grossMargin', 'gross_margin',
+    'profit', 'grossProfit', 'gross_profit', 'netProfit', 'net_profit',
+    'materialCost', 'material_cost', 'laborCost', 'labor_cost',
+    'revenue', 'settleAmount', 'settle_amount', 'totalSettled', 'total_settled',
+    'pendingSettlement', 'pending_settlement',
+  ];
 
-export function canSeeSalePrice(role: string): boolean {
-  return ['dm', 'du', 'dx', 'dxx'].includes(role);
-}
-
-export function canSeeAnyPrice(role: string): boolean {
-  return ['dm', 'du', 'dx', 'dxx'].includes(role);
-}
-
-// 价格字段剔除函数（用于 DEX/DEXX 零价响应）
-export function stripPriceFields(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return obj;
-  if (obj instanceof Date) return obj;
-  if (Array.isArray(obj)) return obj.map(stripPriceFields);
-  if (typeof obj === 'object') {
-    const result: Record<string, unknown> = {};
-    const priceFields = new Set([
-      'price', 'cost_price', 'costPrice', 'sale_price', 'salePrice',
-      'unit_price', 'unitPrice', 'unit_cost', 'unitCost',
-      'total_amount', 'totalAmount', 'total_cost', 'totalCost',
-      'revenue', 'material_cost', 'materialCost', 'gross_profit', 'grossProfit',
-      'margin', 'grossMargin', 'profit',
-    ]);
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      if (priceFields.has(key)) continue;
-      result[key] = stripPriceFields(value);
+  function strip(obj: unknown): unknown {
+    if (Array.isArray(obj)) {
+      return obj.map(strip);
     }
-    return result;
+    if (obj && typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+        if (!COST_FIELDS.includes(key)) {
+          result[key] = strip(value);
+        }
+      }
+      return result;
+    }
+    return obj;
   }
-  return obj;
+
+  return strip(obj) as T;
 }
 
-// DXX 店员：隐藏采购价/毛利字段（仅保留售价）
-export function stripCostFields(obj: unknown): unknown {
-  if (obj === null || obj === undefined) return obj;
-  if (obj instanceof Date) return obj;
-  if (Array.isArray(obj)) return obj.map(stripCostFields);
-  if (typeof obj === 'object') {
-    const result: Record<string, unknown> = {};
-    const costFields = new Set([
-      'cost_price', 'costPrice', 'unit_cost', 'unitCost',
-      'total_cost', 'totalCost', 'material_cost', 'materialCost',
-      'gross_profit', 'grossProfit', 'margin', 'grossMargin', 'profit',
-      'todayGrossProfit', 'todayProfit', 'todayCost', 'todayCostPrice',
-      'today_profit', 'today_cost', 'today_cost_price',
-    ]);
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      if (costFields.has(key)) continue;
-      result[key] = stripCostFields(value);
-    }
-    return result;
+// Middleware to strip cost fields for DXX role
+export function stripCostFieldsForDXX(req: Request, res: Response, next: NextFunction) {
+  // @ts-ignore
+  const user = req.user as JwtPayload;
+  
+  if (user?.role === 'dxx') {
+    const originalJson = res.json.bind(res);
+    res.json = function (body: unknown) {
+      return originalJson(stripCostFields(body as Record<string, unknown>));
+    };
   }
-  return obj;
+  
+  next();
 }
