@@ -262,4 +262,235 @@ duRouter.post('/users/:id/reset-password', requireRole('dm', 'du'), async (req, 
   } catch (err) { next(err); }
 });
 
+// ====== 库存调拨 ======
+// 获取调拨单列表
+duRouter.get('/transfers', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { status, page = 1, pageSize = 20 } = req.query;
+
+    let where = 'WHERE t.org_id = $1';
+    const params: any[] = [user.orgId];
+    let paramIdx = 2;
+
+    if (status && status !== 'all') {
+      where += ` AND t.status = $${paramIdx}`;
+      params.push(status);
+      paramIdx++;
+    }
+
+    const offset = (Number(page) - 1) * Number(pageSize);
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM booth_transfer_orders t ${where}`, params);
+    const total = parseInt(countRes.rows[0].count);
+
+    const result = await pool.query(
+      `SELECT t.*, u.name as creator_name
+       FROM booth_transfer_orders t
+       LEFT JOIN booth_users u ON t.created_by = u.id
+       ${where}
+       ORDER BY t.created_at DESC
+       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, Number(pageSize), offset]
+    );
+
+    // Get items for each transfer
+    const transfers = await Promise.all(
+      result.rows.map(async (t) => {
+        const itemsRes = await pool.query(
+          `SELECT * FROM booth_transfer_items WHERE transfer_id = $1`,
+          [t.id]
+        );
+        return { ...t, items: itemsRes.rows };
+      })
+    );
+
+    res.json({ success: true, data: { items: transfers, total, page: Number(page), pageSize: Number(pageSize) } });
+  } catch (err) { next(err); }
+});
+
+// 创建调拨单
+duRouter.post('/transfers', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { fromWarehouseType, toWarehouseType, items, remark } = req.body;
+
+    if (!fromWarehouseType || !toWarehouseType || !items?.length) {
+      return res.status(400).json({ success: false, error: '缺少必要参数', code: 'MISSING_PARAMS' });
+    }
+
+    if (fromWarehouseType === toWarehouseType) {
+      return res.status(400).json({ success: false, error: '源仓库和目标仓库不能相同', code: 'SAME_WAREHOUSE' });
+    }
+
+    await client.query('BEGIN');
+
+    // Generate transfer number
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const seqRes = await client.query(
+      `SELECT COUNT(*) FROM booth_transfer_orders WHERE transfer_no LIKE $1`,
+      [`TR${today}%`]
+    );
+    const seq = parseInt(seqRes.rows[0].count) + 1;
+    const transferNo = `TR${today}${String(seq).padStart(4, '0')}`;
+
+    const transferRes = await client.query(
+      `INSERT INTO booth_transfer_orders (org_id, transfer_no, from_warehouse_type, to_warehouse_type, remark, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [user.orgId, transferNo, fromWarehouseType, toWarehouseType, remark, user.userId]
+    );
+
+    const transferId = transferRes.rows[0].id;
+
+    // Insert items
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO booth_transfer_items (transfer_id, sku_id, sku_name, qty, batch_id, remark)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [transferId, item.skuId, item.skuName, item.qty, item.batchId, item.remark]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: { id: transferId, transfer_no: transferNo } });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// 审批调拨单
+duRouter.post('/transfers/:id/approve', requireRole('dm', 'du', 'dx'), async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { action } = req.body; // approve / reject
+
+    await client.query('BEGIN');
+
+    const transferRes = await client.query(
+      `SELECT * FROM booth_transfer_orders WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+      [id, user.orgId]
+    );
+
+    if (!transferRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: '调拨单不存在', code: 'NOT_FOUND' });
+    }
+
+    const transfer = transferRes.rows[0];
+    if (transfer.status !== 'draft') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: '只能审批草稿状态的调拨单', code: 'INVALID_STATE' });
+    }
+
+    const newStatus = action === 'reject' ? 'rejected' : 'approved';
+    await client.query(
+      `UPDATE booth_transfer_orders SET status = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [newStatus, user.userId, id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: { status: newStatus } });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// 完成调拨（执行库存转移）
+duRouter.post('/transfers/:id/complete', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+
+    await client.query('BEGIN');
+
+    const transferRes = await client.query(
+      `SELECT * FROM booth_transfer_orders WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+      [id, user.orgId]
+    );
+
+    if (!transferRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: '调拨单不存在', code: 'NOT_FOUND' });
+    }
+
+    const transfer = transferRes.rows[0];
+    if (transfer.status !== 'approved') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: '只能完成已审批的调拨单', code: 'INVALID_STATE' });
+    }
+
+    // Get items
+    const itemsRes = await client.query(
+      `SELECT * FROM booth_transfer_items WHERE transfer_id = $1`,
+      [id]
+    );
+
+    // Execute inventory transfer for each item
+    for (const item of itemsRes.rows) {
+      // Decrease from source warehouse
+      await client.query(
+        `UPDATE booth_inventory 
+         SET qty_on_hand = qty_on_hand - $1, updated_at = NOW()
+         WHERE org_id = $2 AND sku_id = $3 AND warehouse_type = $4`,
+        [item.qty, user.orgId, item.sku_id, transfer.from_warehouse_type]
+      );
+
+      // Increase to target warehouse
+      const existing = await client.query(
+        `SELECT id FROM booth_inventory WHERE org_id = $1 AND sku_id = $2 AND warehouse_type = $3`,
+        [user.orgId, item.sku_id, transfer.to_warehouse_type]
+      );
+
+      if (existing.rows.length > 0) {
+        await client.query(
+          `UPDATE booth_inventory SET qty_on_hand = qty_on_hand + $1, updated_at = NOW() WHERE id = $2`,
+          [item.qty, existing.rows[0].id]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO booth_inventory (org_id, sku_id, warehouse_type, qty_on_hand, qty_reserved)
+           VALUES ($1, $2, $3, $4, 0)`,
+          [user.orgId, item.sku_id, transfer.to_warehouse_type, item.qty]
+        );
+      }
+
+      // Record transaction
+      await client.query(
+        `INSERT INTO booth_inventory_txn (org_id, sku_id, warehouse_type, txn_type, qty_delta, ref_type, ref_id, remark)
+         VALUES ($1, $2, $3, 'transfer_out', $4, 'transfer', $5, $6)`,
+        [user.orgId, item.sku_id, transfer.from_warehouse_type, -item.qty, id, `调拨出: ${transfer.transfer_no}`]
+      );
+      await client.query(
+        `INSERT INTO booth_inventory_txn (org_id, sku_id, warehouse_type, txn_type, qty_delta, ref_type, ref_id, remark)
+         VALUES ($1, $2, $3, 'transfer_in', $4, 'transfer', $5, $6)`,
+        [user.orgId, item.sku_id, transfer.to_warehouse_type, item.qty, id, `调拨入: ${transfer.transfer_no}`]
+      );
+    }
+
+    // Update transfer status
+    await client.query(
+      `UPDATE booth_transfer_orders SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: { status: 'completed' } });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 export default duRouter;

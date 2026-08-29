@@ -183,6 +183,145 @@ router.get('/fab/stages', requireAuth, async (req, res) => {
   });
 });
 
+// 产线看板 - 获取所有进行中的工单按产线分组
+router.get('/fab/dashboard', requireAuth, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const result = await pool.query(
+      `SELECT wo.*, p.name as product_name
+       FROM booth_work_orders wo
+       LEFT JOIN booth_products p ON wo.product_id = p.id
+       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'in_progress')
+       ORDER BY 
+         CASE wo.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+         wo.planned_start ASC NULLS LAST`,
+      [user.orgId]
+    );
+    res.json({ success: true, data: { orders: result.rows } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ====== 良品率追踪 ======
+// 记录良品率
+router.post('/fab/yield/record', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { workOrderId, productionStage, inputQty, goodQty, defectQty = 0, scrapQty = 0, defectReason } = req.body;
+
+    if (!workOrderId || !productionStage || !inputQty || goodQty === undefined) {
+      return res.status(400).json({ success: false, error: '缺少必要参数', code: 'MISSING_PARAMS' });
+    }
+
+    const totalOutput = goodQty + defectQty + scrapQty;
+    if (totalOutput > inputQty) {
+      return res.status(400).json({ success: false, error: '产出数量不能超过投入数量', code: 'INVALID_QTY' });
+    }
+
+    const yieldRate = inputQty > 0 ? ((goodQty / inputQty) * 100).toFixed(2) : 0;
+
+    const result = await pool.query(
+      `INSERT INTO booth_yield_records (org_id, work_order_id, production_stage, input_qty, good_qty, defect_qty, scrap_qty, yield_rate, defect_reason, operator_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [user.orgId, workOrderId, productionStage, inputQty, goodQty, defectQty, scrapQty, yieldRate, defectReason, user.userId]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 获取工单的良品率记录
+router.get('/fab/yield/:workOrderId', requireAuth, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { workOrderId } = req.params;
+
+    const result = await pool.query(
+      `SELECT yr.*, u.name as operator_name
+       FROM booth_yield_records yr
+       LEFT JOIN booth_users u ON yr.operator_id = u.id
+       WHERE yr.org_id = $1 AND yr.work_order_id = $2
+       ORDER BY yr.created_at ASC`,
+      [user.orgId, workOrderId]
+    );
+
+    res.json({ success: true, data: { records: result.rows } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 获取所有良品率记录
+router.get('/fab/yield/all', requireAuth, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+
+    const result = await pool.query(
+      `SELECT yr.*, u.name as operator_name
+       FROM booth_yield_records yr
+       LEFT JOIN booth_users u ON yr.operator_id = u.id
+       WHERE yr.org_id = $1
+       ORDER BY yr.created_at DESC
+       LIMIT 100`,
+      [user.orgId]
+    );
+
+    res.json({ success: true, data: { records: result.rows } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 获取良品率统计
+router.get('/fab/yield/stats', requireAuth, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { days = 7 } = req.query;
+
+    const result = await pool.query(
+      `SELECT 
+        production_stage,
+        COUNT(*) as record_count,
+        SUM(input_qty) as total_input,
+        SUM(good_qty) as total_good,
+        SUM(defect_qty) as total_defect,
+        SUM(scrap_qty) as total_scrap,
+        ROUND(AVG(yield_rate), 2) as avg_yield_rate
+       FROM booth_yield_records
+       WHERE org_id = $1 AND created_at >= NOW() - ($2::int || ' days')::INTERVAL
+       GROUP BY production_stage
+       ORDER BY MIN(created_at)`,
+      [user.orgId, days]
+    );
+
+    // Calculate overall stats
+    const overall = result.rows.reduce((acc, row) => ({
+      totalInput: acc.totalInput + Number(row.total_input),
+      totalGood: acc.totalGood + Number(row.total_good),
+      totalDefect: acc.totalDefect + Number(row.total_defect),
+      totalScrap: acc.totalScrap + Number(row.total_scrap),
+    }), { totalInput: 0, totalGood: 0, totalDefect: 0, totalScrap: 0 });
+
+    const overallYieldRate = overall.totalInput > 0 
+      ? ((overall.totalGood / overall.totalInput) * 100).toFixed(2) 
+      : 0;
+
+    res.json({ 
+      success: true, 
+      data: { 
+        byStage: result.rows,
+        overall: { ...overall, yieldRate: overallYieldRate }
+      } 
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ====== FAB: QC execute ======
 router.post('/fab/qc/execute', requireHat('FAB'), async (req, res, next) => {
   const client = await pool.connect();

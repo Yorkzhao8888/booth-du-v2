@@ -249,6 +249,50 @@ CREATE TABLE IF NOT EXISTS booth_supplier_settlements (
 -- 工单 D 补丁：FAB 产线阶段
 ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS production_stage TEXT DEFAULT 'preprocessing';
 -- production_stage 取值: preprocessing(前置工序) / production(制作) / packaging(包装) / sorting(分拣)
+
+-- 良品率追踪表
+CREATE TABLE IF NOT EXISTS booth_yield_records (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  work_order_id BIGINT NOT NULL,
+  production_stage TEXT NOT NULL,
+  input_qty INTEGER NOT NULL DEFAULT 0,
+  good_qty INTEGER NOT NULL DEFAULT 0,
+  defect_qty INTEGER NOT NULL DEFAULT 0,
+  scrap_qty INTEGER NOT NULL DEFAULT 0,
+  yield_rate NUMERIC(5,2) DEFAULT 0,
+  defect_reason TEXT,
+  operator_id BIGINT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 库存调拨单表
+CREATE TABLE IF NOT EXISTS booth_transfer_orders (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  transfer_no TEXT NOT NULL UNIQUE,
+  from_warehouse_type TEXT NOT NULL,
+  to_warehouse_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  remark TEXT,
+  created_by BIGINT,
+  approved_by BIGINT,
+  approved_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 库存调拨明细表
+CREATE TABLE IF NOT EXISTS booth_transfer_items (
+  id BIGSERIAL PRIMARY KEY,
+  transfer_id BIGINT NOT NULL REFERENCES booth_transfer_orders(id),
+  sku_id BIGINT NOT NULL,
+  sku_name TEXT,
+  qty INTEGER NOT NULL DEFAULT 0,
+  batch_id BIGINT,
+  remark TEXT
+);
 `;
 
 // In-memory store for org modes

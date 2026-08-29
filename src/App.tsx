@@ -22,6 +22,8 @@ import DuSuppliers from './pages/du/Suppliers';
 import DuExpiryControl from './pages/du/ExpiryControl';
 import DuInventoryAlerts from './pages/du/InventoryAlerts';
 import DuFulfillmentTrack from './pages/du/FulfillmentTrack';
+import DuInventoryTransfer from './pages/du/InventoryTransfer';
+import DuRealtimeDashboard from './pages/du/RealtimeDashboard';
 // DEX pages
 import DexDashboard from './pages/dex/Dashboard';
 import DexWorkOrders from './pages/dex/WorkOrders';
@@ -45,6 +47,8 @@ import DexxQcExecute from './pages/dexx/QcExecute';
 import DexxStocktakeExec from './pages/dexx/StocktakeExec';
 import DexxDlExec from './pages/dexx/DlExec';
 import DexxSvcExec from './pages/dexx/SvcExec';
+import DexxProductionDashboard from './pages/dexx/ProductionDashboard';
+import DexxYieldTracking from './pages/dexx/YieldTracking';
 // DM pages
 import DmDashboard from './pages/dm/Dashboard';
 // DXX pages
@@ -127,6 +131,8 @@ const App: React.FC = () => {
           <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
           <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
           <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
+          <Route path="inventory-transfer" element={<ErrorBoundary><DuInventoryTransfer /></ErrorBoundary>} />
+          <Route path="realtime-dashboard" element={<ErrorBoundary><DuRealtimeDashboard /></ErrorBoundary>} />
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
@@ -208,6 +214,8 @@ const App: React.FC = () => {
           <Route path="fab/active" element={<ErrorBoundary><DexxFabActive /></ErrorBoundary>} />
           <Route path="fab/history" element={<ErrorBoundary><DexxFabHistory /></ErrorBoundary>} />
           <Route path="fab/operations" element={<ErrorBoundary><DexxFabOperations /></ErrorBoundary>} />
+          <Route path="fab/dashboard" element={<ErrorBoundary><DexxProductionDashboard /></ErrorBoundary>} />
+          <Route path="fab/yield" element={<ErrorBoundary><DexxYieldTracking /></ErrorBoundary>} />
           <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
           <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />
           <Route path="wh/inbound" element={<ErrorBoundary><DexxWhInbound /></ErrorBoundary>} />
