@@ -142,7 +142,7 @@ export function stripPriceFields(obj: unknown): unknown {
   return obj;
 }
 
-// DXX 价格剔除：隐藏采购价/毛利，保留售价
+// DXX 店员：隐藏采购价/毛利字段（仅保留售价）
 export function stripCostFields(obj: unknown): unknown {
   if (obj === null || obj === undefined) return obj;
   if (obj instanceof Date) return obj;

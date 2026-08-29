@@ -1,12 +1,37 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { requireAuth, requireRole } from '../auth.js';
+import { requireAuth, requireRole, stripCostFields } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { recalcUnitCost, nextPoNo } from '../services/purchase-service.js';
 import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('du', 'dx'));
+
+// 中间件：允许 du/dx/dm/dxx 访问
+router.use(requireAuth, (req, res, next) => {
+  const user = (req as any).user as JwtPayload;
+  if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
+  
+  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
+  if (!allowedRoles.includes(user.role)) {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
+  }
+  
+  // DM 只读：写接口 403
+  if (user.role === 'dm' && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
+  }
+  
+  // DXX：拦截 res.json 以 stripCostFields
+  if (user.role === 'dxx') {
+    const originalJson = res.json.bind(res);
+    res.json = (body: unknown) => {
+      return originalJson(stripCostFields(body));
+    };
+  }
+  
+  next();
+});
 
 // GET /purchase-orders
 router.get('/purchase-orders', async (req, res, next) => {
