@@ -17,144 +17,223 @@ import {
   DatabaseOutlined,
   AuditOutlined,
   SendOutlined,
+  ShopOutlined,
+  ExperimentOutlined,
+  HomeOutlined,
+  TruckOutlined,
+  HeartOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
 const { Header, Sider, Content } = Layout;
 
-const duMenuItems = [
-  { key: '/du', icon: <DashboardOutlined />, label: '看板' },
-  { key: '/du/orders', icon: <ShoppingCartOutlined />, label: '订单' },
-  { key: '/du/work-orders', icon: <ToolOutlined />, label: '工单' },
-  { key: '/du/inventory', icon: <InboxOutlined />, label: '库存' },
-  { key: '/du/boms', icon: <ProfileOutlined />, label: 'BOM' },
-  { type: 'divider' },
-  { key: '/du/purchase-orders', icon: <ShoppingCartOutlined />, label: '采购管理' },
-  { key: '/du/profit', icon: <DollarOutlined />, label: '毛利分析' },
-  { key: '/du/batches', icon: <DatabaseOutlined />, label: '批次库存' },
-  { type: 'divider' },
-  { key: '/du/dl', icon: <CarOutlined />, label: '配送任务' },
-  { key: '/du/svc', icon: <CustomerServiceOutlined />, label: '服务任务' },
-  { type: 'divider' },
-  { key: '/du/employees', icon: <UserOutlined />, label: '员工管理' },
-  { key: '/du/org-chart', icon: <AppstoreOutlined />, label: '组织架构' },
-];
+// 五大供给功能域菜单结构
+// MKT 铺子管理 / FAB 制造铺 / WH 仓管铺 / DL 物流铺 / SVC 服务铺
 
-const dmMenuItems = [
-  { key: '/dm', icon: <DashboardOutlined />, label: '运营总览' },
-  { type: 'divider' },
-  { key: '/dm/orders', icon: <ShoppingCartOutlined />, label: '订单（只读）' },
-  { key: '/dm/work-orders', icon: <ToolOutlined />, label: '工单（只读）' },
-  { key: '/dm/inventory', icon: <InboxOutlined />, label: '库存（只读）' },
-  { key: '/dm/boms', icon: <ProfileOutlined />, label: 'BOM（只读）' },
-  { key: '/dm/purchase-orders', icon: <ShoppingCartOutlined />, label: '采购（只读）' },
-  { key: '/dm/profit', icon: <DollarOutlined />, label: '毛利（只读）' },
-  { key: '/dm/batches', icon: <DatabaseOutlined />, label: '批次（只读）' },
-  { key: '/dm/dl', icon: <CarOutlined />, label: '配送（只读）' },
-  { key: '/dm/svc', icon: <CustomerServiceOutlined />, label: '服务（只读）' },
-  { type: 'divider' },
-  { key: '/dm/employees', icon: <UserOutlined />, label: '员工管理' },
-  { key: '/dm/org-chart', icon: <AppstoreOutlined />, label: '组织架构' },
-];
+const getMenuItemsByRole = (role: string) => {
+  const canSeePrice = ['du', 'dx', 'dm'].includes(role);
+  const canWrite = ['du', 'dx', 'dxx', 'dex', 'dexx'].includes(role);
+  const isReadOnly = role === 'dm';
 
-const dxxMenuItems = [
-  { key: '/dxx', icon: <DashboardOutlined />, label: '工作台' },
-  { type: 'divider' },
-  { key: '/dxx/dl', icon: <CarOutlined />, label: '配送执行' },
-  { key: '/dxx/svc', icon: <CustomerServiceOutlined />, label: '服务执行' },
-  { type: 'divider' },
-  { key: '/dxx/org-chart', icon: <AppstoreOutlined />, label: '组织架构' },
-];
+  // MKT 铺子管理
+  const mktItems = {
+    key: 'mkt',
+    icon: <ShopOutlined />,
+    label: 'MKT 铺子管理',
+    children: [
+      { key: '/du', label: '经营看板' },
+      { key: '/du/orders', label: '订单管理' },
+      { key: '/du/purchase-orders', label: '采购管理' },
+      { key: '/du/profit', label: '毛利核算' },
+      { key: '/du/boms', label: '商品/BOM' },
+      ...(role === 'dex' ? [{ key: '/dex/skus', label: 'SKU管理' }] : []),
+      ...(role === 'dex' ? [{ key: '/dex/boms', label: 'BOM管理' }] : []),
+      { key: '/du/org-chart', label: '组织架构' },
+      ...(['du', 'dm'].includes(role) ? [{ key: '/du/employees', label: '员工管理' }] : []),
+    ].map(item => ({
+      ...item,
+      label: isReadOnly && !item.label.includes('只读') && item.key !== '/du/org-chart' && item.key !== '/du/employees'
+        ? `${item.label}（只读）`
+        : item.label,
+    })),
+  };
 
-const dexMenuItems = [
-  { key: '/dex', icon: <DashboardOutlined />, label: '工作台' },
-  { key: '/dex/work-orders', icon: <ToolOutlined />, label: '工单' },
-  { key: '/dex/boms', icon: <ProfileOutlined />, label: 'BOM管理' },
-  { key: '/dex/skus', icon: <TagsOutlined />, label: 'SKU管理' },
-  { key: '/dex/inventory', icon: <InboxOutlined />, label: '库存' },
-  { type: 'divider' },
-  { key: '/dex/stocktakes', icon: <AuditOutlined />, label: '盘点审批' },
-  { type: 'divider' },
-  { key: '/dex/dl-dispatch', icon: <SendOutlined />, label: '配送派单' },
-  { key: '/dex/svc-dispatch', icon: <CustomerServiceOutlined />, label: '服务派单' },
-];
+  // FAB 制造铺
+  const fabItems = {
+    key: 'fab',
+    icon: <ExperimentOutlined />,
+    label: 'FAB 制造铺',
+    children: [
+      ...(role === 'dex' ? [
+        { key: '/dex/work-orders', label: '工单调度' },
+      ] : []),
+      ...(role === 'dexx' ? [
+        { key: '/dexx/fab-queue', label: '待接单' },
+        { key: '/dexx/fab-active', label: '制作中' },
+        { key: '/dexx/fab-operations', label: '工序报工' },
+        { key: '/dexx/qc', label: '质检执行' },
+      ] : []),
+      ...(['du', 'dx', 'dm'].includes(role) ? [
+        { key: '/du/work-orders', label: '工单管理' },
+      ] : []),
+    ],
+  };
+
+  // WH 仓管铺
+  const whItems = {
+    key: 'wh',
+    icon: <HomeOutlined />,
+    label: 'WH 仓管铺',
+    children: [
+      { key: '/du/batches', label: '批次库存' },
+      { key: '/du/inventory', label: '库存总览' },
+      { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
+      ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }] : []),
+      ...(role === 'dexx' ? [
+        { key: '/dexx/stocktake', label: '盘点执行' },
+        { key: '/dexx/wh/inbound', label: '入库' },
+        { key: '/dexx/wh/outbound', label: '出库' },
+      ] : []),
+    ],
+  };
+
+  // DL 物流铺
+  const dlItems = {
+    key: 'dl',
+    icon: <TruckOutlined />,
+    label: 'DL 物流铺',
+    children: [
+      ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/dl', label: '配送任务' }] : []),
+      ...(role === 'dex' ? [{ key: '/dex/dl-dispatch', label: '配送派单' }] : []),
+      ...(role === 'dexx' ? [{ key: '/dexx/dl', label: '配送执行' }] : []),
+    ],
+  };
+
+  // SVC 服务铺
+  const svcItems = {
+    key: 'svc',
+    icon: <HeartOutlined />,
+    label: 'SVC 服务铺',
+    children: [
+      ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/svc', label: '服务任务' }] : []),
+      ...(role === 'dex' ? [{ key: '/dex/svc-dispatch', label: '服务派单' }] : []),
+      ...(role === 'dexx' ? [{ key: '/dexx/svc', label: '服务执行' }] : []),
+    ],
+  };
+
+  // 按角色过滤菜单
+  const items = [];
+
+  // DM/DU/DX 可以看到所有五个域
+  if (['dm', 'du', 'dx'].includes(role)) {
+    items.push(mktItems, fabItems, whItems, dlItems, svcItems);
+  }
+  // DXX 一线经营：MKT（只读）+ WH + DL + SVC
+  else if (role === 'dxx') {
+    items.push(
+      { ...mktItems, label: 'MKT 铺子（只读）' },
+      { ...whItems, children: whItems.children.filter(i => !['/du/wh/warehouse-dashboard'].includes(i.key)) },
+      dlItems,
+      svcItems,
+    );
+  }
+  // DEX 铺长：MKT + WH（盘点）+ DL + SVC
+  else if (role === 'dex') {
+    items.push(mktItems, fabItems, whItems, dlItems, svcItems);
+  }
+  // DEXX 铺员：FAB + WH + DL + SVC（四帽）
+  else if (role === 'dexx') {
+    items.push(fabItems, whItems, dlItems, svcItems);
+  }
+
+  return items.filter(item => item.children && item.children.length > 0);
+};
 
 const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const getMenuItems = () => {
-    switch (user?.role) {
-      case 'dm': return dmMenuItems;
-      case 'dxx': return dxxMenuItems;
-      case 'dex': return dexMenuItems;
-      default: return duMenuItems;
+  const menuItems = getMenuItemsByRole(user?.role || 'du');
+
+  // 找到当前选中的菜单项
+  const findSelectedKey = (items: any[]): string => {
+    for (const item of items) {
+      if (item.key && location.pathname === item.key) return item.key;
+      if (item.children) {
+        const found = findSelectedKey(item.children);
+        if (found) return found;
+      }
     }
+    return '';
   };
 
-  const menuItems = getMenuItems();
+  const selectedKey = findSelectedKey(menuItems);
 
-  const selectedKey = menuItems
-    .filter((m: any) => m.key)
-    .map((m: any) => m.key)
-    .filter((k: string) => {
-      if (location.pathname === k) return true;
-      if ((user?.role === 'du' || user?.role === 'dx') && k.startsWith('/du') && location.pathname.startsWith('/du')) return true;
-      if (user?.role === 'dm' && k.startsWith('/dm') && location.pathname.startsWith('/dm')) return true;
-      if (user?.role === 'dxx' && k.startsWith('/dxx') && location.pathname.startsWith('/dxx')) return true;
-      if (user?.role === 'dex' && k.startsWith('/dex') && location.pathname.startsWith('/dex')) return true;
-      return false;
-    })
-    .sort((a: string, b: string) => b.length - a.length)[0] || (user?.role === 'dex' ? '/dex' : user?.role === 'dm' ? '/dm' : user?.role === 'dxx' ? '/dxx' : '/du');
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  // 找到展开的子菜单
+  const findOpenKeys = (items: any[], targetPath: string): string[] => {
+    const openKeys: string[] = [];
+    for (const item of items) {
+      if (item.children) {
+        const hasMatch = item.children.some((child: any) =>
+          child.key === targetPath || location.pathname.startsWith(child.key)
+        );
+        if (hasMatch && item.key) {
+          openKeys.push(item.key);
+        }
+      }
+    }
+    return openKeys;
   };
 
-  const roleLabel: Record<string, string> = { dm: '运营', du: '店主', dx: '店长', dxx: '店员', dex: '交付长', dexx: '铺员' };
-  const displayRole = roleLabel[user?.role || ''] || user?.role;
+  const openKeys = findOpenKeys(menuItems, location.pathname);
+
+  const userMenu = {
+    items: [
+      { key: 'org', icon: <AppstoreOutlined />, label: '组织架构', onClick: () => navigate(`/${user?.role}/org-chart`) },
+      { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout },
+    ],
+  };
+
+  const roleLabels: Record<string, string> = {
+    dm: 'DM 运营',
+    du: 'DU 店主',
+    dx: 'DX 店长',
+    dxx: 'DXX 店员',
+    dex: 'DEX 铺长',
+    dexx: 'DEXX 铺员',
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" width={220} breakpoint="lg" collapsedWidth={0}>
-        <div style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, fontWeight: 700 }}>
-          <AppstoreOutlined style={{ marginRight: 8 }} />
-          Booth
+      <Sider width={220} theme="light">
+        <div style={{ padding: '16px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', borderBottom: '1px solid #f0f0f0' }}>
+          Booth-DU v2
         </div>
         <Menu
-          theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
+          defaultOpenKeys={openKeys}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={(e) => navigate(e.key)}
+          style={{ borderRight: 0 }}
         />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderBottom: '1px solid #f0f0f0' }}>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: 'logout',
-                  icon: <LogoutOutlined />,
-                  label: '退出登录',
-                  onClick: handleLogout,
-                },
-              ],
-            }}
-          >
-            <Button type="text">
-              <Space>
-                <UserOutlined />
-                {user?.name}
-                <span style={{ color: '#999', fontSize: 12 }}>({displayRole})</span>
-              </Space>
-            </Button>
-          </Dropdown>
+        <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f0f0f0' }}>
+          <div style={{ fontSize: '14px', color: '#666' }}>
+            供给履约系统
+          </div>
+          <Space>
+            <span style={{ color: '#999' }}>{roleLabels[user?.role || 'du']}</span>
+            <Dropdown menu={userMenu}>
+              <Button type="text" icon={<UserOutlined />}>
+                {user?.name || '用户'}
+              </Button>
+            </Dropdown>
+          </Space>
         </Header>
-        <Content style={{ margin: 24, padding: 24, background: '#fff', borderRadius: 8, minHeight: 280 }}>
+        <Content style={{ margin: '24px', padding: '24px', background: '#fff', borderRadius: '8px', minHeight: 'auto' }}>
           <Outlet />
         </Content>
       </Layout>

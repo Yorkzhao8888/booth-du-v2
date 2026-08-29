@@ -47,6 +47,7 @@ import DxxDashboard from './pages/dxx/Dashboard';
 // Common pages
 import OrgChart from './pages/common/OrgChart';
 import EmployeeManagement from './pages/du/EmployeeManagement';
+import WarehouseDashboard from './pages/du/WarehouseDashboard';
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuthStore();
@@ -116,6 +117,7 @@ const App: React.FC = () => {
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
+          <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
         </Route>

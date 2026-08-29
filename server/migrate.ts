@@ -217,6 +217,8 @@ ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
 ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS picked_at TIMESTAMPTZ;
 ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS signer TEXT;
 ALTER TABLE booth_svc_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE booth_inventory ADD COLUMN IF NOT EXISTS warehouse_type TEXT DEFAULT 'material';
+ALTER TABLE booth_stock_batches ADD COLUMN IF NOT EXISTS warehouse_type TEXT DEFAULT 'material';
 `;
 
 // In-memory store for org modes

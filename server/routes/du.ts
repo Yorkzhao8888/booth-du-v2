@@ -325,18 +325,24 @@ router.get('/inventory', async (req, res, next) => {
     // @ts-ignore
     const user = req.user as JwtPayload;
     const orgId = user.orgId;
+    const warehouseType = req.query.warehouse_type as string;
 
-    const result = await pool.query(
-      `SELECT i.id, i.org_id, i.sku_id, i.qty_on_hand, i.updated_at,
-              s.sku_code, s.name, s.unit, s.safety_stock, s.cost_price, s.is_active
-       FROM booth_inventory i
-       JOIN booth_skus s ON s.id = i.sku_id
-       WHERE i.org_id = $1 AND s.is_active = TRUE
-       ORDER BY s.id`,
-      [orgId]
-    );
+    let query = `SELECT i.id, i.org_id, i.sku_id, i.qty_on_hand, i.warehouse_type, i.location, i.updated_at,
+            s.sku_code, s.name, s.unit, s.safety_stock, s.cost_price, s.is_active
+     FROM booth_inventory i
+     JOIN booth_skus s ON s.id = i.sku_id
+     WHERE i.org_id = $1 AND s.is_active = TRUE`;
+    const params: unknown[] = [orgId];
 
-    res.json({ success: true, data: result.rows });
+    if (warehouseType) {
+      query += ` AND i.warehouse_type = $2`;
+      params.push(warehouseType);
+    }
+
+    query += ` ORDER BY s.id`;
+
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: { items: result.rows, total: result.rows.length } });
   } catch (err) {
     next(err);
   }

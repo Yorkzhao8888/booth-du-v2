@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
 import { requireAuth, requireRole, stripCostFields } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
@@ -167,8 +168,10 @@ duRouter.get('/wh/batches', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const skuId = req.query.skuId as string;
+    const warehouseType = req.query.warehouse_type as string;
     let where = 'WHERE b.org_id = $1'; const params: any[] = [user.orgId]; let idx = 2;
     if (skuId) { where += ` AND b.sku_id = $${idx}`; params.push(skuId); idx++; }
+    if (warehouseType) { where += ` AND b.warehouse_type = $${idx}`; params.push(warehouseType); idx++; }
     const r = await pool.query(
       `SELECT b.*, s.name as sku_name, s.sku_code, sc.unit_cost
        FROM booth_stock_batches b
@@ -229,7 +232,6 @@ duRouter.post('/users', requireRole('dm', 'du'), async (req, res, next) => {
       return res.status(400).json({ success: false, error: '手机号已存在' });
     }
     
-    const bcrypt = require('bcrypt');
     const passwordHash = bcrypt.hashSync(password, 10);
     const hatsArray = hats || [];
     
@@ -249,8 +251,6 @@ duRouter.post('/users/:id/reset-password', requireRole('dm', 'du'), async (req, 
     const { id } = req.params;
     const { password } = req.body;
     const newPassword = password || '123456';
-    
-    const bcrypt = require('bcrypt');
     const passwordHash = bcrypt.hashSync(newPassword, 10);
     
     await pool.query(
