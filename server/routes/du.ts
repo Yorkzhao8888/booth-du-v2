@@ -18,20 +18,30 @@ router.use(requireAuth, (req, res, next) => {
   
   console.log(`[du.ts guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}`);
   
-  // DEXX 特殊处理：只允许 GET /dashboard，其他一律 403
+  // DEXX 特殊处理：只允许 GET /dashboard，其他 du.ts 处理的接口 403
+  // 注意：/transfers 由 du-modules.ts 处理，这里不拦截
   if (user.role === 'dexx') {
-    const isDashboardRead = req.path === '/dashboard' && req.method === 'GET';
-    console.log(`[du.ts guard] dexx branch: path=${req.path}, method=${req.method}, isDashboardRead=${isDashboardRead}`);
-    if (!isDashboardRead) {
-      console.log(`[du.ts guard] dexx REJECT: not dashboard read`);
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
+    // du.ts 处理的路径列表
+    const duPaths = ['/dashboard', '/orders', '/fulfillments', '/work-orders', '/inventory', '/boms', '/skus', '/inbound', '/outbound'];
+    const isDuPath = duPaths.some(p => req.path === p || req.path.startsWith(p + '/'));
+    
+    if (isDuPath) {
+      const isDashboardRead = req.path === '/dashboard' && req.method === 'GET';
+      console.log(`[du.ts guard] dexx branch: path=${req.path}, method=${req.method}, isDashboardRead=${isDashboardRead}`);
+      if (!isDashboardRead) {
+        console.log(`[du.ts guard] dexx REJECT: not dashboard read`);
+        return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
+      }
+      // dexx 可以 GET /dashboard，strip cost fields
+      console.log(`[du.ts guard] dexx ALLOW: dashboard read`);
+      const originalJson = res.json.bind(res);
+      res.json = (body: unknown) => {
+        return originalJson(stripCostFields(body));
+      };
+      return next();
     }
-    // dexx 可以 GET /dashboard，strip cost fields
-    console.log(`[du.ts guard] dexx ALLOW: dashboard read`);
-    const originalJson = res.json.bind(res);
-    res.json = (body: unknown) => {
-      return originalJson(stripCostFields(body));
-    };
+    // 非 du.ts 处理的路径（如 /transfers），交给其他路由器处理
+    console.log(`[du.ts guard] dexx: path ${req.path} not handled by du.ts, passing to next router`);
     return next();
   }
   
