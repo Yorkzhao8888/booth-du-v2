@@ -13,6 +13,9 @@ duRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
+  // Debug log for troubleshooting
+  console.log(`[du-modules] path=${req.path}, method=${req.method}, role=${user.role}, userId=${user.userId || 'N/A'}`);
+  
   const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
   const isTransferWrite = req.path.startsWith('/transfers') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
   
@@ -21,12 +24,15 @@ duRouter.use(requireAuth, (req, res, next) => {
   
   // DEXX 特殊处理：只能读调拨列表
   if (user.role === 'dexx') {
+    console.log(`[du-modules] dexx detected, isTransferRead=${isTransferRead}`);
     if (!isTransferRead) {
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
     }
     // dexx 可以读调拨，继续处理
+    console.log(`[du-modules] dexx allowed for transfer read`);
   } else if (!baseRoles.includes(user.role)) {
     // 其他角色（如 dex）不允许访问
+    console.log(`[du-modules] role ${user.role} not in baseRoles, rejecting`);
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
   
