@@ -37,9 +37,9 @@ router.post('/fab/report', requireHat('FAB'), async (req, res, next) => {
 
     // Insert fab operation
     const foRes = await client.query(
-      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, op_name, qty_completed, operator_id, remark)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [user.orgId, workOrderId, seq, opName, qtyCompleted, user.userId!, remark]
+      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [user.orgId, workOrderId, seq, opName, qtyCompleted, user.userId!]
     );
 
     await client.query('COMMIT');
@@ -74,8 +74,8 @@ router.post('/fab/complete', requireHat('FAB'), async (req, res, next) => {
 
     // Auto-create QC task
     await client.query(
-      `INSERT INTO booth_quality_checks (org_id, work_order_id, qc_type, status)
-       VALUES ($1, $2, 'final', 'pending')`,
+      `INSERT INTO booth_quality_checks (org_id, work_order_id)
+       VALUES ($1, $2)`,
       [user.orgId, workOrderId]
     );
 
@@ -98,16 +98,16 @@ router.post('/fab/qc/execute', requireHat('FAB'), async (req, res, next) => {
       'SELECT * FROM booth_quality_checks WHERE id = $1 AND org_id = $2 FOR UPDATE',
       [qcId, user.orgId]
     );
-    if (!qcRes.rows.length || qcRes.rows[0].status !== 'pending') {
+    if (!qcRes.rows.length || qcRes.rows[0].result !== 'pass') {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'QC not pending', code: 'INVALID_STATE' });
     }
 
-    const newStatus = passed ? 'passed' : 'failed';
+    const newResult = passed ? 'pass' : 'fail';
     await client.query(
-      `UPDATE booth_quality_checks SET status = $1, passed_qty = $2, failed_qty = $3, remark = $4, detail = $5, checked_at = NOW(), updated_at = NOW()
+      `UPDATE booth_quality_checks SET result = $1, qty_pass = $2, qty_reject = $3, reject_reason = $4, inspector_id = $5, checked_at = NOW()
        WHERE id = $6`,
-      [newStatus, passedQty || 0, failedQty || 0, remark, JSON.stringify(detail || {}), qcId]
+      [newResult, passedQty || 0, failedQty || 0, remark, user.userId!, qcId]
     );
 
     // If QC passed, create profit snapshot
@@ -306,7 +306,7 @@ router.post('/dl/tasks/:id/deliver', requireHat('DL'), async (req, res, next) =>
     const check = await verifyDlOwnership(pool, req.params.id, user.orgId, user.userId);
     if ('error' in check) return res.status(check.status || 400).json({ success: false, error: check.error, code: check.error });
     const r = await pool.query(
-      `UPDATE booth_dl_tasks SET status = 'delivering', started_at = NOW(), updated_at = NOW()
+      `UPDATE booth_dl_tasks SET status = 'delivering', delivering_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND org_id = $2 AND assignee_id = $3 AND status = 'picked' RETURNING *`,
       [req.params.id, user.orgId, user.userId!]
     );
@@ -323,7 +323,7 @@ router.post('/dl/tasks/:id/sign', requireHat('DL'), async (req, res, next) => {
     if ('error' in check) return res.status(check.status || 400).json({ success: false, error: check.error, code: check.error });
     const { signer } = req.body;
     const r = await pool.query(
-      `UPDATE booth_dl_tasks SET status = 'signed', signer = $1, signed_at = NOW(), completed_at = NOW(), updated_at = NOW()
+      `UPDATE booth_dl_tasks SET status = 'signed', signer = $1, signed_at = NOW(), updated_at = NOW()
        WHERE id = $2 AND org_id = $3 AND assignee_id = $4 AND status = 'delivering' RETURNING *`,
       [signer || user.userId!, req.params.id, user.orgId, user.userId!]
     );
@@ -352,7 +352,7 @@ router.post('/dl/tasks/:id/complete', requireHat('DL'), async (req, res, next) =
     const user = (req as any).user as JwtPayload;
     const { signedBy, signTime } = req.body;
     const r = await pool.query(
-      `UPDATE booth_dl_tasks SET status = 'signed', signer = $1, signed_at = $2, completed_at = NOW(), updated_at = NOW()
+      `UPDATE booth_dl_tasks SET status = 'signed', signer = $1, signed_at = $2, updated_at = NOW()
        WHERE id = $3 AND org_id = $4 AND assignee_id = $5 AND status IN ('delivering','picked','accepted') RETURNING *`,
       [signedBy || user.userId!, signTime || new Date(), req.params.id, user.orgId, user.userId!]
     );

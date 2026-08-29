@@ -140,7 +140,7 @@ export async function startWorkOrder(id: number, userId: number) {
         if (remaining <= 0) break;
         const deduct = Math.min(remaining, batch.qty);
         await client.query(
-          `UPDATE booth_stock_batches SET qty = qty - $1, updated_at = NOW() WHERE id = $2`,
+          `UPDATE booth_stock_batches SET qty = qty - $1 WHERE id = $2`,
           [deduct, batch.id]
         );
         remaining -= deduct;
