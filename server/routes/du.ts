@@ -150,7 +150,9 @@ router.get('/dashboard', async (req, res, next) => {
       success: true,
       data: {
         todayOrders,
-        ...(orgMode === 'du' ? { todayRevenue, todayGrossProfit, grossMargin } : {}),
+        // dxx 仅售价可见，不展示毛利字段
+        ...(orgMode === 'du' && user.role !== 'dxx' && user.role !== 'dexx' ? { todayRevenue, todayGrossProfit, grossMargin } : {}),
+        ...(user.role === 'dxx' || user.role === 'dexx' ? { todayRevenue } : {}),
         pendingWorkOrders: workOrderStats['pending'] || 0,
         preparingWorkOrders: workOrderStats['preparing'] || 0,
         lowStockCount,

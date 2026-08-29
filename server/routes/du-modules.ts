@@ -7,18 +7,22 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-// ====== DU/DX/DM/DXX: 按角色权限访问 ======
+// ====== DU/DX/DM/DXX/DEXX: 按角色权限访问 ======
 const duRouter = Router();
 duRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
-  // dexx 可以查看调拨列表（只读），但不能创建/审批/完成
   const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
-  if (isTransferRead && user.role === 'dexx') {
-    // dexx can read transfers
+  const allowedRoles = ['du', 'dx', 'dm', 'dxx', 'dexx'];
+  
+  // dexx 只能读调拨列表，不能访问其他 du 路由
+  if (user.role === 'dexx') {
+    if (!isTransferRead) {
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
+    }
   } else if (!allowedRoles.includes(user.role)) {
+    // dex/dexx 等其他角色不允许访问 du 路由（除了上面的 dexx 特例）
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
   
