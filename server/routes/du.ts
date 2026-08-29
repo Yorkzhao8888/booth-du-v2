@@ -178,7 +178,7 @@ router.get('/orders', async (req, res, next) => {
     const params: any[] = [orgId];
     let paramIdx = 2;
 
-    if (status) {
+    if (status && status !== 'all') {
       whereClause += ` AND status = $${paramIdx}`;
       params.push(status);
       paramIdx++;
