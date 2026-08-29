@@ -183,6 +183,7 @@ const ExpiryControl: React.FC = () => {
                 { value: 30, label: '近30天' },
                 { value: 60, label: '近60天' },
                 { value: 90, label: '近90天' },
+                { value: 365, label: '近365天' },
               ]}
             />
             <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>

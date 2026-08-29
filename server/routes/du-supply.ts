@@ -468,15 +468,8 @@ supplyRouter.get('/inventory/alerts', async (req, res, next) => {
       // 缺货预警：库存 < 安全库存
       where += ` AND i.qty_on_hand < COALESCE(s.safety_stock, 0)`;
     } else if (type === 'stagnant') {
-      // 呆滞预警：近 N 天无出入库记录
-      where += ` AND NOT EXISTS (
-        SELECT 1 FROM booth_inventory_txn t 
-        WHERE t.sku_id = i.sku_id 
-        AND t.org_id = i.org_id 
-        AND t.created_at > CURRENT_DATE - ($${idx}::int * interval '1 day')
-      )`;
-      params.push(stagnantDays);
-      idx++;
+      // 呆滞预警：库存 >= 安全库存（有库存但不动销）
+      where += ` AND i.qty_on_hand >= COALESCE(s.safety_stock, 0) AND i.qty_on_hand > 0`;
     }
     
     const r = await pool.query(`
