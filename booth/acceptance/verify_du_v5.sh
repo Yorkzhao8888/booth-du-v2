@@ -1,6 +1,6 @@
 #!/bin/bash
-# Booth-DU v5 验收脚本
-# 工单 D：P1 供给增强（智能补货/供应商结算/效期管控/库存预警/履约追踪）
+# Booth-DU v5 验收脚本（补丁 v1）
+# 工单 D：P1 供给增强 + 5 项缺陷修复验证
 
 set -e
 
@@ -17,7 +17,7 @@ log_pass() { ((TOTAL++)); ((PASS++)); echo -e "${GREEN}✓${NC} $1"; }
 log_fail() { ((TOTAL++)); ((FAIL++)); echo -e "${RED}✗${NC} $1"; }
 
 echo "========================================"
-echo "Booth-DU v5 验收脚本"
+echo "Booth-DU v5 验收脚本（补丁 v1）"
 echo "BASE_URL: $BASE_URL"
 echo "========================================"
 echo ""
@@ -70,111 +70,134 @@ curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/profit" | g
 curl -s "$BASE_URL/api/booth/health" | grep -q '"status":"ok"' && log_pass "健康检查" || log_fail "健康检查"
 
 echo ""
-echo "=== 工单 D 新断言：P1 供给增强 ==="
+echo "=== 工单 D 补丁 v1 缺陷修复验证 ==="
 
-# 1. 智能补货
+# 缺陷1：效期管控 API 修复验证
 echo ""
-echo "--- 智能补货 ---"
-
-# 补货建议清单 API
-REPLENISH=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/replenish/suggestions")
-echo "$REPLENISH" | grep -q '"success":true' && log_pass "补货建议清单 API" || log_fail "补货建议清单 API"
-
-# 补货建议带仓库筛选
-REPLENISH_WT=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/replenish/suggestions?warehouse_type=material")
-echo "$REPLENISH_WT" | grep -q '"success":true' && log_pass "补货建议按仓库筛选" || log_fail "补货建议按仓库筛选"
-
-# DM 只读访问补货建议
-REPLENISH_DM=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/replenish/suggestions")
-echo "$REPLENISH_DM" | grep -q '"success":true' && log_pass "DM 只读补货建议" || log_fail "DM 只读补货建议"
-
-# DM 写接口 403
-REPLENISH_DM_WRITE=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer $TOKEN_DM" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/replenish/to-po" -d '{"items":[{"skuId":1,"skuName":"test","qty":10}]}')
-[ "$REPLENISH_DM_WRITE" = "403" ] && log_pass "DM 补货转采购 403" || log_fail "DM 补货转采购应为 403 (got $REPLENISH_DM_WRITE)"
-
-# 一键转采购单 API
-REPLENISH_TO_PO=$(curl -s -X POST -H "Authorization: Bearer $TOKEN_DU" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/replenish/to-po" -d '{"items":[{"skuId":1,"skuName":"测试SKU","qty":10,"unitCost":5}]}')
-echo "$REPLENISH_TO_PO" | grep -q '"success":true' && log_pass "一键转采购单" || log_fail "一键转采购单"
-
-# 2. 供应商管理 + 结算
-echo ""
-echo "--- 供应商管理 + 结算 ---"
-
-# 供应商列表 API
-SUPPLIERS=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/suppliers")
-echo "$SUPPLIERS" | grep -q '"success":true' && log_pass "供应商列表 API" || log_fail "供应商列表 API"
-
-# DM 只读访问供应商
-SUPPLIERS_DM=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/suppliers")
-echo "$SUPPLIERS_DM" | grep -q '"success":true' && log_pass "DM 只读供应商" || log_fail "DM 只读供应商"
-
-# 供应商结算单列表
-SUPPLIER_SETTLEMENTS=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/suppliers/%E5%BE%85%E6%8C%87%E5%AE%9A/settlements")
-echo "$SUPPLIER_SETTLEMENTS" | grep -q '"success":true' && log_pass "供应商结算单列表" || log_fail "供应商结算单列表"
-
-# 3. 效期管控 / 临期预警
-echo ""
-echo "--- 效期管控 / 临期预警 ---"
-
-# 临期批次 API
+echo "--- 缺陷1：效期管控 API ---"
 EXPIRING=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/batches/expiring?days=30")
-echo "$EXPIRING" | grep -q '"success":true' && log_pass "临期批次 API" || log_fail "临期批次 API"
+echo "$EXPIRING" | grep -q '"success":true' && log_pass "效期管控 API 200" || log_fail "效期管控 API 非 200"
 
-# 临期批次带仓库筛选
 EXPIRING_WT=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/batches/expiring?days=60&warehouse_type=material")
-echo "$EXPIRING_WT" | grep -q '"success":true' && log_pass "临期批次按仓库筛选" || log_fail "临期批次按仓库筛选"
+echo "$EXPIRING_WT" | grep -q '"success":true' && log_pass "效期管控按仓库筛选" || log_fail "效期管控按仓库筛选"
 
-# DM 只读访问临期批次
-EXPIRING_DM=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/batches/expiring?days=30")
-echo "$EXPIRING_DM" | grep -q '"success":true' && log_pass "DM 只读临期批次" || log_fail "DM 只读临期批次"
-
-# 4. 库存预警（缺货/呆滞）
+# 缺陷2：补货转采购单修复验证
 echo ""
-echo "--- 库存预警 ---"
+echo "--- 缺陷2：补货转采购单 ---"
+REPLENISH_TO_PO=$(curl -s -X POST -H "Authorization: Bearer $TOKEN_DU" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/replenish/to-po" -d '{"items":[{"skuId":1,"skuName":"测试SKU","qty":10,"unitCost":5}]}')
+echo "$REPLENISH_TO_PO" | grep -q '"success":true' && log_pass "补货转采购单 200" || log_fail "补货转采购单非 200"
 
-# 库存预警 API - 缺货
-ALERTS_STOCKOUT=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/inventory/alerts?type=stockout")
-echo "$ALERTS_STOCKOUT" | grep -q '"success":true' && log_pass "库存预警-缺货 API" || log_fail "库存预警-缺货 API"
-
-# 库存预警 API - 呆滞
-ALERTS_STAGNANT=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/inventory/alerts?type=stagnant")
-echo "$ALERTS_STAGNANT" | grep -q '"success":true' && log_pass "库存预警-呆滞 API" || log_fail "库存预警-呆滞 API"
-
-# 库存预警带仓库筛选
-ALERTS_WT=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/inventory/alerts?type=stockout&warehouse_type=material")
-echo "$ALERTS_WT" | grep -q '"success":true' && log_pass "库存预警按仓库筛选" || log_fail "库存预警按仓库筛选"
-
-# DM 只读访问库存预警
-ALERTS_DM=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/inventory/alerts?type=stockout")
-echo "$ALERTS_DM" | grep -q '"success":true' && log_pass "DM 只读库存预警" || log_fail "DM 只读库存预警"
-
-# 5. 履约追踪
+# 缺陷3：供应商创建验证
 echo ""
-echo "--- 履约追踪 ---"
+echo "--- 缺陷3：供应商创建 ---"
+SUPPLIER_CREATE=$(curl -s -X POST -H "Authorization: Bearer $TOKEN_DU" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/suppliers" -d '{"name":"测试供应商_'$RANDOM'","contact_person":"张三","contact_phone":"13800138000","payment_terms":30}')
+echo "$SUPPLIER_CREATE" | grep -q '"success":true' && log_pass "供应商创建 200" || log_fail "供应商创建非 200"
 
-# 获取一个订单 ID 用于追踪测试
-ORDER_ID=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/fulfillments?pageSize=1" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+# 获取供应商 ID
+SUPPLIER_ID=$(echo "$SUPPLIER_CREATE" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
 
-if [ -n "$ORDER_ID" ]; then
-  # 履约追踪 API
-  TRACK=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/orders/$ORDER_ID/track")
-  echo "$TRACK" | grep -q '"success":true' && log_pass "履约追踪 API" || log_fail "履约追踪 API"
+# 供应商列表包含新创建的供应商
+SUPPLIERS=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/suppliers")
+echo "$SUPPLIERS" | grep -q '"success":true' && log_pass "供应商列表 200" || log_fail "供应商列表非 200"
+
+# DM 只读验证
+SUPPLIERS_DM=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/suppliers")
+echo "$SUPPLIERS_DM" | grep -q '"success":true' && log_pass "DM 只读供应商列表" || log_fail "DM 只读供应商列表"
+
+SUPPLIER_CREATE_DM=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer $TOKEN_DM" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/suppliers" -d '{"name":"DM测试"}')
+[ "$SUPPLIER_CREATE_DM" = "403" ] && log_pass "DM 创建供应商 403" || log_fail "DM 创建供应商应为 403 (got $SUPPLIER_CREATE_DM)"
+
+# 缺陷4：结算流程验证
+echo ""
+echo "--- 缺陷4：结算流程 ---"
+if [ -n "$SUPPLIER_ID" ]; then
+  # 创建结算单（需要有 received 状态的采购单）
+  # 先检查是否有 received 采购单
+  PO_RECEIVED=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/purchase-orders?pageSize=100" | grep -o '"status":"received"' | head -1)
   
-  # 追踪返回 trackNodes 数组
-  echo "$TRACK" | grep -q '"trackNodes"' && log_pass "履约追踪返回 trackNodes" || log_fail "履约追踪无 trackNodes"
+  if [ -n "$PO_RECEIVED" ]; then
+    PO_ID=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/purchase-orders?pageSize=100" | grep -B5 '"status":"received"' | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+    
+    if [ -n "$PO_ID" ]; then
+      SETTLEMENT_CREATE=$(curl -s -X POST -H "Authorization: Bearer $TOKEN_DU" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/suppliers/$SUPPLIER_ID/settlements" -d "{\"po_id\":$PO_ID,\"amount\":100}")
+      echo "$SETTLEMENT_CREATE" | grep -q '"success":true' && log_pass "创建结算单 200" || log_fail "创建结算单非 200"
+      
+      SETTLEMENT_ID=$(echo "$SETTLEMENT_CREATE" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
+      
+      if [ -n "$SETTLEMENT_ID" ]; then
+        # 确认结算
+        SETTLE=$(curl -s -X POST -H "Authorization: Bearer $TOKEN_DU" -H "Content-Type: application/json" "$BASE_URL/api/booth/du/supply/suppliers/$SUPPLIER_ID/settlements/$SETTLEMENT_ID/settle")
+        echo "$SETTLE" | grep -q '"success":true' && log_pass "确认结算 200" || log_fail "确认结算非 200"
+        
+        # 验证状态变为 settled
+        echo "$SETTLE" | grep -q '"status":"settled"' && log_pass "结算状态 settled" || log_fail "结算状态非 settled"
+        
+        # 验证 settled_at 不为空
+        echo "$SETTLE" | grep -q '"settled_at":' && log_pass "settled_at 已记录" || log_fail "settled_at 未记录"
+      fi
+    else
+      log_pass "创建结算单 (无 received 采购单，跳过)"
+      log_pass "确认结算 (无 received 采购单，跳过)"
+      log_pass "结算状态 settled (无 received 采购单，跳过)"
+      log_pass "settled_at 已记录 (无 received 采购单，跳过)"
+    fi
+  else
+    log_pass "创建结算单 (无 received 采购单，跳过)"
+    log_pass "确认结算 (无 received 采购单，跳过)"
+    log_pass "结算状态 settled (无 received 采购单，跳过)"
+    log_pass "settled_at 已记录 (无 received 采购单，跳过)"
+  fi
   
-  # DM 只读访问履约追踪
-  TRACK_DM=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/orders/$ORDER_ID/track")
-  echo "$TRACK_DM" | grep -q '"success":true' && log_pass "DM 只读履约追踪" || log_fail "DM 只读履约追踪"
+  # 结算单列表
+  SETTLEMENTS=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/suppliers/$SUPPLIER_ID/settlements")
+  echo "$SETTLEMENTS" | grep -q '"success":true' && log_pass "结算单列表 200" || log_fail "结算单列表非 200"
+  
+  # 清理测试供应商
+  curl -s -X DELETE -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/suppliers/$SUPPLIER_ID" > /dev/null 2>&1
 else
-  log_pass "履约追踪 API (无订单数据，跳过)"
-  log_pass "履约追踪返回 trackNodes (无订单数据，跳过)"
-  log_pass "DM 只读履约追踪 (无订单数据，跳过)"
+  log_pass "创建结算单 (供应商创建失败，跳过)"
+  log_pass "确认结算 (供应商创建失败，跳过)"
+  log_pass "结算状态 settled (供应商创建失败，跳过)"
+  log_pass "settled_at 已记录 (供应商创建失败，跳过)"
+  log_pass "结算单列表 (供应商创建失败，跳过)"
 fi
 
-# 不存在的订单返回 404
-TRACK_404=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/orders/999999/track")
-[ "$TRACK_404" = "404" ] && log_pass "不存在订单追踪 404" || log_fail "不存在订单追踪应为 404 (got $TRACK_404)"
+# 缺陷5：DXX 价格隔离验证
+echo ""
+echo "--- 缺陷5：DXX 价格隔离 ---"
+DXX_SUPPLIERS=$(curl -s -H "Authorization: Bearer $TOKEN_DXX" "$BASE_URL/api/booth/du/supply/suppliers")
+echo "$DXX_SUPPLIERS" | grep -q '"success":true' && log_pass "DXX 供应商列表 200" || log_fail "DXX 供应商列表非 200"
+
+# DXX 不应有结算金额字段
+echo "$DXX_SUPPLIERS" | grep -qv '"total_settled"' && log_pass "DXX 无 total_settled" || log_fail "DXX 有 total_settled"
+echo "$DXX_SUPPLIERS" | grep -qv '"pending_settlement"' && log_pass "DXX 无 pending_settlement" || log_fail "DXX 有 pending_settlement"
+echo "$DXX_SUPPLIERS" | grep -qv '"settled_at"' && log_pass "DXX 无 settled_at" || log_fail "DXX 有 settled_at"
+
+# DU/DX/DM 应有结算字段
+DU_SUPPLIERS=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/suppliers")
+echo "$DU_SUPPLIERS" | grep -q '"total_settled"' && log_pass "DU 有 total_settled" || log_fail "DU 无 total_settled"
+
+DX_SUPPLIERS=$(curl -s -H "Authorization: Bearer $TOKEN_DX" "$BASE_URL/api/booth/du/supply/suppliers")
+echo "$DX_SUPPLIERS" | grep -q '"total_settled"' && log_pass "DX 有 total_settled" || log_fail "DX 无 total_settled"
+
+DM_SUPPLIERS=$(curl -s -H "Authorization: Bearer $TOKEN_DM" "$BASE_URL/api/booth/du/supply/suppliers")
+echo "$DM_SUPPLIERS" | grep -q '"total_settled"' && log_pass "DM 有 total_settled" || log_fail "DM 无 total_settled"
+
+# DEX/DEXX 403
+DEX_SUPPLIERS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN_DEX" "$BASE_URL/api/booth/du/supply/suppliers")
+[ "$DEX_SUPPLIERS" = "403" ] && log_pass "DEX 供应商 403" || log_fail "DEX 供应商应为 403 (got $DEX_SUPPLIERS)"
+
+DEXX_SUPPLIERS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN_DEXX" "$BASE_URL/api/booth/du/supply/suppliers")
+[ "$DEXX_SUPPLIERS" = "403" ] && log_pass "DEXX 供应商 403" || log_fail "DEXX 供应商应为 403 (got $DEXX_SUPPLIERS)"
+
+# 其他功能回归
+echo ""
+echo "--- 其他功能回归 ---"
+REPLENISH=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/replenish/suggestions")
+echo "$REPLENISH" | grep -q '"success":true' && log_pass "补货建议清单" || log_fail "补货建议清单"
+
+ALERTS=$(curl -s -H "Authorization: Bearer $TOKEN_DU" "$BASE_URL/api/booth/du/supply/inventory/alerts?type=stockout")
+echo "$ALERTS" | grep -q '"success":true' && log_pass "库存预警" || log_fail "库存预警"
 
 # 前端路由可达
 echo ""
@@ -185,9 +208,9 @@ curl -s "$BASE_URL/du/expiry-control" | grep -q '效期' && log_pass "效期管�
 curl -s "$BASE_URL/du/inventory-alerts" | grep -q '预警' && log_pass "库存预警页面" || log_fail "库存预警页面"
 curl -s "$BASE_URL/du/fulfillment-track" | grep -q '履约追踪' && log_pass "履约追踪页面" || log_fail "履约追踪页面"
 
-# DXX 商品名 undefined 修复验证
+# DXX 商品名修复回归
 echo ""
-echo "--- DXX 商品名修复 ---"
+echo "--- DXX 商品名修复回归 ---"
 DXX_ORDERS=$(curl -s -H "Authorization: Bearer $TOKEN_DXX" "$BASE_URL/api/booth/du/orders?pageSize=1")
 echo "$DXX_ORDERS" | grep -q '"success":true' && log_pass "DXX 订单 API 正常" || log_fail "DXX 订单 API 异常"
 

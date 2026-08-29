@@ -21,11 +21,31 @@ supplyRouter.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DXX：拦截 res.json 以 stripCostFields
+  // DXX：拦截 res.json 以 stripCostFields + 结算字段
   if (user.role === 'dxx') {
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
-      return originalJson(stripCostFields(body));
+      // 递归剔除结算相关字段
+      const stripSettlementFields = (obj: any): any => {
+        if (obj === null || obj === undefined) return obj;
+        if (Array.isArray(obj)) return obj.map(stripSettlementFields);
+        if (typeof obj === 'object') {
+          const result: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            // 隐藏结算金额相关字段
+            if (['total_settled', 'pending_settlement', 'settled_at', 'settle_amount', 
+                 'totalSettled', 'pendingSettlement', 'settledAt', 'settleAmount',
+                 'cost_price', 'costPrice', 'unit_cost', 'unitCost', 'gross_margin', 'grossMargin',
+                 'material_cost', 'materialCost', 'revenue', 'gross_profit', 'grossProfit'].includes(key)) {
+              continue;
+            }
+            result[key] = stripSettlementFields(value);
+          }
+          return result;
+        }
+        return obj;
+      };
+      return originalJson(stripSettlementFields(body));
     };
   }
   
@@ -87,18 +107,19 @@ supplyRouter.get('/replenish/suggestions', async (req, res, next) => {
 supplyRouter.post('/replenish/to-po', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const { items, supplierId } = req.body;
+    const { items, supplierId, supplier_id } = req.body;
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: '补货项不能为空' });
     }
     
-    // 生成采购单号
+    // 生成采购单号 - 修复 LPAD 类型问题
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const poNoRes = await pool.query(
-      `SELECT 'PO-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(COALESCE(MAX(CAST(SUBSTRING(po_no FROM '...$') AS INT)), 0) + 1, 4, '0') as po_no 
+      `SELECT 'PO-' || $1 || '-' || LPAD(CAST(COALESCE(MAX(CAST(SUBSTRING(po_no FROM '...$') AS INT)), 0) + 1 AS TEXT), 4, '0') as po_no 
        FROM booth_purchase_orders 
-       WHERE po_no LIKE $1`,
-      [`PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}%`]
+       WHERE po_no LIKE $2`,
+      [today, `PO-${today}%`]
     );
     const poNo = poNoRes.rows[0].po_no;
     
@@ -116,6 +137,18 @@ supplyRouter.post('/replenish/to-po', async (req, res, next) => {
       };
     });
     
+    // 查找供应商名称
+    let supplierName = '待指定';
+    if (supplier_id || supplierId) {
+      const supRes = await pool.query(
+        'SELECT name FROM booth_suppliers WHERE id = $1 AND org_id = $2',
+        [supplier_id || supplierId, user.orgId]
+      );
+      if (supRes.rows.length > 0) {
+        supplierName = supRes.rows[0].name;
+      }
+    }
+    
     // 创建采购单
     const r = await pool.query(`
       INSERT INTO booth_purchase_orders (org_id, po_no, supplier, status, total_amount, items, created_by)
@@ -124,7 +157,7 @@ supplyRouter.post('/replenish/to-po', async (req, res, next) => {
     `, [
       user.orgId,
       poNo,
-      supplierId || '待指定',
+      supplierName,
       totalAmount,
       JSON.stringify(poItems),
       user.userId
@@ -145,14 +178,21 @@ supplyRouter.get('/suppliers', async (req, res, next) => {
     // 查询供应商及其结算信息
     const r = await pool.query(`
       SELECT 
-        po.supplier,
-        COUNT(DISTINCT po.id) as po_count,
-        SUM(CASE WHEN po.status IN ('approved', 'received') THEN po.total_amount ELSE 0 END) as total_settled,
-        SUM(CASE WHEN po.status = 'approved' THEN po.total_amount ELSE 0 END) as pending_settlement
-      FROM booth_purchase_orders po
-      WHERE po.org_id = $1
-      GROUP BY po.supplier
-      ORDER BY po.supplier
+        s.id,
+        s.name,
+        s.contact_person,
+        s.contact_phone,
+        s.payment_terms,
+        s.remark,
+        s.created_at,
+        COALESCE(SUM(CASE WHEN st.status = 'settled' THEN st.amount ELSE 0 END), 0) as total_settled,
+        COALESCE(SUM(CASE WHEN st.status = 'pending' THEN st.amount ELSE 0 END), 0) as pending_settlement,
+        COUNT(DISTINCT st.id) as settlement_count
+      FROM booth_suppliers s
+      LEFT JOIN booth_supplier_settlements st ON s.id = st.supplier_id AND s.org_id = st.org_id
+      WHERE s.org_id = $1
+      GROUP BY s.id, s.name, s.contact_person, s.contact_phone, s.payment_terms, s.remark, s.created_at
+      ORDER BY s.name
     `, [user.orgId]);
     
     res.json({ 
@@ -167,26 +207,112 @@ supplyRouter.get('/suppliers', async (req, res, next) => {
   }
 });
 
-// GET /suppliers/:supplier/settlements - 供应商结算单列表
-supplyRouter.get('/suppliers/:supplier/settlements', async (req, res, next) => {
+// POST /suppliers - 创建供应商
+supplyRouter.post('/suppliers', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const { supplier } = req.params;
+    const { name, contact_person, contact_phone, payment_terms, remark } = req.body;
+    
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ success: false, error: '供应商名称不能为空' });
+    }
+    
+    const r = await pool.query(`
+      INSERT INTO booth_suppliers (org_id, name, contact_person, contact_phone, payment_terms, remark)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [
+      user.orgId,
+      name.trim(),
+      contact_person || null,
+      contact_phone || null,
+      payment_terms || 0,
+      remark || null
+    ]);
+    
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err: any) {
+    // 处理唯一约束冲突
+    if (err.code === '23505') {
+      return res.status(400).json({ success: false, error: '供应商名称已存在' });
+    }
+    next(err);
+  }
+});
+
+// PUT /suppliers/:id - 更新供应商
+supplyRouter.put('/suppliers/:id', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { name, contact_person, contact_phone, payment_terms, remark } = req.body;
+    
+    const r = await pool.query(`
+      UPDATE booth_suppliers
+      SET name = COALESCE($3, name),
+          contact_person = COALESCE($4, contact_person),
+          contact_phone = COALESCE($5, contact_phone),
+          payment_terms = COALESCE($6, payment_terms),
+          remark = COALESCE($7, remark),
+          updated_at = NOW()
+      WHERE id = $1 AND org_id = $2
+      RETURNING *
+    `, [id, user.orgId, name, contact_person, contact_phone, payment_terms, remark]);
+    
+    if (r.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '供应商不存在' });
+    }
+    
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /suppliers/:id - 删除供应商
+supplyRouter.delete('/suppliers/:id', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    
+    const r = await pool.query(`
+      DELETE FROM booth_suppliers
+      WHERE id = $1 AND org_id = $2
+      RETURNING *
+    `, [id, user.orgId]);
+    
+    if (r.rows.length === 0) {
+      return res.status(404).json({ success: false, error: '供应商不存在' });
+    }
+    
+    res.json({ success: true, data: { id: parseInt(id) } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /suppliers/:supplierId/settlements - 供应商结算单列表
+supplyRouter.get('/suppliers/:supplierId/settlements', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { supplierId } = req.params;
     
     const r = await pool.query(`
       SELECT 
-        id,
-        po_no,
-        supplier,
-        total_amount,
-        status,
-        approved_at,
-        received_at,
-        created_at
-      FROM booth_purchase_orders
-      WHERE org_id = $1 AND supplier = $2
-      ORDER BY created_at DESC
-    `, [user.orgId, supplier]);
+        st.id,
+        st.supplier_id,
+        st.po_id,
+        st.amount,
+        st.status,
+        st.settled_at,
+        st.remark,
+        st.created_at,
+        po.po_no
+      FROM booth_supplier_settlements st
+      LEFT JOIN booth_purchase_orders po ON st.po_id = po.id
+      WHERE st.org_id = $1 AND st.supplier_id = $2
+      ORDER BY st.created_at DESC
+    `, [user.orgId, supplierId]);
     
     res.json({ 
       success: true, 
@@ -200,16 +326,59 @@ supplyRouter.get('/suppliers/:supplier/settlements', async (req, res, next) => {
   }
 });
 
-// POST /suppliers/:supplier/settlements/:id/settle - 结算确认
-supplyRouter.post('/suppliers/:supplier/settlements/:id/settle', async (req, res, next) => {
+// POST /suppliers/:supplierId/settlements - 创建结算单（从 received 采购单）
+supplyRouter.post('/suppliers/:supplierId/settlements', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { supplierId } = req.params;
+    const { po_id, amount, remark } = req.body;
+    
+    if (!po_id || !amount) {
+      return res.status(400).json({ success: false, error: '缺少采购单ID或金额' });
+    }
+    
+    // 验证采购单存在且状态为 received
+    const poRes = await pool.query(`
+      SELECT * FROM booth_purchase_orders 
+      WHERE id = $1 AND org_id = $2 AND status = 'received'
+    `, [po_id, user.orgId]);
+    
+    if (poRes.rows.length === 0) {
+      return res.status(400).json({ success: false, error: '采购单不存在或状态不是已收货' });
+    }
+    
+    // 检查是否已有结算单
+    const existRes = await pool.query(`
+      SELECT id FROM booth_supplier_settlements 
+      WHERE po_id = $1 AND org_id = $2
+    `, [po_id, user.orgId]);
+    
+    if (existRes.rows.length > 0) {
+      return res.status(400).json({ success: false, error: '该采购单已创建结算单' });
+    }
+    
+    const r = await pool.query(`
+      INSERT INTO booth_supplier_settlements (org_id, supplier_id, po_id, amount, status, remark)
+      VALUES ($1, $2, $3, $4, 'pending', $5)
+      RETURNING *
+    `, [user.orgId, supplierId, po_id, amount, remark]);
+    
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /suppliers/:supplierId/settlements/:id/settle - 结算确认
+supplyRouter.post('/suppliers/:supplierId/settlements/:id/settle', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { id } = req.params;
     
     const r = await pool.query(`
-      UPDATE booth_purchase_orders
-      SET status = 'received', received_at = NOW()
-      WHERE id = $1 AND org_id = $2 AND status = 'approved'
+      UPDATE booth_supplier_settlements
+      SET status = 'settled', settled_at = NOW()
+      WHERE id = $1 AND org_id = $2 AND status = 'pending'
       RETURNING *
     `, [id, user.orgId]);
     
@@ -231,7 +400,8 @@ supplyRouter.get('/batches/expiring', async (req, res, next) => {
     const days = parseInt(req.query.days as string) || 30;
     const warehouseType = req.query.warehouse_type as string;
     
-    let where = 'WHERE b.org_id = $1 AND b.expiry_date IS NOT NULL AND b.expiry_date <= CURRENT_DATE + $2';
+    // 修复 date 类型算术歧义：使用 make_interval
+    let where = 'WHERE b.org_id = $1 AND b.expiry_date IS NOT NULL AND b.expiry_date <= CURRENT_DATE + make_interval(days => $2)';
     const params: any[] = [user.orgId, days];
     let idx = 3;
     
@@ -256,7 +426,7 @@ supplyRouter.get('/batches/expiring', async (req, res, next) => {
           WHEN b.expiry_date <= CURRENT_DATE + 30 THEN 'warning'
           ELSE 'normal'
         END as expiry_status,
-        b.expiry_date - CURRENT_DATE as days_remaining
+        (b.expiry_date - CURRENT_DATE) as days_remaining
       FROM booth_stock_batches b
       JOIN booth_skus s ON b.sku_id = s.id
       ${where}
@@ -303,7 +473,7 @@ supplyRouter.get('/inventory/alerts', async (req, res, next) => {
         SELECT 1 FROM booth_inventory_txn t 
         WHERE t.sku_id = i.sku_id 
         AND t.org_id = i.org_id 
-        AND t.created_at > CURRENT_DATE - $${idx}
+        AND t.created_at > CURRENT_DATE - ($${idx}::int * interval '1 day')
       )`;
       params.push(stagnantDays);
       idx++;

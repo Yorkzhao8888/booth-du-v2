@@ -219,6 +219,32 @@ ALTER TABLE booth_dl_tasks ADD COLUMN IF NOT EXISTS signer TEXT;
 ALTER TABLE booth_svc_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
 ALTER TABLE booth_inventory ADD COLUMN IF NOT EXISTS warehouse_type TEXT DEFAULT 'material';
 ALTER TABLE booth_stock_batches ADD COLUMN IF NOT EXISTS warehouse_type TEXT DEFAULT 'material';
+
+-- 工单 D：供应商管理 + 结算
+CREATE TABLE IF NOT EXISTS booth_suppliers (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  name TEXT NOT NULL,
+  contact_person TEXT,
+  contact_phone TEXT,
+  payment_terms INTEGER DEFAULT 0,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS booth_supplier_settlements (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  supplier_id INTEGER NOT NULL REFERENCES booth_suppliers(id),
+  po_id INTEGER REFERENCES booth_purchase_orders(id),
+  amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  settled_at TIMESTAMPTZ,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 // In-memory store for org modes
