@@ -20,7 +20,7 @@ const Batches: React.FC = () => {
 
   const fetchSkus = async () => {
     try {
-      const res = await api.get('/dex/skus?pageSize=200');
+      const res = await api.get('/du/skus?pageSize=200');
       setSkuOptions(res.items || []);
     } catch (e) { /* ignore */ }
   };

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store';
 import SSEListener from './components/SSEListener';
+import ErrorBoundary from './components/ErrorBoundary';
 import AppLayout from './components/AppLayout';
 import MobileLayout from './components/MobileLayout';
 import Login from './pages/Login';
@@ -90,16 +91,16 @@ const App: React.FC = () => {
             </RequireAuth>
           }
         >
-          <Route index element={<DuDashboard />} />
-          <Route path="orders" element={<DuOrders />} />
-          <Route path="work-orders" element={<DuWorkOrders />} />
-          <Route path="inventory" element={<DuInventory />} />
-          <Route path="boms" element={<DuBoms />} />
-          <Route path="purchase-orders" element={<DuPurchaseOrders />} />
-          <Route path="profit" element={<DuProfitDashboard />} />
-          <Route path="dl" element={<DuDlTasks />} />
-          <Route path="svc" element={<DuSvcTasks />} />
-          <Route path="batches" element={<DuBatches />} />
+          <Route index element={<ErrorBoundary><DuDashboard /></ErrorBoundary>} />
+          <Route path="orders" element={<ErrorBoundary><DuOrders /></ErrorBoundary>} />
+          <Route path="work-orders" element={<ErrorBoundary><DuWorkOrders /></ErrorBoundary>} />
+          <Route path="inventory" element={<ErrorBoundary><DuInventory /></ErrorBoundary>} />
+          <Route path="boms" element={<ErrorBoundary><DuBoms /></ErrorBoundary>} />
+          <Route path="purchase-orders" element={<ErrorBoundary><DuPurchaseOrders /></ErrorBoundary>} />
+          <Route path="profit" element={<ErrorBoundary><DuProfitDashboard /></ErrorBoundary>} />
+          <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
+          <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
+          <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
         </Route>
 
         {/* DEX routes */}
@@ -111,14 +112,14 @@ const App: React.FC = () => {
             </RequireAuth>
           }
         >
-          <Route index element={<DexDashboard />} />
-          <Route path="work-orders" element={<DexWorkOrders />} />
-          <Route path="boms" element={<DexBoms />} />
-          <Route path="skus" element={<DexSkus />} />
-          <Route path="inventory" element={<DexInventory />} />
-          <Route path="dl-dispatch" element={<DexDlDispatch />} />
-          <Route path="svc-dispatch" element={<DexSvcDispatch />} />
-          <Route path="stocktakes" element={<DexStocktakeApproval />} />
+          <Route index element={<ErrorBoundary><DexDashboard /></ErrorBoundary>} />
+          <Route path="work-orders" element={<ErrorBoundary><DexWorkOrders /></ErrorBoundary>} />
+          <Route path="boms" element={<ErrorBoundary><DexBoms /></ErrorBoundary>} />
+          <Route path="skus" element={<ErrorBoundary><DexSkus /></ErrorBoundary>} />
+          <Route path="inventory" element={<ErrorBoundary><DexInventory /></ErrorBoundary>} />
+          <Route path="dl-dispatch" element={<ErrorBoundary><DexDlDispatch /></ErrorBoundary>} />
+          <Route path="svc-dispatch" element={<ErrorBoundary><DexSvcDispatch /></ErrorBoundary>} />
+          <Route path="stocktakes" element={<ErrorBoundary><DexStocktakeApproval /></ErrorBoundary>} />
         </Route>
 
         {/* DEXX routes */}
@@ -130,19 +131,19 @@ const App: React.FC = () => {
             </RequireAuth>
           }
         >
-          <Route index element={<DexxModuleEntry />} />
-          <Route path="fab/queue" element={<DexxFabQueue />} />
-          <Route path="fab/active" element={<DexxFabActive />} />
-          <Route path="fab/history" element={<DexxFabHistory />} />
-          <Route path="fab/operations" element={<DexxFabOperations />} />
-          <Route path="qc" element={<DexxQcExecute />} />
-          <Route path="wh/inventory" element={<DexxWhInventory />} />
-          <Route path="wh/inbound" element={<DexxWhInbound />} />
-          <Route path="wh/outbound" element={<DexxWhOutbound />} />
-          <Route path="wh/txns" element={<DexxWhTxns />} />
-          <Route path="stocktake" element={<DexxStocktakeExec />} />
-          <Route path="dl" element={<DexxDlExec />} />
-          <Route path="svc" element={<DexxSvcExec />} />
+          <Route index element={<ErrorBoundary><DexxModuleEntry /></ErrorBoundary>} />
+          <Route path="fab/queue" element={<ErrorBoundary><DexxFabQueue /></ErrorBoundary>} />
+          <Route path="fab/active" element={<ErrorBoundary><DexxFabActive /></ErrorBoundary>} />
+          <Route path="fab/history" element={<ErrorBoundary><DexxFabHistory /></ErrorBoundary>} />
+          <Route path="fab/operations" element={<ErrorBoundary><DexxFabOperations /></ErrorBoundary>} />
+          <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
+          <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />
+          <Route path="wh/inbound" element={<ErrorBoundary><DexxWhInbound /></ErrorBoundary>} />
+          <Route path="wh/outbound" element={<ErrorBoundary><DexxWhOutbound /></ErrorBoundary>} />
+          <Route path="wh/txns" element={<ErrorBoundary><DexxWhTxns /></ErrorBoundary>} />
+          <Route path="stocktake" element={<ErrorBoundary><DexxStocktakeExec /></ErrorBoundary>} />
+          <Route path="dl" element={<ErrorBoundary><DexxDlExec /></ErrorBoundary>} />
+          <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
         </Route>
 
         <Route path="*" element={<RoleRedirect />} />

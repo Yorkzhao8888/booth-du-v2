@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Row, Col, Table, Progress, Typography, Alert } from 'antd';
+import { Row, Col, Table, Progress, Typography, Alert, Statistic, Card } from 'antd';
 import { apiGet } from '../../api';
-import StatCard from '../../components/StatCard';
-import PriceText from '../../components/PriceText';
+import { fmtMoney, fmtPercent } from '../../utils/format';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Title } = Typography;
@@ -59,16 +58,36 @@ const DuDashboard: React.FC = () => {
       <Title level={4} style={{ marginBottom: 24 }}>经营看板</Title>
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="今日订单" value={data?.todayOrders ?? 0} color="#1890ff" />
+          <Card variant="borderless" style={{ background: '#1890ff08' }}>
+            <Statistic title="今日订单" value={data?.todayOrders ?? 0} valueStyle={{ color: '#1890ff', fontSize: 28, fontWeight: 600 }} />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="今日营收" value={data?.todayRevenue != null ? <PriceText value={data.todayRevenue} /> : '-'} color="#52c41a" />
+          <Card variant="borderless" style={{ background: '#52c41a08' }}>
+            <Statistic
+              title="今日营收"
+              value={data?.todayRevenue != null ? fmtMoney(data.todayRevenue) : '-'}
+              valueStyle={{ color: '#52c41a', fontSize: 28, fontWeight: 600 }}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="毛利" value={data?.todayGrossProfit != null ? <PriceText value={data.todayGrossProfit} /> : '-'} color="#fa8c16" />
+          <Card variant="borderless" style={{ background: '#fa8c1608' }}>
+            <Statistic
+              title="毛利"
+              value={data?.todayGrossProfit != null ? fmtMoney(data.todayGrossProfit) : '-'}
+              valueStyle={{ color: '#fa8c16', fontSize: 28, fontWeight: 600 }}
+            />
+          </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <StatCard title="待处理工单" value={data?.pendingWorkOrders ?? 0} color="#ff4d4f" />
+          <Card variant="borderless" style={{ background: '#ff4d4f08' }}>
+            <Statistic
+              title="毛利率"
+              value={data?.grossMargin != null ? fmtPercent(data.grossMargin) : '-'}
+              valueStyle={{ color: '#ff4d4f', fontSize: 28, fontWeight: 600 }}
+            />
+          </Card>
         </Col>
       </Row>
 
