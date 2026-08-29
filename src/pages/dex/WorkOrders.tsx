@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Table, Typography, Button, Space, Select, Modal, Form, InputNumber, Input, message } from 'antd';
+import { Table, Typography, Button, Space, Select, Modal, Form, InputNumber, Input, message, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { apiGet, apiPost } from '../../api';
 import StatusTag from '../../components/StatusTag';
@@ -8,12 +8,27 @@ import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
+const STAGE_LABELS: Record<string, string> = {
+  preprocessing: '前置工序',
+  production: '制作',
+  packaging: '包装',
+  sorting: '分拣',
+};
+
+const STAGE_COLORS: Record<string, string> = {
+  preprocessing: 'orange',
+  production: 'blue',
+  packaging: 'purple',
+  sorting: 'green',
+};
+
 interface WorkOrder {
   id: number;
   productName: string;
   qty: number;
   status: string;
   progress: number;
+  productionStage?: string;
   createdAt: string;
   bomId?: number;
 }
@@ -111,6 +126,17 @@ const ExWorkOrders: React.FC = () => {
   const columns: ColumnsType<WorkOrder> = [
     { title: '商品', dataIndex: 'productName', key: 'productName' },
     { title: '数量', dataIndex: 'qty', key: 'qty', width: 80 },
+    {
+      title: '产线阶段',
+      dataIndex: 'productionStage',
+      key: 'productionStage',
+      width: 100,
+      render: (stage: string) => (
+        <Tag color={STAGE_COLORS[stage || 'preprocessing']}>
+          {STAGE_LABELS[stage || 'preprocessing']}
+        </Tag>
+      ),
+    },
     {
       title: '状态',
       dataIndex: 'status',

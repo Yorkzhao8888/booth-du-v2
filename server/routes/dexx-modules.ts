@@ -85,6 +85,104 @@ router.post('/fab/complete', requireHat('FAB'), async (req, res, next) => {
   finally { client.release(); }
 });
 
+// ====== FAB: 产线阶段流转 ======
+// 产线阶段: preprocessing(前置工序) → production(制作) → packaging(包装) → sorting(分拣)
+const STAGE_ORDER = ['preprocessing', 'production', 'packaging', 'sorting'];
+const STAGE_LABELS: Record<string, string> = {
+  preprocessing: '前置工序',
+  production: '制作',
+  packaging: '包装',
+  sorting: '分拣',
+};
+
+router.post('/fab/stage/advance', requireHat('FAB'), async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { workOrderId, targetStage, remark } = req.body;
+
+    if (!workOrderId || !targetStage) {
+      return res.status(400).json({ success: false, error: 'workOrderId and targetStage required', code: 'MISSING_PARAMS' });
+    }
+
+    if (!STAGE_ORDER.includes(targetStage)) {
+      return res.status(400).json({ success: false, error: `Invalid stage: ${targetStage}`, code: 'INVALID_STAGE' });
+    }
+
+    await client.query('BEGIN');
+
+    const woRes = await client.query(
+      'SELECT * FROM booth_work_orders WHERE id = $1 AND org_id = $2 FOR UPDATE',
+      [workOrderId, user.orgId]
+    );
+    if (!woRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Work order not found', code: 'NOT_FOUND' });
+    }
+
+    const wo = woRes.rows[0];
+    if (wo.status !== 'in_progress') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Work order not in progress', code: 'INVALID_STATE' });
+    }
+
+    const currentStage = wo.production_stage || 'preprocessing';
+    const currentIdx = STAGE_ORDER.indexOf(currentStage);
+    const targetIdx = STAGE_ORDER.indexOf(targetStage);
+
+    if (targetIdx <= currentIdx) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        error: `Cannot move from ${STAGE_LABELS[currentStage]} to ${STAGE_LABELS[targetStage]}`, 
+        code: 'INVALID_TRANSITION' 
+      });
+    }
+
+    // Update stage
+    await client.query(
+      `UPDATE booth_work_orders SET production_stage = $1, updated_at = NOW() WHERE id = $2`,
+      [targetStage, workOrderId]
+    );
+
+    // Record stage transition in operations log
+    await client.query(
+      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, op_name, qty_completed, remark)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (org_id, work_order_id, seq) DO NOTHING`,
+      [user.orgId, workOrderId, targetIdx + 100, `stage_${targetStage}`, 0, remark || `流转至${STAGE_LABELS[targetStage]}产线`]
+    );
+
+    await client.query('COMMIT');
+    res.json({ 
+      success: true, 
+      data: { 
+        workOrderId, 
+        fromStage: currentStage, 
+        toStage: targetStage,
+        fromLabel: STAGE_LABELS[currentStage],
+        toLabel: STAGE_LABELS[targetStage],
+        message: `已流转至${STAGE_LABELS[targetStage]}产线` 
+      } 
+    });
+  } catch (err) { await client.query('ROLLBACK'); next(err); }
+  finally { client.release(); }
+});
+
+// 获取产线阶段定义
+router.get('/fab/stages', requireAuth, async (req, res) => {
+  res.json({ 
+    success: true, 
+    data: {
+      stages: STAGE_ORDER.map((s, i) => ({ 
+        value: s, 
+        label: STAGE_LABELS[s], 
+        order: i 
+      }))
+    }
+  });
+});
+
 // ====== FAB: QC execute ======
 router.post('/fab/qc/execute', requireHat('FAB'), async (req, res, next) => {
   const client = await pool.connect();

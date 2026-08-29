@@ -245,6 +245,10 @@ CREATE TABLE IF NOT EXISTS booth_supplier_settlements (
   remark TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 工单 D 补丁：FAB 产线阶段
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS production_stage TEXT DEFAULT 'preprocessing';
+-- production_stage 取值: preprocessing(前置工序) / production(制作) / packaging(包装) / sorting(分拣)
 `;
 
 // In-memory store for org modes
