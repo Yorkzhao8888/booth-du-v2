@@ -12,9 +12,22 @@ router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
-  // DEXX 不允许访问采购单（价格敏感）
+  // du-purchase.ts 处理的路径列表
+  const purchasePaths = ['/purchase-orders'];
+  const isPurchasePath = purchasePaths.some(p => req.path === p || req.path.startsWith(p + '/'));
+  
+  // DEXX 不允许访问采购单（价格敏感）- 只拦截采购路径
   if (user.role === 'dexx') {
-    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员无权访问采购单' });
+    if (isPurchasePath) {
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员无权访问采购单' });
+    }
+    // 非采购路径（如 /transfers），交给其他路由器处理
+    return next();
+  }
+  
+  // 非采购路径，交给其他路由器处理
+  if (!isPurchasePath) {
+    return next();
   }
   
   const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
