@@ -16,13 +16,19 @@ router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
+  console.log(`[du.ts guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}`);
+  
   // DEXX 特殊处理：只能读调拨列表
   if (user.role === 'dexx') {
-    const isTransferRead = req.path === '/transfers' && req.method === 'GET';
+    // 使用 startsWith 匹配 /transfers 路径（可能有查询参数）
+    const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
+    console.log(`[du.ts guard] dexx branch: isTransferRead=${isTransferRead}`);
     if (!isTransferRead) {
+      console.log(`[du.ts guard] dexx REJECT: not transfer read`);
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
     }
     // dexx 可以读调拨，strip cost fields
+    console.log(`[du.ts guard] dexx ALLOW: transfer read`);
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));
@@ -32,6 +38,7 @@ router.use(requireAuth, (req, res, next) => {
   
   const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
   if (!allowedRoles.includes(user.role)) {
+    console.log(`[du.ts guard] REJECT: role ${user.role} not in allowedRoles`);
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
   
