@@ -17,6 +17,11 @@ import DuProfitDashboard from './pages/du/ProfitDashboard';
 import DuDlTasks from './pages/du/DlTasks';
 import DuSvcTasks from './pages/du/SvcTasks';
 import DuBatches from './pages/du/Batches';
+import DuReplenishment from './pages/du/Replenishment';
+import DuSuppliers from './pages/du/Suppliers';
+import DuExpiryControl from './pages/du/ExpiryControl';
+import DuInventoryAlerts from './pages/du/InventoryAlerts';
+import DuFulfillmentTrack from './pages/du/FulfillmentTrack';
 // DEX pages
 import DexDashboard from './pages/dex/Dashboard';
 import DexWorkOrders from './pages/dex/WorkOrders';
@@ -117,6 +122,11 @@ const App: React.FC = () => {
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
+          <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
+          <Route path="suppliers" element={<ErrorBoundary><DuSuppliers /></ErrorBoundary>} />
+          <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
+          <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
+          <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
@@ -144,9 +154,12 @@ const App: React.FC = () => {
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
+          <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
+          <Route path="suppliers" element={<ErrorBoundary><DuSuppliers /></ErrorBoundary>} />
+          <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
+          <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
+          <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
         </Route>
-
-        {/* DXX routes (store clerk) */}
         <Route
           path="/dxx"
           element={

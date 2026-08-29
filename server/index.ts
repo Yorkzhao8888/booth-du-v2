@@ -18,6 +18,7 @@ import duPurchaseRoutes from './routes/du-purchase.js';
 import duModulesRoutes from './routes/du-modules.js';
 import dexModulesRoutes from './routes/dex-modules.js';
 import dexxModulesRoutes from './routes/dexx-modules.js';
+import duSupplyRoutes from './routes/du-supply.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,6 +65,7 @@ app.use('/api/booth/du', duPurchaseRoutes);   // /api/booth/du/purchase-orders/*
 app.use('/api/booth/du', duModulesRoutes);    // /api/booth/du/dl/*, /svc/*, /profit/*, /wh/*, /fab/qc
 app.use('/api/booth/dex', dexModulesRoutes);  // /api/booth/dex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
 app.use('/api/booth/dexx', dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
+app.use('/api/booth/du', duSupplyRoutes);      // /api/booth/du/supply/* (replenish, suppliers, batches, inventory/alerts, orders/track)
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

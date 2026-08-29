@@ -87,7 +87,7 @@ const DxxDashboard: React.FC = () => {
       title: '商品', 
       dataIndex: 'items', 
       key: 'items',
-      render: (items: { name: string; qty: number }[]) => items?.slice(0, 2).map(i => `${i.name}×${i.qty}`).join(', ') || '-'
+      render: (items: { productName?: string; name?: string; qty: number }[]) => items?.slice(0, 2).map(i => `${i.productName || i.name || '商品'}×${i.qty}`).join(', ') || '-'
     },
     { 
       title: '操作', 

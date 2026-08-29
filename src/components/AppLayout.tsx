@@ -46,6 +46,9 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/du/purchase-orders', label: '采购管理' },
       { key: '/du/profit', label: '毛利核算' },
       { key: '/du/boms', label: '商品/BOM' },
+      { key: '/du/replenishment', label: '智能补货' },
+      { key: '/du/suppliers', label: '供应商结算' },
+      { key: '/du/fulfillment-track', label: '履约追踪' },
       ...(role === 'dex' ? [{ key: '/dex/skus', label: 'SKU管理' }] : []),
       ...(role === 'dex' ? [{ key: '/dex/boms', label: 'BOM管理' }] : []),
       { key: '/du/org-chart', label: '组织架构' },
@@ -87,6 +90,8 @@ const getMenuItemsByRole = (role: string) => {
     children: [
       { key: '/du/batches', label: '批次库存' },
       { key: '/du/inventory', label: '库存总览' },
+      { key: '/du/inventory-alerts', label: '库存预警' },
+      { key: '/du/expiry-control', label: '效期管控' },
       { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
       ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }] : []),
       ...(role === 'dexx' ? [
