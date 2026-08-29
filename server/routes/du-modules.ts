@@ -16,8 +16,8 @@ duRouter.use(requireAuth, (req, res, next) => {
   // Debug log for troubleshooting
   console.log(`[du-modules guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}, userId=${user.userId || 'N/A'}`);
   
-  // 基础角色列表（可访问 du 路由）
-  const baseRoles = ['du', 'dx', 'dm', 'dxx'];
+  // 基础角色列表（可访问 du 路由）- 包含 dexx
+  const baseRoles = ['du', 'dx', 'dm', 'dxx', 'dexx'];
   
   // DEXX 特殊处理：只能 GET 访问（只读），写操作 403
   if (user.role === 'dexx') {

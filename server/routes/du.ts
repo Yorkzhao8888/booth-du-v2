@@ -34,7 +34,7 @@ router.use(requireAuth, (req, res, next) => {
     return next();
   }
   
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
+  const allowedRoles = ['du', 'dx', 'dm', 'dxx', 'dexx'];
   if (!allowedRoles.includes(user.role)) {
     console.log(`[du.ts guard] REJECT: role ${user.role} not in allowedRoles`);
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
