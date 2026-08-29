@@ -372,4 +372,179 @@ router.get('/boms', async (req, res, next) => {
   }
 });
 
+// GET /skus - list SKUs with full price visibility for du/dx
+router.get('/skus', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const orgId = user.orgId;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const offset = (page - 1) * pageSize;
+
+    const countRes = await pool.query('SELECT COUNT(*) as cnt FROM booth_skus WHERE org_id = $1 AND is_active = TRUE', [orgId]);
+    const total = parseInt(countRes.rows[0].cnt);
+
+    const dataRes = await pool.query(
+      `SELECT * FROM booth_skus WHERE org_id = $1 AND is_active = TRUE ORDER BY id LIMIT $2 OFFSET $3`,
+      [orgId, pageSize, offset]
+    );
+
+    res.json({ success: true, data: { items: dataRes.rows, total, page, pageSize } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /inventory/txns - inventory transactions
+router.get('/inventory/txns', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const orgId = user.orgId;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const offset = (page - 1) * pageSize;
+
+    const countRes = await pool.query('SELECT COUNT(*) as cnt FROM booth_inventory_txn WHERE org_id = $1', [orgId]);
+    const total = parseInt(countRes.rows[0].cnt);
+
+    const dataRes = await pool.query(
+      `SELECT t.*, s.name as sku_name, s.sku_code, u.name as operator_name
+       FROM booth_inventory_txn t
+       LEFT JOIN booth_skus s ON s.id = t.sku_id
+       LEFT JOIN booth_users u ON u.id = t.operator_id
+       WHERE t.org_id = $1
+       ORDER BY t.created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [orgId, pageSize, offset]
+    );
+
+    res.json({ success: true, data: { items: dataRes.rows, total, page, pageSize } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /inbound - inbound stock
+router.post('/inbound', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'items required', code: 'INVALID_PARAMS' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const item of items) {
+        await client.query(
+          `INSERT INTO booth_inventory (org_id, sku_id, qty_on_hand) VALUES ($1, $2, $3)
+           ON CONFLICT (org_id, sku_id) DO UPDATE SET qty_on_hand = booth_inventory.qty_on_hand + $3, updated_at = NOW()`,
+          [user.orgId, item.skuId, item.qty]
+        );
+        await client.query(
+          `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, operator_id) VALUES ($1, $2, $3, 'inbound', $4)`,
+          [user.orgId, item.skuId, item.qty, user.userId]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ success: true, data: { count: items.length } });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /inbound - list inbound orders (recent txns)
+router.get('/inbound', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const orgId = user.orgId;
+    const r = await pool.query(
+      `SELECT t.*, s.name as sku_name, s.sku_code
+       FROM booth_inventory_txn t
+       LEFT JOIN booth_skus s ON s.id = t.sku_id
+       WHERE t.org_id = $1 AND t.type = 'inbound'
+       ORDER BY t.created_at DESC LIMIT 50`,
+      [orgId]
+    );
+    res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /outbound - outbound stock
+router.post('/outbound', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'items required', code: 'INVALID_PARAMS' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const shortages: any[] = [];
+      for (const item of items) {
+        const invRes = await client.query(
+          'SELECT qty_on_hand FROM booth_inventory WHERE org_id = $1 AND sku_id = $2 FOR UPDATE',
+          [user.orgId, item.skuId]
+        );
+        if (!invRes.rows.length || invRes.rows[0].qty_on_hand < item.qty) {
+          shortages.push({ skuId: item.skuId, required: item.qty, available: invRes.rows.length > 0 ? invRes.rows[0].qty_on_hand : 0 });
+        }
+      }
+      if (shortages.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ success: false, error: 'Insufficient stock', code: 'INSUFFICIENT_STOCK', shortages });
+      }
+      for (const item of items) {
+        await client.query(
+          `UPDATE booth_inventory SET qty_on_hand = qty_on_hand - $1, updated_at = NOW() WHERE org_id = $2 AND sku_id = $3`,
+          [item.qty, user.orgId, item.skuId]
+        );
+        await client.query(
+          `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, operator_id) VALUES ($1, $2, $3, 'outbound', $4)`,
+          [user.orgId, item.skuId, -item.qty, user.userId]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ success: true, data: { count: items.length } });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /outbound - list outbound orders (recent txns)
+router.get('/outbound', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const orgId = user.orgId;
+    const r = await pool.query(
+      `SELECT t.*, s.name as sku_name, s.sku_code
+       FROM booth_inventory_txn t
+       LEFT JOIN booth_skus s ON s.id = t.sku_id
+       WHERE t.org_id = $1 AND t.type = 'outbound'
+       ORDER BY t.created_at DESC LIMIT 50`,
+      [orgId]
+    );
+    res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

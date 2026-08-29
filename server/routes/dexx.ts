@@ -258,4 +258,69 @@ router.get('/wh/txns', requireHat('WH'), async (req, res, next) => {
   }
 });
 
+// GET /dashboard - dexx dashboard stats
+router.get('/dashboard', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const orgId = user.orgId;
+    const userId = user.userId!;
+    const hats = user.hats || [];
+
+    const stats: any = {};
+
+    if (hats.includes('FAB')) {
+      const queueRes = await pool.query(
+        "SELECT COUNT(*) as cnt FROM booth_work_orders WHERE org_id = $1 AND status = 'pending'",
+        [orgId]
+      );
+      const activeRes = await pool.query(
+        "SELECT COUNT(*) as cnt FROM booth_work_orders WHERE org_id = $1 AND status IN ('accepted','preparing') AND operator_id = $2",
+        [orgId, userId]
+      );
+      const historyRes = await pool.query(
+        "SELECT COUNT(*) as cnt FROM booth_work_orders WHERE org_id = $1 AND status = 'completed' AND operator_id = $2",
+        [orgId, userId]
+      );
+      stats.fabQueue = parseInt(queueRes.rows[0].cnt);
+      stats.fabActive = parseInt(activeRes.rows[0].cnt);
+      stats.fabHistory = parseInt(historyRes.rows[0].cnt);
+    }
+
+    if (hats.includes('WH')) {
+      const invRes = await pool.query(
+        'SELECT COUNT(*) as cnt FROM booth_inventory WHERE org_id = $1',
+        [orgId]
+      );
+      const lowStockRes = await pool.query(
+        `SELECT COUNT(*) as cnt FROM booth_inventory i
+         JOIN booth_skus s ON s.id = i.sku_id
+         WHERE i.org_id = $1 AND i.qty_on_hand <= s.safety_stock`,
+        [orgId]
+      );
+      stats.whSkuCount = parseInt(invRes.rows[0].cnt);
+      stats.whLowStock = parseInt(lowStockRes.rows[0].cnt);
+    }
+
+    if (hats.includes('DL')) {
+      const dlRes = await pool.query(
+        "SELECT COUNT(*) as cnt FROM booth_dl_tasks WHERE org_id = $1 AND assignee_id = $2 AND status IN ('assigned','accepted','picked','delivering')",
+        [orgId, userId]
+      );
+      stats.dlActive = parseInt(dlRes.rows[0].cnt);
+    }
+
+    if (hats.includes('SVC')) {
+      const svcRes = await pool.query(
+        "SELECT COUNT(*) as cnt FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status IN ('assigned','accepted','in_service')",
+        [orgId, userId]
+      );
+      stats.svcActive = parseInt(svcRes.rows[0].cnt);
+    }
+
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

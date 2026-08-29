@@ -152,7 +152,7 @@ router.post('/wh/stocktakes', requireHat('WH'), async (req, res, next) => {
     const { items, remark } = req.body;
     const soNo = `ST${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const r = await pool.query(
-      `INSERT INTO booth_stocktake_orders (org_id, so_no, status, items, created_by, remark)
+      `INSERT INTO booth_stocktake_orders (org_id, st_no, status, lines, created_by, remark)
        VALUES ($1, $2, 'draft', $3, $4, $5) RETURNING *`,
       [user.orgId, soNo, JSON.stringify(items || []), user.userId!, remark]
     );
@@ -166,7 +166,7 @@ router.post('/wh/stocktakes/:id/submit', requireHat('WH'), async (req, res, next
     const user = (req as any).user as JwtPayload;
     const { items } = req.body; // Updated items with actualQty
     const r = await pool.query(
-      `UPDATE booth_stocktake_orders SET items = $1, status = 'submitted', submitted_at = NOW(), updated_at = NOW()
+      `UPDATE booth_stocktake_orders SET lines = $1, status = 'submitted', submitted_at = NOW(), updated_at = NOW()
        WHERE id = $2 AND org_id = $3 AND status IN ('draft', 'counting') RETURNING *`,
       [JSON.stringify(items || []), req.params.id, user.orgId]
     );
@@ -254,6 +254,14 @@ router.get('/dl/tasks', requireHat('DL'), async (req, res, next) => {
 async function verifyDlOwnership(pool: any, taskId: string, orgId: number, userId: number | undefined) {
   if (!userId) return { error: 'UNAUTHORIZED', status: 401 };
   const r = await pool.query('SELECT * FROM booth_dl_tasks WHERE id = $1 AND org_id = $2', [taskId, orgId]);
+  if (!r.rows.length) return { error: 'NOT_FOUND', status: 404 };
+  if (r.rows[0].assignee_id !== userId) return { error: 'Not your task', status: 403 };
+  return { task: r.rows[0] };
+}
+
+async function verifySvcOwnership(pool: any, taskId: string, orgId: number, userId: number | undefined) {
+  if (!userId) return { error: 'UNAUTHORIZED', status: 401 };
+  const r = await pool.query('SELECT * FROM booth_svc_tasks WHERE id = $1 AND org_id = $2', [taskId, orgId]);
   if (!r.rows.length) return { error: 'NOT_FOUND', status: 404 };
   if (r.rows[0].assignee_id !== userId) return { error: 'Not your task', status: 403 };
   return { task: r.rows[0] };
@@ -422,6 +430,8 @@ router.get('/svc/tasks', requireHat('SVC'), async (req, res, next) => {
 router.post('/svc/tasks/:id/accept', requireHat('SVC'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
+    const check = await verifySvcOwnership(pool, req.params.id, user.orgId, user.userId);
+    if ('error' in check) return res.status(check.status || 400).json({ success: false, error: check.error, code: check.error });
     const r = await pool.query(
       `UPDATE booth_svc_tasks SET status = 'accepted', accepted_at = NOW(), updated_at = NOW()
        WHERE id = $1 AND org_id = $2 AND assignee_id = $3 AND status = 'assigned' RETURNING *`,
@@ -450,11 +460,11 @@ router.post('/svc/tasks/:id/start', requireHat('SVC'), async (req, res, next) =>
 router.post('/svc/tasks/:id/complete', requireHat('SVC'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const { result, remark } = req.body;
+    const { remark } = req.body;
     const r = await pool.query(
-      `UPDATE booth_svc_tasks SET status = 'completed', result = $1, remark = COALESCE($2, remark), completed_at = NOW(), updated_at = NOW()
-       WHERE id = $3 AND org_id = $4 AND assignee_id = $5 AND status = 'in_service' RETURNING *`,
-      [result, remark, req.params.id, user.orgId, user.userId!]
+      `UPDATE booth_svc_tasks SET status = 'completed', remark = COALESCE($1, remark), completed_at = NOW(), updated_at = NOW()
+       WHERE id = $2 AND org_id = $3 AND assignee_id = $4 AND status = 'in_service' RETURNING *`,
+      [remark, req.params.id, user.orgId, user.userId!]
     );
     if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot complete: invalid state', code: 'INVALID_STATE' });
     res.json({ success: true, data: r.rows[0] });
