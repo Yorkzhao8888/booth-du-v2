@@ -101,40 +101,74 @@ router.post('/wh/stocktakes/:id/approve', async (req, res, next) => {
     const user = (req as any).user as JwtPayload;
     await client.query('BEGIN');
 
-    const r = await client.query(
+    // First read the order (lock it)
+    const readRes = await client.query(
+      `SELECT * FROM booth_stocktake_orders WHERE id = $1 AND org_id = $2 FOR UPDATE`,
+      [req.params.id, user.orgId]
+    );
+    if (!readRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Stocktake not found', code: 'NOT_FOUND' });
+    }
+    const so = readRes.rows[0];
+    if (so.status !== 'submitted') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: `Cannot approve: status is ${so.status}`, code: 'INVALID_STATE' });
+    }
+
+    const lines = Array.isArray(so.lines) ? so.lines : [];
+    if (lines.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Cannot approve: lines is empty', code: 'EMPTY_LINES' });
+    }
+
+    // Adjust inventory per line
+    for (const line of lines) {
+      const skuId = line.skuId || line.sku_id;
+      const bookQty = parseFloat(line.bookQty ?? line.systemQty ?? 0);
+      const actualQty = parseFloat(line.actualQty ?? 0);
+      const diff = actualQty - bookQty;
+      if (Math.abs(diff) < 0.001) continue;
+
+      // Adjust booth_inventory
+      await client.query(
+        `INSERT INTO booth_inventory (org_id, sku_id, qty_on_hand) VALUES ($1, $2, $3)
+         ON CONFLICT (org_id, sku_id) DO UPDATE SET qty_on_hand = booth_inventory.qty_on_hand + $3, updated_at = NOW()`,
+        [user.orgId, skuId, diff]
+      );
+
+      // Adjust stock_batches if batchNo specified
+      const batchNo = line.batchNo || '';
+      if (batchNo) {
+        const batchRes = await client.query(
+          `SELECT id, qty FROM booth_stock_batches WHERE org_id = $1 AND sku_id = $2 AND batch_no = $3 ORDER BY expiry_date ASC NULLS LAST LIMIT 1`,
+          [user.orgId, skuId, batchNo]
+        );
+        if (batchRes.rows.length > 0) {
+          await client.query(
+            `UPDATE booth_stock_batches SET qty = qty + $1 WHERE id = $2`,
+            [diff, batchRes.rows[0].id]
+          );
+        }
+      }
+
+      // Write transaction log
+      await client.query(
+        `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, ref_type, ref_id, operator_id, remark)
+         VALUES ($1, $2, $3, 'stocktake_adjust', 'stocktake_order', $4, $5, $6)`,
+        [user.orgId, skuId, diff, so.id, user.userId, `盘点调整 ${so.st_no} diff=${diff}`]
+      );
+    }
+
+    // Update status to approved
+    const updateRes = await client.query(
       `UPDATE booth_stocktake_orders SET status = 'approved', approved_by = $1, approved_at = NOW(), updated_at = NOW()
-       WHERE id = $2 AND org_id = $3 AND status = 'submitted' RETURNING *`,
+       WHERE id = $2 AND org_id = $3 RETURNING *`,
       [user.userId, req.params.id, user.orgId]
     );
-    if (!r.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, error: 'Cannot approve: invalid state', code: 'INVALID_STATE' });
-    }
-
-    const so = r.rows[0];
-    const items = so.items || [];
-    for (const item of items) {
-      const skuId = item.skuId || item.sku_id;
-      const systemQty = parseFloat(item.systemQty || 0);
-      const actualQty = parseFloat(item.actualQty || 0);
-      const diff = actualQty - systemQty;
-      if (Math.abs(diff) > 0.001) {
-        // Apply adjustment
-        await client.query(
-          `INSERT INTO booth_inventory (org_id, sku_id, qty_on_hand) VALUES ($1, $2, $3)
-           ON CONFLICT (org_id, sku_id) DO UPDATE SET qty_on_hand = booth_inventory.qty_on_hand + $3, updated_at = NOW()`,
-          [user.orgId, skuId, diff]
-        );
-        await client.query(
-          `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, ref_type, ref_id, operator_id)
-           VALUES ($1, $2, $3, 'stocktake_adjust', 'stocktake_order', $4, $5)`,
-          [user.orgId, skuId, diff, so.id, user.userId]
-        );
-      }
-    }
 
     await client.query('COMMIT');
-    res.json({ success: true, data: r.rows[0] });
+    res.json({ success: true, data: updateRes.rows[0] });
   } catch (err) { await client.query('ROLLBACK'); next(err); }
   finally { client.release(); }
 });

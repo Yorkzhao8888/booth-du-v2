@@ -149,12 +149,31 @@ router.get('/fab/qc/pending', requireHat('FAB'), async (req, res, next) => {
 router.post('/wh/stocktakes', requireHat('WH'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const { items, remark } = req.body;
-    const soNo = `ST${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const { remark, skuIds } = req.body;
+    const stNo = `ST${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
+    // Build initial lines from skuIds (enrich server-side)
+    const initLines: any[] = [];
+    if (Array.isArray(skuIds) && skuIds.length > 0) {
+      const skuRows = await pool.query(
+        `SELECT id, name FROM booth_skus WHERE id = ANY($1) AND org_id = $2`,
+        [skuIds, user.orgId]
+      );
+      for (const sku of skuRows.rows) {
+        // Get bookQty from inventory
+        const invRow = await pool.query(
+          `SELECT qty_on_hand FROM booth_inventory WHERE org_id = $1 AND sku_id = $2`,
+          [user.orgId, sku.id]
+        );
+        const bookQty = invRow.rows[0] ? parseFloat(invRow.rows[0].qty_on_hand) : 0;
+        initLines.push({ skuId: sku.id, skuName: sku.name, bookQty, actualQty: null, diffQty: null, batchNo: '' });
+      }
+    }
+
     const r = await pool.query(
       `INSERT INTO booth_stocktake_orders (org_id, st_no, status, lines, created_by, remark)
        VALUES ($1, $2, 'draft', $3, $4, $5) RETURNING *`,
-      [user.orgId, soNo, JSON.stringify(items || []), user.userId!, remark]
+      [user.orgId, stNo, JSON.stringify(initLines), user.userId!, remark]
     );
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }
@@ -164,11 +183,50 @@ router.post('/wh/stocktakes', requireHat('WH'), async (req, res, next) => {
 router.post('/wh/stocktakes/:id/submit', requireHat('WH'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const { items } = req.body; // Updated items with actualQty
+    const { lines } = req.body;
+
+    // Validate lines
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return res.status(400).json({ success: false, error: 'Submit failed: lines is empty', code: 'EMPTY_LINES' });
+    }
+
+    // Enrich each line server-side
+    const enrichedLines: any[] = [];
+    for (const line of lines) {
+      const skuId = line.skuId || line.sku_id;
+      if (!skuId) continue;
+
+      // Get SKU name
+      const skuRow = await pool.query(`SELECT name FROM booth_skus WHERE id = $1`, [skuId]);
+      const skuName = skuRow.rows[0]?.name || '';
+
+      // Get bookQty: if batchNo provided, sum from stock_batches; otherwise from inventory
+      let bookQty: number;
+      const batchNo = line.batchNo || '';
+      if (batchNo) {
+        const batchRow = await pool.query(
+          `SELECT COALESCE(SUM(qty), 0) as total FROM booth_stock_batches WHERE org_id = $1 AND sku_id = $2 AND batch_no = $3`,
+          [user.orgId, skuId, batchNo]
+        );
+        bookQty = parseFloat(batchRow.rows[0].total);
+      } else {
+        const invRow = await pool.query(
+          `SELECT qty_on_hand FROM booth_inventory WHERE org_id = $1 AND sku_id = $2`,
+          [user.orgId, skuId]
+        );
+        bookQty = invRow.rows[0] ? parseFloat(invRow.rows[0].qty_on_hand) : 0;
+      }
+
+      const actualQty = parseFloat(line.actualQty) || 0;
+      const diffQty = actualQty - bookQty;
+
+      enrichedLines.push({ skuId, skuName, bookQty, actualQty, diffQty, batchNo });
+    }
+
     const r = await pool.query(
       `UPDATE booth_stocktake_orders SET lines = $1, status = 'submitted', submitted_at = NOW(), updated_at = NOW()
-       WHERE id = $2 AND org_id = $3 AND status IN ('draft', 'counting') RETURNING *`,
-      [JSON.stringify(items || []), req.params.id, user.orgId]
+       WHERE id = $2 AND org_id = $3 AND status = 'draft' RETURNING *`,
+      [JSON.stringify(enrichedLines), req.params.id, user.orgId]
     );
     if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot submit: invalid state', code: 'INVALID_STATE' });
     res.json({ success: true, data: r.rows[0] });
