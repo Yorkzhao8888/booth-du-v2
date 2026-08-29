@@ -1,10 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Row, Col, Table, Progress, Typography, Alert, Statistic, Card } from 'antd';
+import { Row, Col, Table, Progress, Typography, Alert, Statistic, Card, Segmented } from 'antd';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { apiGet } from '../../api';
 import { fmtMoney, fmtPercent } from '../../utils/format';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Title } = Typography;
+
+interface TrendItem {
+  date: string;
+  orderCount: number;
+  revenue: number;
+}
 
 interface DashboardData {
   todayOrders: number;
@@ -15,6 +22,7 @@ interface DashboardData {
   preparingWorkOrders: number;
   lowStockCount: number;
   workOrderStats: Record<string, number>;
+  trend: TrendItem[];
 }
 
 const statusLabels: Record<string, string> = {
@@ -28,6 +36,7 @@ const statusLabels: Record<string, string> = {
 const DuDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trendRange, setTrendRange] = useState<string>('7天');
 
   const fetchData = useCallback(async () => {
     try {
@@ -146,6 +155,42 @@ const DuDashboard: React.FC = () => {
               message={`今日毛利率: ${data.grossMargin}%`}
               description={`营收 ${data.todayRevenue != null ? `¥${(data.todayRevenue / 100).toFixed(2)}` : '-'} | 毛利 ${data.todayGrossProfit != null ? `¥${(data.todayGrossProfit / 100).toFixed(2)}` : '-'}`}
             />
+          </Col>
+        </Row>
+      )}
+
+      {/* Trend Chart */}
+      {data?.trend && data.trend.length > 0 && (
+        <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+          <Col xs={24}>
+            <Card title="经营趋势" extra={
+              <Segmented
+                options={['7天', '30天']}
+                value={trendRange}
+                onChange={(v) => setTrendRange(v as string)}
+                size="small"
+              />
+            }>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={data.trend}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip 
+                    formatter={(value: number, name: string) => {
+                      if (name === '营收') return fmtMoney(value);
+                      return value;
+                    }}
+                  />
+                  <Legend />
+                  <Line yAxisId="left" type="monotone" dataKey="orderCount" name="订单数" stroke="#1890ff" />
+                  {data.todayRevenue != null && (
+                    <Line yAxisId="right" type="monotone" dataKey="revenue" name="营收" stroke="#52c41a" />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
           </Col>
         </Row>
       )}

@@ -122,6 +122,30 @@ router.get('/dashboard', async (req, res, next) => {
     );
     const lowStockCount = parseInt(lowStockRes.rows[0].cnt);
 
+    // Trend data - last 7 days
+    const trendRes = await pool.query(
+      `SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as order_count,
+        COALESCE(SUM(
+          (SELECT COALESCE(SUM((item->>'price')::int * (item->>'qty')::int), 0)
+           FROM jsonb_array_elements(items) AS item)
+        ), 0) as revenue
+       FROM booth_fulfillments
+       WHERE org_id = $1 
+         AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+         AND status != 'cancelled'
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      [orgId]
+    );
+
+    const trend = trendRes.rows.map(row => ({
+      date: row.date.toISOString().split('T')[0],
+      orderCount: parseInt(row.order_count),
+      revenue: parseInt(row.revenue) || 0,
+    }));
+
     res.json({
       success: true,
       data: {
@@ -131,6 +155,7 @@ router.get('/dashboard', async (req, res, next) => {
         preparingWorkOrders: workOrderStats['preparing'] || 0,
         lowStockCount,
         workOrderStats,
+        trend,
       },
     });
   } catch (err) {
