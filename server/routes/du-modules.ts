@@ -173,15 +173,69 @@ duRouter.get('/fab/qc', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ====== Users list (for dispatch) ======
+// ====== Users list (for dispatch / employee management) ======
 duRouter.get('/users', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const r = await pool.query(
-      `SELECT id, name, phone, hats, role FROM booth_users WHERE org_id = $1 AND role = 'dexx' AND is_active = true ORDER BY name`,
-      [user.orgId]
-    );
+    const roleFilter = req.query.role as string;
+    let query = `SELECT id, name, phone, hats, role, created_at FROM booth_users WHERE org_id = $1`;
+    const params: unknown[] = [user.orgId];
+    
+    if (roleFilter) {
+      query += ` AND role = $2`;
+      params.push(roleFilter);
+    }
+    query += ` ORDER BY created_at DESC`;
+    
+    const r = await pool.query(query, params);
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
+  } catch (err) { next(err); }
+});
+
+// ====== Add employee (DM/DU only) ======
+duRouter.post('/users', requireRole('dm', 'du'), async (req, res, next) => {
+  try {
+    const { name, phone, password, role, hats } = req.body;
+    if (!name || !phone || !password || !role) {
+      return res.status(400).json({ success: false, error: '缺少必填字段' });
+    }
+    
+    // Check if phone already exists
+    const existing = await pool.query(`SELECT id FROM booth_users WHERE phone = $1`, [phone]);
+    if (existing.rowCount && existing.rowCount > 0) {
+      return res.status(400).json({ success: false, error: '手机号已存在' });
+    }
+    
+    const bcrypt = require('bcrypt');
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const hatsArray = hats || [];
+    
+    const r = await pool.query(
+      `INSERT INTO booth_users (org_id, name, phone, password_hash, role, hats)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, phone, role, hats`,
+      [1, name, phone, passwordHash, role, `{${hatsArray.join(',')}}`]
+    );
+    
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ====== Reset password (DM/DU only) ======
+duRouter.post('/users/:id/reset-password', requireRole('dm', 'du'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    const newPassword = password || '123456';
+    
+    const bcrypt = require('bcrypt');
+    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    
+    await pool.query(
+      `UPDATE booth_users SET password_hash = $1 WHERE id = $2 AND org_id = $3`,
+      [passwordHash, id, 1]
+    );
+    
+    res.json({ success: true, message: '密码已重置' });
   } catch (err) { next(err); }
 });
 

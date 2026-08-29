@@ -279,6 +279,30 @@ export async function migrate() {
         `UPDATE booth_users SET hats = '{FAB,WH,DL,SVC}' WHERE role = 'dexx' AND org_id = 1`
       );
 
+      // Add DM (运营) user if not exists
+      const dmCheck = await client.query(`SELECT id FROM booth_users WHERE phone = '13800000000'`);
+      if (dmCheck.rowCount === 0) {
+        const dmHash = bcrypt.hashSync('123456', 10);
+        await client.query(
+          `INSERT INTO booth_users (org_id, name, phone, password_hash, role, hats)
+           VALUES (1, '运营', '13800000000', $1, 'dm', '{}')`,
+          [dmHash]
+        );
+        console.log('[migrate] Added dm user: 运营 / 13800000000.');
+      }
+
+      // Add DXX (店员) user if not exists
+      const dxxCheck = await client.query(`SELECT id FROM booth_users WHERE phone = '13800000005'`);
+      if (dxxCheck.rowCount === 0) {
+        const dxxHash = bcrypt.hashSync('123456', 10);
+        await client.query(
+          `INSERT INTO booth_users (org_id, name, phone, password_hash, role, hats)
+           VALUES (1, '店员', '13800000005', $1, 'dxx', '{}')`,
+          [dxxHash]
+        );
+        console.log('[migrate] Added dxx user: 店员 / 13800000005.');
+      }
+
       // Seed sku_cost for all existing SKUs if not exists
       const skuCostCheck = await client.query('SELECT COUNT(*) as cnt FROM booth_sku_cost WHERE org_id = 1');
       if (parseInt(skuCostCheck.rows[0].cnt) === 0) {

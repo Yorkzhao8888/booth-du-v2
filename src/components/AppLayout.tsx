@@ -35,6 +35,35 @@ const duMenuItems = [
   { type: 'divider' },
   { key: '/du/dl', icon: <CarOutlined />, label: '配送任务' },
   { key: '/du/svc', icon: <CustomerServiceOutlined />, label: '服务任务' },
+  { type: 'divider' },
+  { key: '/du/employees', icon: <UserOutlined />, label: '员工管理' },
+  { key: '/du/org-chart', icon: <AppstoreOutlined />, label: '组织架构' },
+];
+
+const dmMenuItems = [
+  { key: '/dm', icon: <DashboardOutlined />, label: '运营总览' },
+  { type: 'divider' },
+  { key: '/dm/orders', icon: <ShoppingCartOutlined />, label: '订单（只读）' },
+  { key: '/dm/work-orders', icon: <ToolOutlined />, label: '工单（只读）' },
+  { key: '/dm/inventory', icon: <InboxOutlined />, label: '库存（只读）' },
+  { key: '/dm/boms', icon: <ProfileOutlined />, label: 'BOM（只读）' },
+  { key: '/dm/purchase-orders', icon: <ShoppingCartOutlined />, label: '采购（只读）' },
+  { key: '/dm/profit', icon: <DollarOutlined />, label: '毛利（只读）' },
+  { key: '/dm/batches', icon: <DatabaseOutlined />, label: '批次（只读）' },
+  { key: '/dm/dl', icon: <CarOutlined />, label: '配送（只读）' },
+  { key: '/dm/svc', icon: <CustomerServiceOutlined />, label: '服务（只读）' },
+  { type: 'divider' },
+  { key: '/dm/employees', icon: <UserOutlined />, label: '员工管理' },
+  { key: '/dm/org-chart', icon: <AppstoreOutlined />, label: '组织架构' },
+];
+
+const dxxMenuItems = [
+  { key: '/dxx', icon: <DashboardOutlined />, label: '工作台' },
+  { type: 'divider' },
+  { key: '/dxx/dl', icon: <CarOutlined />, label: '配送执行' },
+  { key: '/dxx/svc', icon: <CustomerServiceOutlined />, label: '服务执行' },
+  { type: 'divider' },
+  { key: '/dxx/org-chart', icon: <AppstoreOutlined />, label: '组织架构' },
 ];
 
 const dexMenuItems = [
@@ -55,7 +84,16 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const menuItems = user?.role === 'dex' ? dexMenuItems : duMenuItems;
+  const getMenuItems = () => {
+    switch (user?.role) {
+      case 'dm': return dmMenuItems;
+      case 'dxx': return dxxMenuItems;
+      case 'dex': return dexMenuItems;
+      default: return duMenuItems;
+    }
+  };
+
+  const menuItems = getMenuItems();
 
   const selectedKey = menuItems
     .filter((m: any) => m.key)
@@ -63,17 +101,19 @@ const AppLayout: React.FC = () => {
     .filter((k: string) => {
       if (location.pathname === k) return true;
       if ((user?.role === 'du' || user?.role === 'dx') && k.startsWith('/du') && location.pathname.startsWith('/du')) return true;
+      if (user?.role === 'dm' && k.startsWith('/dm') && location.pathname.startsWith('/dm')) return true;
+      if (user?.role === 'dxx' && k.startsWith('/dxx') && location.pathname.startsWith('/dxx')) return true;
       if (user?.role === 'dex' && k.startsWith('/dex') && location.pathname.startsWith('/dex')) return true;
       return false;
     })
-    .sort((a: string, b: string) => b.length - a.length)[0] || (user?.role === 'dex' ? '/dex' : '/du');
+    .sort((a: string, b: string) => b.length - a.length)[0] || (user?.role === 'dex' ? '/dex' : user?.role === 'dm' ? '/dm' : user?.role === 'dxx' ? '/dxx' : '/du');
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const roleLabel: Record<string, string> = { du: '店主', dx: '店长', dex: '交付长' };
+  const roleLabel: Record<string, string> = { dm: '运营', du: '店主', dx: '店长', dxx: '店员', dex: '交付长', dexx: '铺员' };
   const displayRole = roleLabel[user?.role || ''] || user?.role;
 
   return (

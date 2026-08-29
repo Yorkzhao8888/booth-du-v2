@@ -18,6 +18,8 @@ interface AuthState {
   logout: () => void;
   hasHat: (hat: string) => boolean;
   canSeePrice: () => boolean;
+  canSeeSalePrice: () => boolean;
+  isReadOnly: () => boolean;
   fetchUser: () => void;
 }
 
@@ -55,7 +57,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   canSeePrice: () => {
     const user = get().user;
-    return !!user && (user.role === 'du' || user.role === 'dx') && user.orgMode === 'du';
+    return !!user && (user.role === 'du' || user.role === 'dx' || user.role === 'dm') && user.orgMode === 'du';
+  },
+
+  canSeeSalePrice: () => {
+    const user = get().user;
+    return !!user && ['du', 'dx', 'dm', 'dxx'].includes(user.role);
+  },
+
+  isReadOnly: () => {
+    const user = get().user;
+    return !!user && user.role === 'dm';
   },
 
   fetchUser: () => {

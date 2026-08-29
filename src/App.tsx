@@ -40,6 +40,13 @@ import DexxQcExecute from './pages/dexx/QcExecute';
 import DexxStocktakeExec from './pages/dexx/StocktakeExec';
 import DexxDlExec from './pages/dexx/DlExec';
 import DexxSvcExec from './pages/dexx/SvcExec';
+// DM pages
+import DmDashboard from './pages/dm/Dashboard';
+// DXX pages
+import DxxDashboard from './pages/dxx/Dashboard';
+// Common pages
+import OrgChart from './pages/common/OrgChart';
+import EmployeeManagement from './pages/du/EmployeeManagement';
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuthStore();
@@ -53,14 +60,22 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const role = user.role;
     const path = location.pathname;
 
+    // dm can access all routes (read-only)
+    if (role === 'dm') {
+      // DM can access any route, no redirect needed
+    }
     // du and dx share the same /du routes
-    if ((role === 'du' || role === 'dx') && !path.startsWith('/du')) {
+    else if ((role === 'du' || role === 'dx') && !path.startsWith('/du')) {
       return <Navigate to="/du" replace />;
     }
-    if (role === 'dex' && !path.startsWith('/dex')) {
+    // dxx shares /dxx routes with dexx
+    else if (role === 'dxx' && !path.startsWith('/dxx') && !path.startsWith('/dexx')) {
+      return <Navigate to="/dxx" replace />;
+    }
+    else if (role === 'dex' && !path.startsWith('/dex')) {
       return <Navigate to="/dex" replace />;
     }
-    if (role === 'dexx' && !path.startsWith('/dexx')) {
+    else if (role === 'dexx' && !path.startsWith('/dexx')) {
       return <Navigate to="/dexx" replace />;
     }
   }
@@ -71,7 +86,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const RoleRedirect: React.FC = () => {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
-  const home: Record<string, string> = { du: '/du', dx: '/du', dex: '/dex', dexx: '/dexx' };
+  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', dex: '/dex', dexx: '/dexx' };
   return <Navigate to={home[user.role] || '/login'} replace />;
 };
 
@@ -101,6 +116,48 @@ const App: React.FC = () => {
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
+          <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
+          <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+        </Route>
+
+        {/* DM routes (read-only access to all) */}
+        <Route
+          path="/dm"
+          element={
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<ErrorBoundary><DmDashboard /></ErrorBoundary>} />
+          <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+          <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
+          {/* DM can access all DU routes in read-only mode */}
+          <Route path="orders" element={<ErrorBoundary><DuOrders /></ErrorBoundary>} />
+          <Route path="work-orders" element={<ErrorBoundary><DuWorkOrders /></ErrorBoundary>} />
+          <Route path="inventory" element={<ErrorBoundary><DuInventory /></ErrorBoundary>} />
+          <Route path="boms" element={<ErrorBoundary><DuBoms /></ErrorBoundary>} />
+          <Route path="purchase-orders" element={<ErrorBoundary><DuPurchaseOrders /></ErrorBoundary>} />
+          <Route path="profit" element={<ErrorBoundary><DuProfitDashboard /></ErrorBoundary>} />
+          <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
+          <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
+          <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
+        </Route>
+
+        {/* DXX routes (store clerk) */}
+        <Route
+          path="/dxx"
+          element={
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<ErrorBoundary><DxxDashboard /></ErrorBoundary>} />
+          <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+          {/* DXX can access DEXX execution routes */}
+          <Route path="dl" element={<ErrorBoundary><DexxDlExec /></ErrorBoundary>} />
+          <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
         </Route>
 
         {/* DEX routes */}

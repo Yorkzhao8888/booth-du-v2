@@ -92,3 +92,73 @@ export function requireHat(hat: string) {
     next();
   };
 }
+
+// DM 运营：只读穿透（可访问所有读接口，写接口 403）
+export function requireWriteAccess(req: Request, _res: Response, next: NextFunction) {
+  // @ts-ignore
+  const user = req.user as JwtPayload;
+  if (user?.role === 'dm') {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
+  }
+  next();
+}
+
+// 价格可见性矩阵
+// DM/DU/DX: 全价可见
+// DXX: 仅售价可见（隐藏采购价/毛利）
+// DEX/DEXX: 零价（任何价格字段都不返回）
+export function canSeeFullPrice(role: string): boolean {
+  return ['dm', 'du', 'dx'].includes(role);
+}
+
+export function canSeeSalePrice(role: string): boolean {
+  return ['dm', 'du', 'dx', 'dxx'].includes(role);
+}
+
+export function canSeeAnyPrice(role: string): boolean {
+  return ['dm', 'du', 'dx', 'dxx'].includes(role);
+}
+
+// 价格字段剔除函数（用于 DEX/DEXX 零价响应）
+export function stripPriceFields(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(stripPriceFields);
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    const priceFields = new Set([
+      'price', 'cost_price', 'costPrice', 'sale_price', 'salePrice',
+      'unit_price', 'unitPrice', 'unit_cost', 'unitCost',
+      'total_amount', 'totalAmount', 'total_cost', 'totalCost',
+      'revenue', 'material_cost', 'materialCost', 'gross_profit', 'grossProfit',
+      'margin', 'grossMargin', 'profit',
+    ]);
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      if (priceFields.has(key)) continue;
+      result[key] = stripPriceFields(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+// DXX 价格剔除：隐藏采购价/毛利，保留售价
+export function stripCostFields(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(stripCostFields);
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    const costFields = new Set([
+      'cost_price', 'costPrice', 'unit_cost', 'unitCost',
+      'total_cost', 'totalCost', 'material_cost', 'materialCost',
+      'gross_profit', 'grossProfit', 'margin', 'grossMargin', 'profit',
+    ]);
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      if (costFields.has(key)) continue;
+      result[key] = stripCostFields(value);
+    }
+    return result;
+  }
+  return obj;
+}
