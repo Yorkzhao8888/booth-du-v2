@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select, message, Card, Descriptions, Steps, Popconfirm, DatePicker } from 'antd';
 import { PlusOutlined, ShoppingCartOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { api } from '../../api';
+import { getCurrentRole } from '../../utils/jwt';
 
 const statusMap: Record<string, { color: string; label: string }> = {
   draft: { color: 'default', label: '草稿' },
@@ -36,7 +37,7 @@ const PurchaseOrders: React.FC = () => {
   const [form] = Form.useForm();
   const [receiveForm] = Form.useForm();
   const [skuOptions, setSkuOptions] = useState<any[]>([]);
-  const role = JSON.parse(atob(localStorage.getItem('booth_token')?.split('.')[1] || 'eyJyb2xlIjoiZHUifQ==')).role;
+  const role = getCurrentRole();
   const isDu = role === 'du';
 
   const fetchOrders = async () => {
