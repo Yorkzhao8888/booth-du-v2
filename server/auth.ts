@@ -153,6 +153,8 @@ export function stripCostFields(obj: unknown): unknown {
       'cost_price', 'costPrice', 'unit_cost', 'unitCost',
       'total_cost', 'totalCost', 'material_cost', 'materialCost',
       'gross_profit', 'grossProfit', 'margin', 'grossMargin', 'profit',
+      'todayGrossProfit', 'todayProfit', 'todayCost', 'todayCostPrice',
+      'today_profit', 'today_cost', 'today_cost_price',
     ]);
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
       if (costFields.has(key)) continue;
