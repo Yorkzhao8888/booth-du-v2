@@ -16,8 +16,10 @@ duRouter.use(requireAuth, (req, res, next) => {
   // Debug log for troubleshooting
   console.log(`[du-modules guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}, userId=${user.userId || 'N/A'}`);
   
-  const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
-  const isTransferWrite = req.path.startsWith('/transfers') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
+  // 使用正则匹配 /transfers 路径（处理查询参数、尾部斜杠等情况）
+  const transferReadRegex = /^\/transfers(\/.*)?(\?.*)?$/;
+  const isTransferRead = transferReadRegex.test(req.path) && req.method === 'GET';
+  const isTransferWrite = transferReadRegex.test(req.path) && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
   
   // 基础角色列表（可访问 du 路由）
   const baseRoles = ['du', 'dx', 'dm', 'dxx'];

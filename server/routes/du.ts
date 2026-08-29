@@ -20,9 +20,10 @@ router.use(requireAuth, (req, res, next) => {
   
   // DEXX 特殊处理：只能读调拨列表
   if (user.role === 'dexx') {
-    // 使用 startsWith 匹配 /transfers 路径（可能有查询参数）
-    const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
-    console.log(`[du.ts guard] dexx branch: isTransferRead=${isTransferRead}`);
+    // 使用正则匹配 /transfers 路径（处理查询参数、尾部斜杠等情况）
+    const transferReadRegex = /^\/transfers(\/.*)?(\?.*)?$/;
+    const isTransferRead = transferReadRegex.test(req.path) && req.method === 'GET';
+    console.log(`[du.ts guard] dexx branch: path=${req.path}, isTransferRead=${isTransferRead}`);
     if (!isTransferRead) {
       console.log(`[du.ts guard] dexx REJECT: not transfer read`);
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
