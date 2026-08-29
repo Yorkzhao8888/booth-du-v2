@@ -152,11 +152,11 @@ router.post('/wh/stocktakes/:id/approve', async (req, res, next) => {
         }
       }
 
-      // Write transaction log
+      // Write transaction log (booth_inventory_txn has no remark column)
       await client.query(
-        `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, ref_type, ref_id, operator_id, remark)
-         VALUES ($1, $2, $3, 'stocktake_adjust', 'stocktake_order', $4, $5, $6)`,
-        [user.orgId, skuId, diff, so.id, user.userId, `盘点调整 ${so.st_no} diff=${diff}`]
+        `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, ref_type, ref_id, operator_id)
+         VALUES ($1, $2, $3, 'stocktake_adjust', 'stocktake', $4, $5)`,
+        [user.orgId, skuId, diff, so.id, user.userId]
       );
     }
 
