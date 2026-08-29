@@ -188,9 +188,9 @@ router.get('/fab/dashboard', requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const result = await pool.query(
-      `SELECT wo.*, p.name as product_name
+      `SELECT wo.*, s.name as product_name
        FROM booth_work_orders wo
-       LEFT JOIN booth_products p ON wo.product_id = p.id
+       LEFT JOIN booth_skus s ON wo.sku_id = s.id
        WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'in_progress')
        ORDER BY 
          CASE wo.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
@@ -234,28 +234,7 @@ router.post('/fab/yield/record', requireHat('FAB'), async (req, res, next) => {
   }
 });
 
-// 获取工单的良品率记录
-router.get('/fab/yield/:workOrderId', requireAuth, async (req, res, next) => {
-  try {
-    const user = (req as any).user as JwtPayload;
-    const { workOrderId } = req.params;
-
-    const result = await pool.query(
-      `SELECT yr.*, u.name as operator_name
-       FROM booth_yield_records yr
-       LEFT JOIN booth_users u ON yr.operator_id = u.id
-       WHERE yr.org_id = $1 AND yr.work_order_id = $2
-       ORDER BY yr.created_at ASC`,
-      [user.orgId, workOrderId]
-    );
-
-    res.json({ success: true, data: { records: result.rows } });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// 获取所有良品率记录
+// 获取所有良品率记录 (必须在 :workOrderId 之前)
 router.get('/fab/yield/all', requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
@@ -276,7 +255,7 @@ router.get('/fab/yield/all', requireAuth, async (req, res, next) => {
   }
 });
 
-// 获取良品率统计
+// 获取良品率统计 (必须在 :workOrderId 之前)
 router.get('/fab/yield/stats', requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
@@ -317,6 +296,27 @@ router.get('/fab/yield/stats', requireAuth, async (req, res, next) => {
         overall: { ...overall, yieldRate: overallYieldRate }
       } 
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 获取工单的良品率记录 (参数化路由放在最后)
+router.get('/fab/yield/:workOrderId', requireAuth, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { workOrderId } = req.params;
+
+    const result = await pool.query(
+      `SELECT yr.*, u.name as operator_name
+       FROM booth_yield_records yr
+       LEFT JOIN booth_users u ON yr.operator_id = u.id
+       WHERE yr.org_id = $1 AND yr.work_order_id = $2
+       ORDER BY yr.created_at ASC`,
+      [user.orgId, workOrderId]
+    );
+
+    res.json({ success: true, data: { records: result.rows } });
   } catch (err) {
     next(err);
   }

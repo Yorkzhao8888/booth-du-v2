@@ -13,8 +13,12 @@ duRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
+  // dexx 可以查看调拨列表（只读），但不能创建/审批/完成
+  const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
   const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
-  if (!allowedRoles.includes(user.role)) {
+  if (isTransferRead && user.role === 'dexx') {
+    // dexx can read transfers
+  } else if (!allowedRoles.includes(user.role)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
   
@@ -23,8 +27,13 @@ duRouter.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DXX：拦截 res.json 以 stripCostFields
-  if (user.role === 'dxx') {
+  // DEXX 只读：调拨相关写接口 403
+  if (user.role === 'dexx' && req.path.startsWith('/transfers') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员为只读角色，无调拨写权限' });
+  }
+  
+  // DXX/DEXX：拦截 res.json 以 stripCostFields（价格隔离）
+  if (user.role === 'dxx' || user.role === 'dexx') {
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));
