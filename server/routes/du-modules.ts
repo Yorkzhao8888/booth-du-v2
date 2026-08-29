@@ -14,15 +14,19 @@ duRouter.use(requireAuth, (req, res, next) => {
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
   const isTransferRead = req.path.startsWith('/transfers') && req.method === 'GET';
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx', 'dexx'];
+  const isTransferWrite = req.path.startsWith('/transfers') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
   
-  // dexx 只能读调拨列表，不能访问其他 du 路由
+  // 基础角色列表（可访问 du 路由）
+  const baseRoles = ['du', 'dx', 'dm', 'dxx'];
+  
+  // DEXX 特殊处理：只能读调拨列表
   if (user.role === 'dexx') {
     if (!isTransferRead) {
       return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
     }
-  } else if (!allowedRoles.includes(user.role)) {
-    // dex/dexx 等其他角色不允许访问 du 路由（除了上面的 dexx 特例）
+    // dexx 可以读调拨，继续处理
+  } else if (!baseRoles.includes(user.role)) {
+    // 其他角色（如 dex）不允许访问
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
   
@@ -31,8 +35,8 @@ duRouter.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DEXX 只读：调拨相关写接口 403
-  if (user.role === 'dexx' && req.path.startsWith('/transfers') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+  // DEXX 只读：调拨写接口 403
+  if (user.role === 'dexx' && isTransferWrite) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员为只读角色，无调拨写权限' });
   }
   
