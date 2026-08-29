@@ -34,8 +34,8 @@ const InventoryAlerts: React.FC = () => {
       params.set('type', activeTab);
       if (warehouseType) params.set('warehouse_type', warehouseType);
       if (activeTab === 'stagnant') params.set('stagnant_days', '30');
-      const res = await api.get(`/du/supply/inventory/alerts?${params.toString()}`);
-      setData(res.data?.items || []);
+      const res = await api.get<any>(`/du/supply/inventory/alerts?${params.toString()}`);
+      setData(res?.items || []);
     } catch {
       message.error('加载库存预警失败');
     } finally {

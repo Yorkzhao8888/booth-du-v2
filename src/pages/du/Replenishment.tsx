@@ -35,8 +35,8 @@ const Replenishment: React.FC = () => {
     try {
       const params = new URLSearchParams();
       if (warehouseType) params.set('warehouse_type', warehouseType);
-      const res = await api.get(`/du/supply/replenish/suggestions?${params.toString()}`);
-      setData(res.data?.items || []);
+      const res = await api.get<any>(`/du/supply/replenish/suggestions?${params.toString()}`);
+      setData(res?.items || []);
     } catch {
       message.error('加载补货建议失败');
     } finally {

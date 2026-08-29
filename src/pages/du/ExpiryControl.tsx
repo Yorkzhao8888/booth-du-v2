@@ -42,8 +42,8 @@ const ExpiryControl: React.FC = () => {
       const params = new URLSearchParams();
       params.set('days', String(days));
       if (warehouseType) params.set('warehouse_type', warehouseType);
-      const res = await api.get(`/du/supply/batches/expiring?${params.toString()}`);
-      setData(res.data?.items || []);
+      const res = await api.get<any>(`/du/supply/batches/expiring?${params.toString()}`);
+      setData(res?.items || []);
     } catch {
       message.error('加载临期批次失败');
     } finally {

@@ -48,8 +48,8 @@ const Suppliers: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/du/supply/suppliers');
-      setData(res.data?.items || []);
+      const res = await api.get<any>('/du/supply/suppliers');
+      setData(res?.items || []);
     } catch {
       message.error('加载供应商列表失败');
     } finally {
@@ -95,8 +95,8 @@ const Suppliers: React.FC = () => {
     setDrawerVisible(true);
     setSettlementLoading(true);
     try {
-      const res = await api.get(`/du/supply/suppliers/${supplier.id}/settlements`);
-      setSettlements(res.data?.items || []);
+      const res = await api.get<any>(`/du/supply/suppliers/${supplier.id}/settlements`);
+      setSettlements(res?.items || []);
     } catch {
       message.error('加载结算单失败');
     } finally {

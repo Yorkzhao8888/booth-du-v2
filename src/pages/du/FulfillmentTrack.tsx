@@ -61,8 +61,8 @@ const FulfillmentTrack: React.FC = () => {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/du/fulfillments?status=all&page=1&pageSize=50');
-      setOrders(res.data?.items || []);
+      const res = await api.get<any>('/du/fulfillments?status=all&page=1&pageSize=50');
+      setOrders(res?.items || []);
     } catch {
       message.error('加载订单列表失败');
     } finally {
@@ -76,8 +76,8 @@ const FulfillmentTrack: React.FC = () => {
     setTrackLoading(true);
     setDrawerVisible(true);
     try {
-      const res = await api.get(`/du/supply/orders/${orderId}/track`);
-      setSelectedOrder(res.data);
+      const res = await api.get<any>(`/du/supply/orders/${orderId}/track`);
+      setSelectedOrder(res);
     } catch {
       message.error('加载履约追踪失败');
     } finally {
