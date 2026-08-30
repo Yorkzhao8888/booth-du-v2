@@ -223,8 +223,8 @@ supplyRouter.post('/suppliers', async (req, res, next) => {
     }
     
     const r = await pool.query(`
-      INSERT INTO booth_suppliers (org_id, name, contact_person, contact_phone, payment_terms, remark)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO booth_suppliers (org_id, name, contact_person, contact_phone, payment_terms, remark, admission_status)
+      VALUES ($1, $2, $3, $4, $5, $6, 'pending')
       RETURNING *
     `, [
       user.orgId,
