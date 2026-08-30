@@ -58,6 +58,8 @@ const OAS_ROLE_TO_BOOTH: Record<string, string> = {
   'manager': 'dx',
   'staff': 'dxx',
   'worker': 'dexx',
+  // OAS super user role
+  'su': 'dm',        // Super User -> 运营 (highest privilege)
 };
 
 /**
@@ -199,7 +201,14 @@ function makeRequest<T>(
       res.on('end', () => {
         try {
           const parsed = JSON.parse(data);
-          resolve(parsed);
+          // Map OAS response format to OASResponse interface
+          // OAS uses { code: 200, message: "ok", data: {...} }
+          // We need { success: true, data: {...} }
+          if (parsed.code === 200 || parsed.message === 'ok') {
+            resolve({ success: true, data: parsed.data, code: String(parsed.code) });
+          } else {
+            resolve({ success: false, error: parsed.message || 'OAS request failed', code: String(parsed.code || 'UNKNOWN') });
+          }
         } catch {
           resolve({ success: false, error: 'Invalid JSON response', code: 'PARSE_ERROR' });
         }
@@ -227,13 +236,13 @@ function makeRequest<T>(
  * Login through OAS proxy
  */
 export interface OASLoginResponse {
-  token: string;
+  access_token: string;
   expires_in: number;
-  user?: {
-    identity_id: string;
-    role: string;
-    name?: string;
-  };
+  identity_id?: string;
+  role?: string;
+  sub_role?: string;
+  nhi_flag?: boolean;
+  token_type?: string;
 }
 
 export async function oasLogin(username: string, password: string): Promise<OASResponse<OASLoginResponse>> {

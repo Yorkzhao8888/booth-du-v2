@@ -32,7 +32,7 @@ router.post('/login', async (req, res, next) => {
     if (isOASEnabled()) {
       const oasResponse = await oasLogin(loginId, password);
       
-      if (!oasResponse.success || !oasResponse.data?.token) {
+      if (!oasResponse.success || !oasResponse.data?.access_token) {
         return res.status(401).json({ 
           success: false, 
           error: oasResponse.error || 'OAS authentication failed', 
@@ -41,7 +41,7 @@ router.post('/login', async (req, res, next) => {
       }
 
       // Verify the OAS token and extract user info
-      const oasPayload = verifyOASToken(oasResponse.data.token);
+      const oasPayload = verifyOASToken(oasResponse.data.access_token);
       if (!oasPayload) {
         return res.status(401).json({ 
           success: false, 
@@ -67,7 +67,7 @@ router.post('/login', async (req, res, next) => {
         success: true,
         data: {
           token,
-          oas_token: oasResponse.data.token, // Include original OAS token for reference
+          oas_token: oasResponse.data.access_token, // Include original OAS token for reference
           expires_in: oasResponse.data.expires_in,
           user: {
             id: 0,
