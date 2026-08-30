@@ -21,12 +21,13 @@ import dexModulesRoutes from './routes/dex-modules.js';
 import dexxModulesRoutes from './routes/dexx-modules.js';
 import duSupplyRoutes from './routes/du-supply.js';
 import emRoutes from './routes/em.js';
+import duSuppliersRoutes from './routes/du-suppliers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 5001;
+const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
 
 // Middleware
 app.use(cors());
@@ -59,6 +60,7 @@ app.get('/api/booth/stream', requireAuth, (req, res) => {
 // Mount routes
 app.use('/api/booth/auth', authRoutes);
 app.use('/api/booth/internal', internalRoutes);
+app.use('/api/booth/du/suppliers', duSuppliersRoutes);  // C2 本店供应商层 (must be before /du)
 app.use('/api/booth/du', duRoutes);
 app.use('/api/booth/dex', dexRoutes);
 app.use('/api/booth/dexx', dexxRoutes);
@@ -68,7 +70,7 @@ app.use('/api/booth/du', duModulesRoutes);    // /api/booth/du/dl/*, /svc/*, /pr
 app.use('/api/booth/dex', dexModulesRoutes);  // /api/booth/dex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
 app.use('/api/booth/dexx', dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
 app.use('/api/booth/du', duSupplyRoutes);      // /api/booth/du/supply/* (replenish, suppliers, batches, inventory/alerts, orders/track)
-app.use('/api/booth/em', emRoutes);            // /api/booth/em/* (EM 全局供应链层)
+app.use('/api/booth/em', emRoutes);
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

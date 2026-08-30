@@ -250,6 +250,44 @@ CREATE TABLE IF NOT EXISTS booth_supplier_settlements (
 ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS production_stage TEXT DEFAULT 'preprocessing';
 -- production_stage 取值: preprocessing(前置工序) / production(制作) / packaging(包装) / sorting(分拣)
 
+-- ====== 工单 C2：Booth-DU 本店供应商层 ======
+
+-- 扩展 booth_suppliers 表（本店供应商档案）
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS supplier_code TEXT;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS region TEXT;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS qualifications TEXT;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS business_license TEXT;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS admission_status TEXT DEFAULT 'admitted';
+-- admission_status: pending(待审核) / admitted(已准入) / rejected(已驳回) / exited(已退出)
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS admission_remark TEXT;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS admission_reviewed_at TIMESTAMPTZ;
+ALTER TABLE booth_suppliers ADD COLUMN IF NOT EXISTS admission_reviewed_by INTEGER REFERENCES booth_users(id);
+
+-- 本店供应商合同表
+CREATE TABLE IF NOT EXISTS booth_du_supplier_contracts (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  supplier_id BIGINT NOT NULL REFERENCES booth_suppliers(id) ON DELETE CASCADE,
+  contract_no TEXT NOT NULL,
+  contract_name TEXT,
+  start_date DATE,
+  end_date DATE,
+  terms_summary TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  -- status: draft(草稿) / active(生效) / expired(到期) / terminated(终止)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, contract_no)
+);
+
+-- C2 索引
+CREATE INDEX IF NOT EXISTS idx_du_suppliers_org_admission ON booth_suppliers(org_id, admission_status);
+CREATE INDEX IF NOT EXISTS idx_du_contracts_org_supplier ON booth_du_supplier_contracts(org_id, supplier_id);
+CREATE INDEX IF NOT EXISTS idx_du_contracts_end_date ON booth_du_supplier_contracts(end_date);
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS production_stage TEXT DEFAULT 'preprocessing';
+-- production_stage 取值: preprocessing(前置工序) / production(制作) / packaging(包装) / sorting(分拣)
+
 -- 良品率追踪表
 CREATE TABLE IF NOT EXISTS booth_yield_records (
   id BIGSERIAL PRIMARY KEY,

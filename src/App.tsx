@@ -19,6 +19,7 @@ import DuSvcTasks from './pages/du/SvcTasks';
 import DuBatches from './pages/du/Batches';
 import DuReplenishment from './pages/du/Replenishment';
 import DuSuppliers from './pages/du/Suppliers';
+import DuSupplierManagement from './pages/du/SupplierManagement';
 import DuExpiryControl from './pages/du/ExpiryControl';
 import DuInventoryAlerts from './pages/du/InventoryAlerts';
 import DuFulfillmentTrack from './pages/du/FulfillmentTrack';
@@ -136,7 +137,8 @@ const App: React.FC = () => {
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
           <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
-          <Route path="suppliers" element={<ErrorBoundary><DuSuppliers /></ErrorBoundary>} />
+          <Route path="suppliers" element={<ErrorBoundary><DuSupplierManagement /></ErrorBoundary>} />
+          <Route path="suppliers-legacy" element={<ErrorBoundary><DuSuppliers /></ErrorBoundary>} />
           <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
           <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
           <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
@@ -170,7 +172,7 @@ const App: React.FC = () => {
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
           <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
-          <Route path="suppliers" element={<ErrorBoundary><DuSuppliers /></ErrorBoundary>} />
+          <Route path="suppliers" element={<ErrorBoundary><DuSupplierManagement /></ErrorBoundary>} />
           <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
           <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
           <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />

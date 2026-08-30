@@ -47,7 +47,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/du/profit', label: '毛利核算' },
       { key: '/du/boms', label: '商品/BOM' },
       { key: '/du/replenishment', label: '智能补货' },
-      { key: '/du/suppliers', label: '供应商结算' },
+      { key: '/du/suppliers', label: '供应商管理' },
       { key: '/du/fulfillment-track', label: '履约追踪' },
       { key: '/du/inventory-transfer', label: '库存调拨' },
       { key: '/du/realtime-dashboard', label: '实时大屏' },
