@@ -20,6 +20,7 @@ import duModulesRoutes from './routes/du-modules.js';
 import dexModulesRoutes from './routes/dex-modules.js';
 import dexxModulesRoutes from './routes/dexx-modules.js';
 import duSupplyRoutes from './routes/du-supply.js';
+import emRoutes from './routes/em.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,7 @@ app.use('/api/booth/du', duModulesRoutes);    // /api/booth/du/dl/*, /svc/*, /pr
 app.use('/api/booth/dex', dexModulesRoutes);  // /api/booth/dex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
 app.use('/api/booth/dexx', dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
 app.use('/api/booth/du', duSupplyRoutes);      // /api/booth/du/supply/* (replenish, suppliers, batches, inventory/alerts, orders/track)
+app.use('/api/booth/em', emRoutes);            // /api/booth/em/* (EM 全局供应链层)
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

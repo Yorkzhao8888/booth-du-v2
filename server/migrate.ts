@@ -293,6 +293,91 @@ CREATE TABLE IF NOT EXISTS booth_transfer_items (
   batch_id BIGINT,
   remark TEXT
 );
+
+-- ====== 工单 C1：EM 全局供应链层 ======
+
+-- EM：供应商准入（生态级）
+CREATE TABLE IF NOT EXISTS booth_em_supplier_admissions (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  supplier_code TEXT NOT NULL UNIQUE,
+  supplier_name TEXT NOT NULL,
+  contact_person TEXT,
+  contact_phone TEXT,
+  business_license TEXT,
+  category TEXT,
+  region TEXT,
+  status TEXT NOT NULL DEFAULT 'applied',
+  -- status: applied(已申请) / reviewed(已审核) / admitted(已准入) / rejected(已拒绝) / exited(已退出)
+  score INTEGER DEFAULT 0,
+  level TEXT DEFAULT 'C',
+  -- level: A(战略) / B(核心) / C(普通)
+  reject_reason TEXT,
+  exit_reason TEXT,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by BIGINT,
+  admitted_at TIMESTAMPTZ,
+  exited_at TIMESTAMPTZ,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- EM：供给策略
+CREATE TABLE IF NOT EXISTS booth_em_supply_strategies (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  priority_mode TEXT NOT NULL DEFAULT 'fifo',
+  -- priority_mode: fifo(先进先出) / fefo(先效先出) / priority(按优先级)
+  source_tier TEXT NOT NULL DEFAULT 'tier1',
+  -- source_tier: tier1(一级货源) / tier2(二级货源) / tier3(三级货源)
+  quota_type TEXT NOT NULL DEFAULT 'fixed',
+  -- quota_type: fixed(固定配额) / ratio(比例配额) / dynamic(动态配额)
+  quota_value NUMERIC(12,2) DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- EM：产能规划
+CREATE TABLE IF NOT EXISTS booth_em_capacity_plans (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  name TEXT NOT NULL,
+  period_type TEXT NOT NULL DEFAULT 'monthly',
+  -- period_type: daily(日) / weekly(周) / monthly(月)
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  total_capacity NUMERIC(12,3) NOT NULL DEFAULT 0,
+  allocated_capacity NUMERIC(12,3) NOT NULL DEFAULT 0,
+  remaining_capacity NUMERIC(12,3) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft',
+  -- status: draft(草稿) / active(生效) / completed(完成) / cancelled(取消)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- EM：产能分配明细
+CREATE TABLE IF NOT EXISTS booth_em_capacity_allocations (
+  id BIGSERIAL PRIMARY KEY,
+  plan_id BIGINT NOT NULL REFERENCES booth_em_capacity_plans(id) ON DELETE CASCADE,
+  target_type TEXT NOT NULL,
+  -- target_type: shop(店铺) / product(商品)
+  target_id BIGINT,
+  target_name TEXT NOT NULL,
+  allocated_qty NUMERIC(12,3) NOT NULL DEFAULT 0,
+  used_qty NUMERIC(12,3) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- EM 供应链层索引
+CREATE INDEX IF NOT EXISTS idx_em_admission_org_status ON booth_em_supplier_admissions(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_em_strategy_org ON booth_em_supply_strategies(org_id);
+CREATE INDEX IF NOT EXISTS idx_em_capacity_plan_org ON booth_em_capacity_plans(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_em_capacity_alloc_plan ON booth_em_capacity_allocations(plan_id);
 `;
 
 // In-memory store for org modes
@@ -377,6 +462,18 @@ export async function migrate() {
           [dxxHash]
         );
         console.log('[migrate] Added dxx user: 店员 / 13800000005.');
+      }
+
+      // Add EM (供给运营长) user if not exists
+      const emCheck = await client.query(`SELECT id FROM booth_users WHERE phone = '13800000006'`);
+      if (emCheck.rowCount === 0) {
+        const emHash = bcrypt.hashSync('123456', 10);
+        await client.query(
+          `INSERT INTO booth_users (org_id, name, phone, password_hash, role, hats)
+           VALUES (1, '供给运营长', '13800000006', $1, 'em', '{}')`,
+          [emHash]
+        );
+        console.log('[migrate] Added em user: 供给运营长 / 13800000006.');
       }
 
       // Seed sku_cost for all existing SKUs if not exists

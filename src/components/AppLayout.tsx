@@ -131,11 +131,28 @@ const getMenuItemsByRole = (role: string) => {
     ],
   };
 
+  // EM 全局供应链层（仅 EM 角色可见）
+  const emItems = {
+    key: 'em',
+    icon: <AppstoreOutlined />,
+    label: 'EM 供应链',
+    children: [
+      { key: '/em', label: '供应链概览' },
+      { key: '/em/admissions', label: '供应商准入' },
+      { key: '/em/strategies', label: '供给策略' },
+      { key: '/em/capacity-plans', label: '产能规划' },
+    ],
+  };
+
   // 按角色过滤菜单
   const items = [];
 
+  // EM 角色：仅看到 EM 供应链菜单
+  if (role === 'em') {
+    items.push(emItems);
+  }
   // DM/DU/DX 可以看到所有五个域
-  if (['dm', 'du', 'dx'].includes(role)) {
+  else if (['dm', 'du', 'dx'].includes(role)) {
     items.push(mktItems, fabItems, whItems, dlItems, svcItems);
   }
   // DXX 一线经营：MKT（只读）+ WH + DL + SVC

@@ -53,6 +53,11 @@ import DexxYieldTracking from './pages/dexx/YieldTracking';
 import DmDashboard from './pages/dm/Dashboard';
 // DXX pages
 import DxxDashboard from './pages/dxx/Dashboard';
+// EM pages
+import EmDashboard from './pages/em/Dashboard';
+import EmSupplierAdmissions from './pages/em/SupplierAdmissions';
+import EmSupplyStrategies from './pages/em/SupplyStrategies';
+import EmCapacityPlanning from './pages/em/CapacityPlanning';
 // Common pages
 import OrgChart from './pages/common/OrgChart';
 import EmployeeManagement from './pages/du/EmployeeManagement';
@@ -73,6 +78,10 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // dm can access all routes (read-only)
     if (role === 'dm') {
       // DM can access any route, no redirect needed
+    }
+    // em can access /em routes
+    else if (role === 'em' && !path.startsWith('/em')) {
+      return <Navigate to="/em" replace />;
     }
     // du and dx share the same /du routes
     else if ((role === 'du' || role === 'dx') && !path.startsWith('/du')) {
@@ -96,7 +105,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const RoleRedirect: React.FC = () => {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
-  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', dex: '/dex', dexx: '/dexx' };
+  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', dex: '/dex', dexx: '/dexx', em: '/em' };
   return <Navigate to={home[user.role] || '/login'} replace />;
 };
 
@@ -224,6 +233,21 @@ const App: React.FC = () => {
           <Route path="stocktake" element={<ErrorBoundary><DexxStocktakeExec /></ErrorBoundary>} />
           <Route path="dl" element={<ErrorBoundary><DexxDlExec /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
+        </Route>
+
+        {/* EM routes (供给运营长) */}
+        <Route
+          path="/em"
+          element={
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<ErrorBoundary><EmDashboard /></ErrorBoundary>} />
+          <Route path="admissions" element={<ErrorBoundary><EmSupplierAdmissions /></ErrorBoundary>} />
+          <Route path="strategies" element={<ErrorBoundary><EmSupplyStrategies /></ErrorBoundary>} />
+          <Route path="capacity-plans" element={<ErrorBoundary><EmCapacityPlanning /></ErrorBoundary>} />
         </Route>
 
         <Route path="*" element={<RoleRedirect />} />

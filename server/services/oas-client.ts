@@ -52,6 +52,7 @@ const OAS_ROLE_TO_BOOTH: Record<string, string> = {
   'dxx': 'dxx',      // 店员
   'dex': 'dex',      // 铺长/交付长
   'dexx': 'dexx',    // 铺员
+  'em': 'em',        // 供给运营长（生态级）
   // Additional OAS roles that might exist
   'admin': 'dm',
   'operator': 'dm',
