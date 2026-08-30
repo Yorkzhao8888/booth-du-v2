@@ -28,65 +28,49 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    // If OAS is enabled, proxy login through OAS
+    // If OAS is enabled, try OAS authentication first
     if (isOASEnabled()) {
       const oasResponse = await oasLogin(loginId, password);
       
-      if (!oasResponse.success || !oasResponse.data?.access_token) {
-        return res.status(401).json({ 
-          success: false, 
-          error: oasResponse.error || 'OAS authentication failed', 
-          code: oasResponse.code || 'OAS_LOGIN_FAILED' 
-        });
+      if (oasResponse.success && oasResponse.data?.access_token) {
+        // Verify the OAS token and extract user info
+        const oasPayload = verifyOASToken(oasResponse.data.access_token);
+        if (oasPayload) {
+          const boothUser = oasPayloadToBoothUser(oasPayload);
+          if (boothUser) {
+            // Sign a Booth-local token for subsequent requests
+            const token = signTokenFromOAS(boothUser);
+
+            return res.json({
+              success: true,
+              data: {
+                token,
+                oas_token: oasResponse.data.access_token,
+                expires_in: oasResponse.data.expires_in,
+                user: {
+                  id: 0,
+                  identityId: boothUser.identityId,
+                  name: boothUser.name,
+                  role: boothUser.role,
+                  subRole: boothUser.subRole,
+                  hats: boothUser.hats,
+                  orgId: boothUser.orgId,
+                  orgMode: boothUser.orgMode,
+                  nhiFlag: boothUser.nhiFlag,
+                  msAccess: boothUser.msAccess,
+                  source: 'oas',
+                },
+              },
+            });
+          }
+        }
       }
-
-      // Verify the OAS token and extract user info
-      const oasPayload = verifyOASToken(oasResponse.data.access_token);
-      if (!oasPayload) {
-        return res.status(401).json({ 
-          success: false, 
-          error: 'OAS token verification failed', 
-          code: 'OAS_TOKEN_INVALID' 
-        });
-      }
-
-      const boothUser = oasPayloadToBoothUser(oasPayload);
-      if (!boothUser) {
-        return res.status(403).json({ 
-          success: false, 
-          error: 'Cannot map OAS role to Booth role', 
-          code: 'ROLE_MAPPING_FAILED' 
-        });
-      }
-
-      // Sign a Booth-local token for subsequent requests
-      // This avoids needing to verify OAS token on every request
-      const token = signTokenFromOAS(boothUser);
-
-      return res.json({
-        success: true,
-        data: {
-          token,
-          oas_token: oasResponse.data.access_token, // Include original OAS token for reference
-          expires_in: oasResponse.data.expires_in,
-          user: {
-            id: 0,
-            identityId: boothUser.identityId,
-            name: boothUser.name,
-            role: boothUser.role,
-            subRole: boothUser.subRole,
-            hats: boothUser.hats,
-            orgId: boothUser.orgId,
-            orgMode: boothUser.orgMode,
-            nhiFlag: boothUser.nhiFlag,
-            msAccess: boothUser.msAccess,
-            source: 'oas',
-          },
-        },
-      });
+      // OAS login failed or role mapping failed - fall through to local auth
+      // This allows local accounts (like EM) to login even when OAS is enabled
+      console.log('[auth] OAS login failed for %s, falling back to local auth', loginId);
     }
 
-    // Legacy local authentication (when OAS is not enabled)
+    // Local authentication (fallback or when OAS is not enabled)
     const userRes = await pool.query(
       `SELECT u.*, o.mode as org_mode
        FROM booth_users u
