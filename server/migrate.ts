@@ -416,6 +416,80 @@ CREATE INDEX IF NOT EXISTS idx_em_admission_org_status ON booth_em_supplier_admi
 CREATE INDEX IF NOT EXISTS idx_em_strategy_org ON booth_em_supply_strategies(org_id);
 CREATE INDEX IF NOT EXISTS idx_em_capacity_plan_org ON booth_em_capacity_plans(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_em_capacity_alloc_plan ON booth_em_capacity_allocations(plan_id);
+
+-- ====== 工单 C3：采购系统增强 + Market 通货售卖 ======
+
+-- C3-A: 采购系统增强 - 扩展 booth_purchase_orders 表
+ALTER TABLE booth_purchase_orders ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES booth_suppliers(id);
+ALTER TABLE booth_purchase_orders ADD COLUMN IF NOT EXISTS expected_delivery_date DATE;
+ALTER TABLE booth_purchase_orders ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+-- 状态机: draft → submitted(pending) → approved → in_progress → received / rejected
+
+-- C3-B: Market 通货商品表（EM/EMX 管理）
+CREATE TABLE IF NOT EXISTS booth_market_products (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  -- 生态级商品，org_id 为 EM 所属组织
+  product_name TEXT NOT NULL,
+  product_code TEXT,
+  specification TEXT,
+  unit TEXT NOT NULL DEFAULT '件',
+  unit_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+  stock_qty NUMERIC(12,3) NOT NULL DEFAULT 0,
+  supplier_id BIGINT REFERENCES booth_suppliers(id),
+  supplier_name TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  -- status: draft(草稿) / active(上架) / inactive(下架) / sold_out(售罄)
+  description TEXT,
+  images TEXT[] DEFAULT '{}',
+  created_by BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- C3-B: Market 供应商准入（生态级，EM 管理）
+CREATE TABLE IF NOT EXISTS booth_market_supplier_admissions (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  -- 与 booth_em_supplier_admissions 类似，但专用于 Market 侧
+  supplier_name TEXT NOT NULL,
+  contact_person TEXT,
+  contact_phone TEXT,
+  business_license TEXT,
+  qualifications TEXT,
+  category TEXT,
+  region TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  -- status: pending(待审核) / approved(已准入) / rejected(已驳回) / exited(已退出)
+  review_remark TEXT,
+  reviewed_by BIGINT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- C3-B: Market 订单表（顾客下单）
+CREATE TABLE IF NOT EXISTS booth_market_orders (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  order_no TEXT NOT NULL UNIQUE,
+  customer_name TEXT,
+  customer_phone TEXT,
+  customer_address TEXT,
+  items JSONB NOT NULL DEFAULT '[]',
+  total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  -- status: pending(待处理) / confirmed(已确认) / fulfilling(履约中) / completed(已完成) / cancelled(已取消)
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- C3 索引
+CREATE INDEX IF NOT EXISTS idx_market_products_org_status ON booth_market_products(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_market_admissions_org_status ON booth_market_supplier_admissions(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_market_orders_org_status ON booth_market_orders(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_po_supplier_id ON booth_purchase_orders(supplier_id);
 `;
 
 // In-memory store for org modes

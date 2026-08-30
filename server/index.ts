@@ -22,6 +22,7 @@ import dexxModulesRoutes from './routes/dexx-modules.js';
 import duSupplyRoutes from './routes/du-supply.js';
 import emRoutes from './routes/em.js';
 import duSuppliersRoutes from './routes/du-suppliers.js';
+import marketRoutes from './routes/market.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +72,7 @@ app.use('/api/booth/dex', dexModulesRoutes);  // /api/booth/dex/dl/*, /svc/*, /w
 app.use('/api/booth/dexx', dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
 app.use('/api/booth/du', duSupplyRoutes);      // /api/booth/du/supply/* (replenish, suppliers, batches, inventory/alerts, orders/track)
 app.use('/api/booth/em', emRoutes);
+app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

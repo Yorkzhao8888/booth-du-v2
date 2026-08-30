@@ -113,7 +113,7 @@ router.post('/purchase-orders/:id/submit', async (req, res, next) => {
        WHERE id = $1 AND org_id = $2 AND status = 'draft' RETURNING *`,
       [req.params.id, user.orgId]
     );
-    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot submit: invalid state', code: 'INVALID_STATE' });
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot submit: invalid state (must be draft)', code: 'INVALID_TRANSITION' });
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }
 });
@@ -127,7 +127,7 @@ router.post('/purchase-orders/:id/approve', requireRole('du'), async (req, res, 
        WHERE id = $2 AND org_id = $3 AND status = 'submitted' RETURNING *`,
       [user.userId, req.params.id, user.orgId]
     );
-    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot approve: invalid state', code: 'INVALID_STATE' });
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot approve: invalid state', code: 'INVALID_TRANSITION' });
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }
 });
@@ -136,12 +136,27 @@ router.post('/purchase-orders/:id/approve', requireRole('du'), async (req, res, 
 router.post('/purchase-orders/:id/reject', requireRole('du'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
+    const { rejection_reason } = req.body;
     const r = await pool.query(
-      `UPDATE booth_purchase_orders SET status = 'draft', updated_at = NOW()
-       WHERE id = $1 AND org_id = $2 AND status = 'submitted' RETURNING *`,
+      `UPDATE booth_purchase_orders SET status = 'rejected', rejection_reason = $1, updated_at = NOW()
+       WHERE id = $2 AND org_id = $3 AND status = 'submitted' RETURNING *`,
+      [rejection_reason, req.params.id, user.orgId]
+    );
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot reject: invalid state', code: 'INVALID_TRANSITION' });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// POST /purchase-orders/:id/start (approved → in_progress)
+router.post('/purchase-orders/:id/start', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const r = await pool.query(
+      `UPDATE booth_purchase_orders SET status = 'in_progress', updated_at = NOW()
+       WHERE id = $1 AND org_id = $2 AND status = 'approved' RETURNING *`,
       [req.params.id, user.orgId]
     );
-    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot reject: invalid state', code: 'INVALID_STATE' });
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot start: invalid state (must be approved)', code: 'INVALID_TRANSITION' });
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }
 });
@@ -159,9 +174,9 @@ router.post('/purchase-orders/:id/receive', async (req, res, next) => {
       `SELECT * FROM booth_purchase_orders WHERE id = $1 AND org_id = $2 FOR UPDATE`,
       [poId, user.orgId]
     );
-    if (!poRes.rows.length || !['approved', 'ordered'].includes(poRes.rows[0].status)) {
+    if (!poRes.rows.length || !['approved', 'in_progress'].includes(poRes.rows[0].status)) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, error: 'Cannot receive: invalid state', code: 'INVALID_STATE' });
+      return res.status(400).json({ success: false, error: 'Cannot receive: invalid state (must be approved or in_progress)', code: 'INVALID_TRANSITION' });
     }
 
     for (const ri of receiveItems || []) {

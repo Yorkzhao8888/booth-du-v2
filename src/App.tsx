@@ -59,6 +59,8 @@ import EmDashboard from './pages/em/Dashboard';
 import EmSupplierAdmissions from './pages/em/SupplierAdmissions';
 import EmSupplyStrategies from './pages/em/SupplyStrategies';
 import EmCapacityPlanning from './pages/em/CapacityPlanning';
+// Market pages
+import MarketDashboard from './pages/market/Dashboard';
 // Common pages
 import OrgChart from './pages/common/OrgChart';
 import EmployeeManagement from './pages/du/EmployeeManagement';
@@ -80,12 +82,12 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     if (role === 'dm') {
       // DM can access any route, no redirect needed
     }
-    // em can access /em routes
-    else if (role === 'em' && !path.startsWith('/em')) {
+    // em can access /em and /market routes
+    else if (role === 'em' && !path.startsWith('/em') && !path.startsWith('/market')) {
       return <Navigate to="/em" replace />;
     }
-    // du and dx share the same /du routes
-    else if ((role === 'du' || role === 'dx') && !path.startsWith('/du')) {
+    // du and dx share the same /du routes, and can access /market
+    else if ((role === 'du' || role === 'dx') && !path.startsWith('/du') && !path.startsWith('/market')) {
       return <Navigate to="/du" replace />;
     }
     // dxx shares /dxx routes with dexx
@@ -250,6 +252,18 @@ const App: React.FC = () => {
           <Route path="admissions" element={<ErrorBoundary><EmSupplierAdmissions /></ErrorBoundary>} />
           <Route path="strategies" element={<ErrorBoundary><EmSupplyStrategies /></ErrorBoundary>} />
           <Route path="capacity-plans" element={<ErrorBoundary><EmCapacityPlanning /></ErrorBoundary>} />
+        </Route>
+
+        {/* Market routes (em/du/dx/dm can access) */}
+        <Route
+          path="/market"
+          element={
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<ErrorBoundary><MarketDashboard /></ErrorBoundary>} />
         </Route>
 
         <Route path="*" element={<RoleRedirect />} />

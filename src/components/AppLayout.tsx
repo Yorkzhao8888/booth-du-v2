@@ -144,16 +144,26 @@ const getMenuItemsByRole = (role: string) => {
     ],
   };
 
+  // C3 Market 通货售卖（EM/DU/DX/DM 可见）
+  const marketItems = {
+    key: 'market',
+    icon: <DollarOutlined />,
+    label: 'Market 通货',
+    children: [
+      { key: '/market', label: '通货市场' },
+    ],
+  };
+
   // 按角色过滤菜单
   const items = [];
 
-  // EM 角色：仅看到 EM 供应链菜单
+  // EM 角色：EM 供应链 + Market
   if (role === 'em') {
-    items.push(emItems);
+    items.push(emItems, marketItems);
   }
-  // DM/DU/DX 可以看到所有五个域
+  // DM/DU/DX 可以看到所有五个域 + Market
   else if (['dm', 'du', 'dx'].includes(role)) {
-    items.push(mktItems, fabItems, whItems, dlItems, svcItems);
+    items.push(mktItems, fabItems, whItems, dlItems, svcItems, marketItems);
   }
   // DXX 一线经营：MKT（只读）+ WH + DL + SVC
   else if (role === 'dxx') {

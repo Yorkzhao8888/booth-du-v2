@@ -8,8 +8,9 @@ const statusMap: Record<string, { color: string; label: string }> = {
   draft: { color: 'default', label: '草稿' },
   submitted: { color: 'processing', label: '待审批' },
   approved: { color: 'cyan', label: '已审批' },
-  ordered: { color: 'blue', label: '已下单' },
+  in_progress: { color: 'blue', label: '执行中' },
   received: { color: 'success', label: '已收货' },
+  rejected: { color: 'error', label: '已驳回' },
   cancelled: { color: 'error', label: '已取消' },
 };
 
@@ -92,6 +93,14 @@ const PurchaseOrders: React.FC = () => {
     } catch (e: any) { message.error(e.message || '驳回失败'); }
   };
 
+  const handleStart = async (id: number) => {
+    try {
+      await api.post(`/du/purchase-orders/${id}/start`);
+      message.success('已开始执行');
+      fetchOrders();
+    } catch (e: any) { message.error(e.message || '操作失败'); }
+  };
+
   const handleReceive = async (values: any) => {
     if (!currentOrder) return;
     try {
@@ -121,7 +130,10 @@ const PurchaseOrders: React.FC = () => {
               <Popconfirm title="确定驳回？" onConfirm={() => handleReject(record.id)}><Button size="small" danger>驳回</Button></Popconfirm>
             </>
           )}
-          {['approved', 'ordered'].includes(record.status) && (
+          {record.status === 'approved' && (
+            <Button size="small" type="primary" onClick={() => handleStart(record.id)}>开始执行</Button>
+          )}
+          {['approved', 'in_progress'].includes(record.status) && (
             <Button size="small" type="primary" icon={<ShoppingCartOutlined />} onClick={() => { setCurrentOrder(record); setReceiveVisible(true); }}>收货</Button>
           )}
         </Space>
