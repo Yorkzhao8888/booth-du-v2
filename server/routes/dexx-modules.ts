@@ -169,8 +169,7 @@ router.post('/fab/stage/advance', requireHat('FAB'), async (req, res, next) => {
     // Record stage transition in operations log
     await client.query(
       `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (org_id, work_order_id, seq) DO NOTHING`,
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [user.orgId, workOrderId, targetIdx + 100, `stage_${targetStage}`, 0, user.userId!]
     );
 
