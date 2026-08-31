@@ -8,12 +8,12 @@ const { Title } = Typography;
 
 interface InventoryItem {
   id: number;
-  skuCode: string;
+  sku_code: string;
   name: string;
   unit: string;
-  quantity: number;
-  safetyStock: number;
-  costPrice: number;
+  qty_on_hand: number;
+  safety_stock: number;
+  cost_price: number;
 }
 
 const EuInventory: React.FC = () => {
@@ -23,8 +23,8 @@ const EuInventory: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<InventoryItem[]>('/du/inventory');
-      setItems(res);
+      const res = await apiGet<{ items: InventoryItem[]; total: number }>('/du/inventory');
+      setItems(res?.items || []);
     } catch {
       // ignore
     } finally {
@@ -40,26 +40,26 @@ const EuInventory: React.FC = () => {
   }, [fetchData]);
 
   const columns: ColumnsType<InventoryItem> = [
-    { title: 'SKU编码', dataIndex: 'skuCode', key: 'skuCode', width: 140 },
+    { title: 'SKU编码', dataIndex: 'sku_code', key: 'sku_code', width: 140 },
     { title: '名称', dataIndex: 'name', key: 'name' },
     { title: '单位', dataIndex: 'unit', key: 'unit', width: 80 },
     {
       title: '库存数量',
-      dataIndex: 'quantity',
-      key: 'quantity',
+      dataIndex: 'qty_on_hand',
+      key: 'qty_on_hand',
       width: 120,
       render: (qty: number, record) => (
-        <span style={{ color: qty <= record.safetyStock ? '#ff4d4f' : '#333', fontWeight: qty <= record.safetyStock ? 600 : 400 }}>
+        <span style={{ color: qty <= record.safety_stock ? '#ff4d4f' : '#333', fontWeight: qty <= record.safety_stock ? 600 : 400 }}>
           {qty}
-          {qty <= record.safetyStock && <Tag color="red" style={{ marginLeft: 8 }}>低库存</Tag>}
+          {qty <= record.safety_stock && <Tag color="red" style={{ marginLeft: 8 }}>低库存</Tag>}
         </span>
       ),
     },
-    { title: '安全库存', dataIndex: 'safetyStock', key: 'safetyStock', width: 100 },
+    { title: '安全库存', dataIndex: 'safety_stock', key: 'safety_stock', width: 100 },
     {
       title: '采购价',
-      dataIndex: 'costPrice',
-      key: 'costPrice',
+      dataIndex: 'cost_price',
+      key: 'cost_price',
       width: 120,
       render: (v: number) => <PriceText value={v} />,
     },
