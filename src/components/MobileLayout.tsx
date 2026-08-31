@@ -15,6 +15,8 @@ import {
   CarOutlined,
   CustomerServiceOutlined,
   ApartmentOutlined,
+  DashboardOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -27,6 +29,8 @@ const fabTabs = [
   { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
   { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
   { key: '/dexx/fab/operations', label: '报工', icon: <ToolOutlined /> },
+  { key: '/dexx/fab/dashboard', label: '产线看板', icon: <DashboardOutlined /> },
+  { key: '/dexx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
 ];
@@ -170,13 +174,13 @@ const MobileLayout: React.FC = () => {
             background: '#fff',
             borderTop: '1px solid #f0f0f0',
           }}
-          size="large"
+          size="small"
           items={currentTabs.map((t) => ({
             key: t.key,
             label: (
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 11 }}>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 10 }}>
                 {t.icon}
-                <span style={{ marginTop: 2 }}>{t.label}</span>
+                <span style={{ marginTop: 1, whiteSpace: 'nowrap' }}>{t.label}</span>
               </span>
             ),
           }))}
