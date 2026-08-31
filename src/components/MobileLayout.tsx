@@ -33,7 +33,7 @@ const fabTabs = [
   { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
   { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
   { key: '/dexx/fab/operations', label: '报工', icon: <ToolOutlined /> },
-  { key: '/dexx/fab/dashboard', label: '产线看板', icon: <DashboardOutlined /> },
+  { key: '/dexx/fab/dashboard', label: '看板', icon: <DashboardOutlined /> },
   { key: '/dexx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
@@ -41,7 +41,7 @@ const fabTabs = [
 
 // 产线视角 tabs（四大生产区只读看板）
 const fabZoneTabs = [
-  { key: '/dexx/fab/zone/preprocessing', label: '前置工序', icon: <ApartmentOutlined /> },
+  { key: '/dexx/fab/zone/preprocessing', label: '前置', icon: <ApartmentOutlined /> },
   { key: '/dexx/fab/zone/production', label: '制作', icon: <ApartmentOutlined /> },
   { key: '/dexx/fab/zone/packaging', label: '包装', icon: <ApartmentOutlined /> },
   { key: '/dexx/fab/zone/sorting', label: '分拣', icon: <ApartmentOutlined /> },
@@ -52,6 +52,7 @@ const whTabs = [
   { key: '/dexx/wh/inbound', label: '入库', icon: <LoginOutlined /> },
   { key: '/dexx/wh/outbound', label: '出库', icon: <LogoutOutlined /> },
   { key: '/dexx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
+  { key: '/dexx/stocktake', label: '盘点', icon: <AuditOutlined /> },
 ];
 
 // 供给视角 tabs
@@ -63,34 +64,40 @@ const whSupplyTabs = [
 ];
 
 const dlTabs = [
-  { key: '/dexx/dl', label: '配送任务', icon: <CarOutlined /> },
+  { key: '/dexx/dl', label: '配送', icon: <CarOutlined /> },
 ];
 
 const svcTabs = [
-  { key: '/dexx/svc', label: '服务任务', icon: <CustomerServiceOutlined /> },
+  { key: '/dexx/svc', label: '服务', icon: <CustomerServiceOutlined /> },
 ];
 
 const stocktakeTabs = [
   { key: '/dexx/stocktake', label: '盘点', icon: <AuditOutlined /> },
 ];
 
+/** 根据 pathname 推断当前所属模块 */
+const resolveModule = (pathname: string): ModuleType => {
+  if (pathname.includes('/fab/zone/')) return 'fab-zone';
+  if (pathname.includes('/wh/supply') || pathname.includes('/wh/device') || pathname.includes('/wh/plaza')) return 'wh-supply';
+  if (pathname.includes('/wh/')) return 'wh';
+  if (pathname.includes('/dl')) return 'dl';
+  if (pathname.includes('/svc')) return 'svc';
+  if (pathname.includes('/stocktake')) return 'stocktake';
+  return 'fab';
+};
+
 const MobileLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, hasHat, logout } = useAuthStore();
 
-  const getInitialModule = (): ModuleType => {
-    const p = location.pathname;
-    if (p.includes('/fab/zone/')) return 'fab-zone';
-    if (p.includes('/wh/supply') || p.includes('/wh/device') || p.includes('/wh/plaza')) return 'wh-supply';
-    if (p.includes('/wh/')) return 'wh';
-    if (p.includes('/dl')) return 'dl';
-    if (p.includes('/svc')) return 'svc';
-    if (p.includes('/stocktake')) return 'stocktake';
-    return 'fab';
-  };
+  const [module, setModule] = useState<ModuleType>(() => resolveModule(location.pathname));
 
-  const [module, setModule] = useState<ModuleType>(getInitialModule);
+  // 问题1修复：监听路由变化，自动同步 module 状态
+  useEffect(() => {
+    const next = resolveModule(location.pathname);
+    setModule((prev) => (prev !== next ? next : prev));
+  }, [location.pathname]);
 
   const showFab = hasHat('FAB');
   const showWh = hasHat('WH');
@@ -146,26 +153,30 @@ const MobileLayout: React.FC = () => {
       <Header
         style={{
           background: '#fff',
-          padding: '0 12px',
+          padding: '0 8px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           borderBottom: '1px solid #f0f0f0',
-          height: 52,
-          lineHeight: '52px',
+          height: 48,
+          lineHeight: '48px',
+          overflow: 'hidden',
         }}
       >
-        <span style={{ fontSize: 16, fontWeight: 600 }}>Booth</span>
-        <Space size={8}>
+        <span style={{ fontSize: 15, fontWeight: 600, flexShrink: 0 }}>Booth</span>
+        <Space size={4} style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
           {showSwitch && (
-            <Segmented
-              size="small"
-              value={module}
-              onChange={(v) => handleModuleChange(v as ModuleType)}
-              options={segmentedOptions}
-            />
+            <div style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 100px)' }}>
+              <Segmented
+                size="small"
+                value={module}
+                onChange={(v) => handleModuleChange(v as ModuleType)}
+                options={segmentedOptions}
+                style={{ whiteSpace: 'nowrap' }}
+              />
+            </div>
           )}
-          <Button type="text" size="small" icon={<LogoutOutlined />} onClick={handleLogout} />
+          <Button type="text" size="small" icon={<LogoutOutlined />} onClick={handleLogout} style={{ flexShrink: 0 }} />
         </Space>
       </Header>
       <Content style={{ paddingBottom: 60, overflow: 'auto' }}>
@@ -189,14 +200,15 @@ const MobileLayout: React.FC = () => {
             margin: 0,
             background: '#fff',
             borderTop: '1px solid #f0f0f0',
+            overflowX: 'auto',
           }}
           size="small"
           items={currentTabs.map((t) => ({
             key: t.key,
             label: (
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 10 }}>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 10, padding: '0 2px' }}>
                 {t.icon}
-                <span style={{ marginTop: 1, whiteSpace: 'nowrap' }}>{t.label}</span>
+                <span style={{ marginTop: 1, whiteSpace: 'nowrap', fontSize: 9 }}>{t.label}</span>
               </span>
             ),
           }))}
