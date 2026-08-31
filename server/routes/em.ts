@@ -944,4 +944,218 @@ router.post('/sgu/trigger-sku-created', async (req: any, res: any, next: any) =>
   } catch (err) { next(err); }
 });
 
+// ==================== Supply Quotes (供给报价单) ====================
+
+// List supply quotes
+router.get('/supply-quotes', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { status, sguId, page = '1', pageSize = '20' } = req.query;
+    const limit = Math.min(parseInt(pageSize as string) || 20, 100);
+    const offset = ((parseInt(page as string) || 1) - 1) * limit;
+    let where = `WHERE sq.org_id = $1`;
+    const params: any[] = [user.orgId];
+    if (status) { params.push(status); where += ` AND sq.status = $${params.length}`; }
+    if (sguId) { params.push(sguId); where += ` AND sq.sgu_id = $${params.length}`; }
+    params.push(limit, offset);
+    const result = await pool.query(
+      `SELECT sq.*, s.sku_id as sgu_sku_id, s.booth_type as sgu_booth_type,
+              sku.name as sku_name
+       FROM booth_supply_quotes sq
+       LEFT JOIN booth_sgu_catalog s ON sq.sgu_id = s.id
+       LEFT JOIN booth_skus sku ON sq.sku_id = sku.id
+       ${where}
+       ORDER BY sq.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM booth_supply_quotes sq ${where}`,
+      params.slice(0, -2)
+    );
+    res.json({ success: true, data: { items: result.rows, total: parseInt(countResult.rows[0].count) } });
+  } catch (err) { next(err); }
+});
+
+// Get supply quote detail
+router.get('/supply-quotes/:id', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const r = await pool.query(
+      `SELECT sq.*, s.sku_id as sgu_sku_id, s.booth_type as sgu_booth_type,
+              sku.name as sku_name
+       FROM booth_supply_quotes sq
+       LEFT JOIN booth_sgu_catalog s ON sq.sgu_id = s.id
+       LEFT JOIN booth_skus sku ON sq.sku_id = sku.id
+       WHERE sq.id = $1 AND sq.org_id = $2`,
+      [req.params.id, user.orgId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Create supply quote
+router.post('/supply-quotes', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { sguId, skuId, bomMaterialCost = 0, laborCost = 0, manufacturingFee = 0, marginRate = 0, effectiveFrom, effectiveTo, notes } = req.body;
+    const supplyPrice = Number(bomMaterialCost) + Number(laborCost) + Number(manufacturingFee);
+    const grossProfit = supplyPrice * (Number(marginRate) / 100);
+    const totalPrice = supplyPrice + grossProfit;
+    const quoteNo = `SQ-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const r = await pool.query(
+      `INSERT INTO booth_supply_quotes
+       (org_id, quote_no, sgu_id, sku_id, bom_material_cost, labor_cost, manufacturing_fee,
+        supply_price, margin_rate, gross_profit, total_price, effective_from, effective_to, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [user.orgId, quoteNo, sguId || null, skuId || null, bomMaterialCost, laborCost, manufacturingFee,
+       supplyPrice, marginRate, grossProfit, totalPrice, effectiveFrom || null, effectiveTo || null, notes || null, user.userId]
+    );
+    // Create audit log
+    await pool.query(
+      `INSERT INTO booth_supply_quote_audit (quote_id, action, actor_id, new_values, reason)
+       VALUES ($1, 'created', $2, $3, $4)`,
+      [r.rows[0].id, user.userId, JSON.stringify(r.rows[0]), 'Initial creation']
+    );
+    // Create version snapshot
+    await pool.query(
+      `INSERT INTO booth_supply_quote_versions (quote_id, version, bom_material_cost, labor_cost, manufacturing_fee, supply_price, margin_rate, gross_profit, total_price, status, changed_by, change_reason)
+       VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, 'Initial version')`,
+      [r.rows[0].id, bomMaterialCost, laborCost, manufacturingFee, supplyPrice, marginRate, grossProfit, totalPrice, user.userId]
+    );
+    broadcast(user.orgId, 'supply-quote.created', { quoteId: r.rows[0].id, quoteNo });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Update supply quote (creates new version)
+router.put('/supply-quotes/:id', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { bomMaterialCost, laborCost, manufacturingFee, marginRate, effectiveFrom, effectiveTo, notes, changeReason } = req.body;
+    // Get current quote
+    const current = await pool.query(
+      `SELECT * FROM booth_supply_quotes WHERE id = $1 AND org_id = $2`,
+      [req.params.id, user.orgId]
+    );
+    if (!current.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    const q = current.rows[0];
+    // Calculate new prices
+    const newBom = bomMaterialCost !== undefined ? Number(bomMaterialCost) : Number(q.bom_material_cost);
+    const newLabor = laborCost !== undefined ? Number(laborCost) : Number(q.labor_cost);
+    const newMfg = manufacturingFee !== undefined ? Number(manufacturingFee) : Number(q.manufacturing_fee);
+    const newMargin = marginRate !== undefined ? Number(marginRate) : Number(q.margin_rate);
+    const newSupplyPrice = newBom + newLabor + newMfg;
+    const newGrossProfit = newSupplyPrice * (newMargin / 100);
+    const newTotalPrice = newSupplyPrice + newGrossProfit;
+    const newVersion = q.version + 1;
+    // Update quote
+    const r = await pool.query(
+      `UPDATE booth_supply_quotes SET
+       bom_material_cost = $1, labor_cost = $2, manufacturing_fee = $3,
+       supply_price = $4, margin_rate = $5, gross_profit = $6, total_price = $7,
+       effective_from = COALESCE($8, effective_from), effective_to = COALESCE($9, effective_to),
+       notes = COALESCE($10, notes), version = $11, updated_at = NOW()
+       WHERE id = $12 AND org_id = $13 RETURNING *`,
+      [newBom, newLabor, newMfg, newSupplyPrice, newMargin, newGrossProfit, newTotalPrice,
+       effectiveFrom, effectiveTo, notes, newVersion, req.params.id, user.orgId]
+    );
+    // Create audit log
+    await pool.query(
+      `INSERT INTO booth_supply_quote_audit (quote_id, action, actor_id, old_values, new_values, reason)
+       VALUES ($1, 'updated', $2, $3, $4, $5)`,
+      [q.id, user.userId, JSON.stringify({ version: q.version, supply_price: q.supply_price, total_price: q.total_price }),
+       JSON.stringify({ version: newVersion, supply_price: newSupplyPrice, total_price: newTotalPrice }), changeReason || 'Price update']
+    );
+    // Create version snapshot
+    await pool.query(
+      `INSERT INTO booth_supply_quote_versions (quote_id, version, bom_material_cost, labor_cost, manufacturing_fee, supply_price, margin_rate, gross_profit, total_price, status, changed_by, change_reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [q.id, newVersion, newBom, newLabor, newMfg, newSupplyPrice, newMargin, newGrossProfit, newTotalPrice, q.status, user.userId, changeReason || 'Price update']
+    );
+    broadcast(user.orgId, 'supply-quote.updated', { quoteId: r.rows[0].id, version: newVersion });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Approve supply quote
+router.post('/supply-quotes/:id/approve', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { effectiveFrom, effectiveTo } = req.body;
+    const r = await pool.query(
+      `UPDATE booth_supply_quotes SET status = 'approved', approved_by = $1, approved_at = NOW(),
+       effective_from = COALESCE($2, effective_from, NOW()), effective_to = COALESCE($3, effective_to),
+       updated_at = NOW()
+       WHERE id = $4 AND org_id = $5 RETURNING *`,
+      [user.userId, effectiveFrom, effectiveTo, req.params.id, user.orgId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    await pool.query(
+      `INSERT INTO booth_supply_quote_audit (quote_id, action, actor_id, new_values)
+       VALUES ($1, 'approved', $2, $3)`,
+      [r.rows[0].id, user.userId, JSON.stringify({ status: 'approved' })]
+    );
+    broadcast(user.orgId, 'supply-quote.approved', { quoteId: r.rows[0].id });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Reject supply quote
+router.post('/supply-quotes/:id/reject', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { reason } = req.body;
+    const r = await pool.query(
+      `UPDATE booth_supply_quotes SET status = 'rejected', rejection_reason = $1, updated_at = NOW()
+       WHERE id = $2 AND org_id = $3 RETURNING *`,
+      [reason || null, req.params.id, user.orgId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    await pool.query(
+      `INSERT INTO booth_supply_quote_audit (quote_id, action, actor_id, new_values, reason)
+       VALUES ($1, 'rejected', $2, $3, $4)`,
+      [r.rows[0].id, user.userId, JSON.stringify({ status: 'rejected' }), reason]
+    );
+    broadcast(user.orgId, 'supply-quote.rejected', { quoteId: r.rows[0].id });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Get quote version history
+router.get('/supply-quotes/:id/versions', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const result = await pool.query(
+      `SELECT v.*, u.name as changed_by_name
+       FROM booth_supply_quote_versions v
+       LEFT JOIN booth_users u ON v.changed_by = u.id
+       JOIN booth_supply_quotes sq ON v.quote_id = sq.id
+       WHERE v.quote_id = $1 AND sq.org_id = $2
+       ORDER BY v.version DESC`,
+      [req.params.id, user.orgId]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) { next(err); }
+});
+
+// Get quote audit log
+router.get('/supply-quotes/:id/audit', requireAuth, requireEM, async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const result = await pool.query(
+      `SELECT a.*, u.name as actor_name
+       FROM booth_supply_quote_audit a
+       LEFT JOIN booth_users u ON a.actor_id = u.id
+       JOIN booth_supply_quotes sq ON a.quote_id = sq.id
+       WHERE a.quote_id = $1 AND sq.org_id = $2
+       ORDER BY a.created_at DESC`,
+      [req.params.id, user.orgId]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) { next(err); }
+});
+
 export default router;

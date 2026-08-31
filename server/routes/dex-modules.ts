@@ -390,4 +390,60 @@ router.post('/capacity/atp-check', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ====== BOOTH-OPT-03: Supply Quotes (EX 执行管理只读，价格脱敏) ======
+
+// List supply quotes (DEX can see quote_no, status, but NOT price fields)
+router.get('/supply-quotes', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { status, page = '1', pageSize = '20' } = req.query;
+    const limit = Math.min(parseInt(pageSize as string) || 20, 100);
+    const offset = ((parseInt(page as string) || 1) - 1) * limit;
+    let where = `WHERE sq.org_id = $1`;
+    const params: any[] = [user.orgId];
+    if (status) { params.push(status); where += ` AND sq.status = $${params.length}`; }
+    params.push(limit, offset);
+    const result = await pool.query(
+      `SELECT sq.id, sq.quote_no, sq.sgu_id, sq.sku_id, sq.status, sq.version,
+              sq.effective_from, sq.effective_to, sq.created_at, sq.updated_at,
+              s.sku_id as sgu_sku_id, s.booth_type as sgu_booth_type,
+              sku.name as sku_name
+       FROM booth_supply_quotes sq
+       LEFT JOIN booth_sgu_catalog s ON sq.sgu_id = s.id
+       LEFT JOIN booth_skus sku ON sq.sku_id = sku.id
+       ${where}
+       ORDER BY sq.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM booth_supply_quotes sq ${where}`,
+      params.slice(0, -2)
+    );
+    // DEX sees NO price fields - only quote metadata
+    res.json({ success: true, data: { items: result.rows, total: parseInt(countResult.rows[0].count) } });
+  } catch (err) { next(err); }
+});
+
+// Get supply quote detail (DEX can see quote_no, status, but NOT price fields)
+router.get('/supply-quotes/:id', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const r = await pool.query(
+      `SELECT sq.id, sq.quote_no, sq.sgu_id, sq.sku_id, sq.status, sq.version,
+              sq.effective_from, sq.effective_to, sq.created_at, sq.updated_at,
+              s.sku_id as sgu_sku_id, s.booth_type as sgu_booth_type,
+              sku.name as sku_name
+       FROM booth_supply_quotes sq
+       LEFT JOIN booth_sgu_catalog s ON sq.sgu_id = s.id
+       LEFT JOIN booth_skus sku ON sq.sku_id = sku.id
+       WHERE sq.id = $1 AND sq.org_id = $2`,
+      [req.params.id, user.orgId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    // DEX sees NO price fields - only quote metadata
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
 export default router;

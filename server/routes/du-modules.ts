@@ -519,4 +519,79 @@ duRouter.post('/transfers/:id/complete', async (req, res, next) => {
   }
 });
 
+// ==================== Supply Quotes (供给报价单 - DU/DX决策层可见) ====================
+
+// List supply quotes (DU/DX can see full price composition)
+duRouter.get('/supply-quotes', requireAuth, requireRole('du', 'dx'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { status, sguId, page = '1', pageSize = '20' } = req.query;
+    const limit = Math.min(parseInt(pageSize as string) || 20, 100);
+    const offset = ((parseInt(page as string) || 1) - 1) * limit;
+    let where = `WHERE sq.org_id = $1`;
+    const params: any[] = [user.orgId];
+    if (status) { params.push(status); where += ` AND sq.status = $${params.length}`; }
+    if (sguId) { params.push(sguId); where += ` AND sq.sgu_id = $${params.length}`; }
+    params.push(limit, offset);
+    const result = await pool.query(
+      `SELECT sq.*, s.sku_id as sgu_sku_id, s.booth_type as sgu_booth_type,
+              sku.name as sku_name
+       FROM booth_supply_quotes sq
+       LEFT JOIN booth_sgu_catalog s ON sq.sgu_id = s.id
+       LEFT JOIN booth_skus sku ON sq.sku_id = sku.id
+       ${where}
+       ORDER BY sq.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM booth_supply_quotes sq ${where}`,
+      params.slice(0, -2)
+    );
+    // DU/DX see full price fields
+    res.json({ success: true, data: { items: result.rows, total: parseInt(countResult.rows[0].count) } });
+  } catch (err) { next(err); }
+});
+
+// Get supply quote detail (DU/DX can see full price composition)
+duRouter.get('/supply-quotes/:id', requireAuth, requireRole('du', 'dx'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const r = await pool.query(
+      `SELECT sq.*, s.sku_id as sgu_sku_id, s.booth_type as sgu_booth_type,
+              sku.name as sku_name
+       FROM booth_supply_quotes sq
+       LEFT JOIN booth_sgu_catalog s ON sq.sgu_id = s.id
+       LEFT JOIN booth_skus sku ON sq.sku_id = sku.id
+       WHERE sq.id = $1 AND sq.org_id = $2`,
+      [req.params.id, user.orgId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    // DU/DX see full price fields
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// Approve supply quote (DU/DX decision layer)
+duRouter.post('/supply-quotes/:id/approve', requireAuth, requireRole('du', 'dx'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { effectiveFrom, effectiveTo } = req.body;
+    const r = await pool.query(
+      `UPDATE booth_supply_quotes SET status = 'approved', approved_by = $1, approved_at = NOW(),
+       effective_from = COALESCE($2, effective_from, NOW()), effective_to = COALESCE($3, effective_to),
+       updated_at = NOW()
+       WHERE id = $4 AND org_id = $5 RETURNING *`,
+      [user.userId, effectiveFrom, effectiveTo, req.params.id, user.orgId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    await pool.query(
+      `INSERT INTO booth_supply_quote_audit (quote_id, action, actor_id, new_values)
+       VALUES ($1, 'approved', $2, $3)`,
+      [r.rows[0].id, user.userId, JSON.stringify({ status: 'approved' })]
+    );
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
 export default duRouter;

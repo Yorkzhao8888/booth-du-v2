@@ -70,6 +70,9 @@ import EmAtpCommitments from './pages/em/AtpCommitments';
 import EmSguCatalog from './pages/em/SguCatalog';
 import EmSguListings from './pages/em/SguListings';
 import EmSguPending from './pages/em/SguPending';
+import EmSupplyQuotes from './pages/em/SupplyQuotes';
+import DuSupplyQuotes from './pages/du/SupplyQuotes';
+import DexSupplyQuotes from './pages/dex/SupplyQuotes';
 // Market pages
 import MarketDashboard from './pages/market/Dashboard';
 // Common pages
@@ -148,6 +151,7 @@ const App: React.FC = () => {
           <Route path="profit" element={<ErrorBoundary><DuProfitDashboard /></ErrorBoundary>} />
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
+          <Route path="supply-quotes" element={<ErrorBoundary><DuSupplyQuotes /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
           <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
           <Route path="suppliers" element={<ErrorBoundary><DuSupplierManagement /></ErrorBoundary>} />
@@ -223,6 +227,7 @@ const App: React.FC = () => {
           <Route path="svc-dispatch" element={<ErrorBoundary><DexSvcDispatch /></ErrorBoundary>} />
           <Route path="stocktakes" element={<ErrorBoundary><DexStocktakeApproval /></ErrorBoundary>} />
           <Route path="capacity" element={<ErrorBoundary><DexCapacityQuery /></ErrorBoundary>} />
+          <Route path="supply-quotes" element={<ErrorBoundary><DexSupplyQuotes /></ErrorBoundary>} />
         </Route>
 
         {/* DEXX routes */}
@@ -274,6 +279,7 @@ const App: React.FC = () => {
           <Route path="sgu-catalog" element={<ErrorBoundary><EmSguCatalog /></ErrorBoundary>} />
           <Route path="sgu-listings" element={<ErrorBoundary><EmSguListings /></ErrorBoundary>} />
           <Route path="sgu-pending" element={<ErrorBoundary><EmSguPending /></ErrorBoundary>} />
+          <Route path="supply-quotes" element={<ErrorBoundary><EmSupplyQuotes /></ErrorBoundary>} />
         </Route>
 
         {/* Market routes (em/du/dx/dm can access) */}

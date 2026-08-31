@@ -798,6 +798,74 @@ CREATE INDEX IF NOT EXISTS idx_sgu_catalog_status ON booth_sgu_catalog(status);
 CREATE INDEX IF NOT EXISTS idx_sgu_listings_org ON booth_sgu_listings(org_id);
 CREATE INDEX IF NOT EXISTS idx_sgu_listings_status ON booth_sgu_listings(status);
 CREATE INDEX IF NOT EXISTS idx_sgu_pending_org ON booth_sgu_pending(org_id, status);
+
+-- Supply Quotes (供给报价单 - 三层价格体系)
+CREATE TABLE IF NOT EXISTS booth_supply_quotes (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  quote_no VARCHAR(50) NOT NULL UNIQUE,
+  sgu_id INTEGER REFERENCES booth_sgu_catalog(id),
+  sku_id INTEGER REFERENCES booth_skus(id),
+  -- 成本构成 (仅EU决策层可见完整构成)
+  bom_material_cost NUMERIC(12,2) DEFAULT 0, -- BOM材料成本
+  labor_cost NUMERIC(12,2) DEFAULT 0, -- 人工费
+  manufacturing_fee NUMERIC(12,2) DEFAULT 0, -- 制造/服务费
+  -- 价格
+  supply_price NUMERIC(12,2) NOT NULL DEFAULT 0, -- 供给价 = BOM + 人工 + 制造费
+  margin_rate NUMERIC(5,2) DEFAULT 0, -- 毛利率 %
+  gross_profit NUMERIC(12,2) DEFAULT 0, -- 毛利额
+  total_price NUMERIC(12,2) NOT NULL DEFAULT 0, -- 总价 = 供给价 + 毛利
+  -- 版本与状态
+  version INTEGER NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft', -- draft/pending/approved/rejected/expired
+  effective_from TIMESTAMPTZ,
+  effective_to TIMESTAMPTZ,
+  -- 审计
+  created_by INTEGER REFERENCES booth_users(id),
+  approved_by INTEGER REFERENCES booth_users(id),
+  approved_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Supply Quote Versions (报价版本历史)
+CREATE TABLE IF NOT EXISTS booth_supply_quote_versions (
+  id SERIAL PRIMARY KEY,
+  quote_id INTEGER NOT NULL REFERENCES booth_supply_quotes(id),
+  version INTEGER NOT NULL,
+  -- 快照字段
+  bom_material_cost NUMERIC(12,2),
+  labor_cost NUMERIC(12,2),
+  manufacturing_fee NUMERIC(12,2),
+  supply_price NUMERIC(12,2),
+  margin_rate NUMERIC(5,2),
+  gross_profit NUMERIC(12,2),
+  total_price NUMERIC(12,2),
+  status VARCHAR(20),
+  changed_by INTEGER REFERENCES booth_users(id),
+  change_reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Supply Quote Audit Log (报价变更审计)
+CREATE TABLE IF NOT EXISTS booth_supply_quote_audit (
+  id SERIAL PRIMARY KEY,
+  quote_id INTEGER NOT NULL REFERENCES booth_supply_quotes(id),
+  action VARCHAR(50) NOT NULL, -- created/updated/approved/rejected/expired
+  actor_id INTEGER REFERENCES booth_users(id),
+  old_values JSONB,
+  new_values JSONB,
+  reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_supply_quotes_org ON booth_supply_quotes(org_id);
+CREATE INDEX IF NOT EXISTS idx_supply_quotes_sgu ON booth_supply_quotes(sgu_id);
+CREATE INDEX IF NOT EXISTS idx_supply_quotes_status ON booth_supply_quotes(status);
+CREATE INDEX IF NOT EXISTS idx_supply_quote_versions_quote ON booth_supply_quote_versions(quote_id, version);
+CREATE INDEX IF NOT EXISTS idx_supply_quote_audit_quote ON booth_supply_quote_audit(quote_id);
 `;
 
 // In-memory store for org modes

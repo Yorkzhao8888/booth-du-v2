@@ -125,7 +125,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/du/inventory-transfer', label: '库存调拨' },
       { key: '/du/expiry-control', label: '效期管控' },
       { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
-      ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }, { key: '/dex/capacity', label: '产能查询' }] : []),
+      ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }, { key: '/dex/capacity', label: '产能查询' }, { key: '/dex/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'dexx' ? [
         { key: '/dexx/stocktake', label: '盘点执行' },
         { key: '/dexx/wh/inbound', label: '入库' },
@@ -160,6 +160,7 @@ const getMenuItemsByRole = (role: string) => {
     label: 'SVC 服务铺',
     children: [
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/svc', label: '服务任务' }] : []),
+      ...(['du', 'dx'].includes(role) ? [{ key: '/du/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'dex' ? [{ key: '/dex/svc-dispatch', label: '服务派单' }] : []),
       ...(role === 'dexx' ? [{ key: '/dexx/svc', label: '服务执行' }] : []),
     ],
@@ -180,6 +181,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/em/sgu-catalog', label: 'SGU目录' },
       { key: '/em/sgu-listings', label: '挂牌管理' },
       { key: '/em/sgu-pending', label: 'SKU待办' },
+      { key: '/em/supply-quotes', label: '供给报价' },
     ],
   };
 

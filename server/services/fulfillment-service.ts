@@ -145,6 +145,10 @@ const PRICE_KEYS = new Set([
   'unitPrice', 'unit_price', 'totalAmount', 'total_amount', 'amount',
   'grossProfit', 'gross_profit', 'grossMargin', 'gross_margin',
   'margin', 'revenue', 'totalCost', 'total_cost',
+  // Supply quote price fields (BOOTH-OPT-03)
+  'supplyPrice', 'supply_price', 'totalPrice', 'total_price',
+  'bomMaterialCost', 'bom_material_cost', 'laborCost', 'labor_cost',
+  'manufacturingFee', 'manufacturing_fee', 'marginRate', 'margin_rate',
 ]);
 
 export function stripPriceFields<T = any>(obj: T): T {
