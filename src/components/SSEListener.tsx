@@ -44,6 +44,29 @@ const SSEListener: React.FC = () => {
         window.dispatchEvent(new CustomEvent('booth:refresh'));
       });
 
+      // Job 状态变更事件
+      es.addEventListener('job_event', (e) => {
+        try {
+          const data = JSON.parse((e as MessageEvent).data);
+          const eventLabels: Record<string, string> = {
+            JobCreated: '已创建',
+            JobDispatched: '已派单',
+            JobAccepted: '已接单',
+            JobRunning: '开始生产',
+            JobCompleted: '已完成',
+            JobFailed: '失败',
+            JobCancelled: '已取消',
+            JobArchived: '已归档',
+          };
+          const label = eventLabels[data.event] || data.event;
+          const jobId = data.job_id || '';
+          message.info(`Job ${jobId} ${label}`);
+        } catch {
+          message.info('Job 状态已更新');
+        }
+        window.dispatchEvent(new CustomEvent('booth:refresh'));
+      });
+
       es.onerror = () => {
         es.close();
         reconnectTimer.current = setTimeout(connect, 3000);

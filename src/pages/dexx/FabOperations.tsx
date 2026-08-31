@@ -22,6 +22,15 @@ const woStatusMap: Record<string, { label: string; color: string }> = {
   in_progress: { label: '生产中', color: 'warning' },
   completed: { label: '已完成', color: 'success' },
   cancelled: { label: '已取消', color: 'error' },
+  // 8 态状态
+  Pending: { label: '待处理', color: 'default' },
+  Dispatched: { label: '已派单', color: 'cyan' },
+  Accepted: { label: '已接单', color: 'processing' },
+  Running: { label: '生产中', color: 'warning' },
+  Completed: { label: '已完成', color: 'success' },
+  Failed: { label: '失败', color: 'error' },
+  Cancelled: { label: '已取消', color: 'error' },
+  Archived: { label: '已归档', color: 'default' },
 };
 
 const FabOperations = () => {

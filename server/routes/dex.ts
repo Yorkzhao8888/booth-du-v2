@@ -204,13 +204,14 @@ router.get('/work-orders', async (req, res, next) => {
 
     const dataRes = await pool.query(
       `SELECT wo.*, u.name as operator_name, a.name as accepted_by_name,
-              f.shop_order_id
+              f.shop_order_id, st.name as station_name
        FROM booth_work_orders wo
        LEFT JOIN booth_users u ON u.id = wo.operator_id
        LEFT JOIN booth_users a ON a.id = wo.accepted_by
        LEFT JOIN booth_fulfillments f ON f.id = wo.fulfillment_id
+       LEFT JOIN booth_stations st ON st.id = wo.station_id
        ${whereClause}
-       ORDER BY wo.created_at DESC
+       ORDER BY wo.priority DESC NULLS LAST, wo.created_at DESC
        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
       [...params, pageSize, offset]
     );

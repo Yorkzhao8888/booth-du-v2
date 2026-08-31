@@ -20,11 +20,12 @@ router.get('/fab/queue', requireHat('FAB'), async (req, res, next) => {
     const orgId = user.orgId;
 
     const result = await pool.query(
-      `SELECT wo.*, f.shop_order_id
+      `SELECT wo.*, f.shop_order_id, st.name as station_name
        FROM booth_work_orders wo
        LEFT JOIN booth_fulfillments f ON f.id = wo.fulfillment_id
-       WHERE wo.org_id = $1 AND wo.status = 'pending'
-       ORDER BY wo.created_at ASC`,
+       LEFT JOIN booth_stations st ON st.id = wo.station_id
+       WHERE wo.org_id = $1 AND wo.status IN ('pending', 'Pending', 'Dispatched')
+       ORDER BY wo.priority DESC NULLS LAST, wo.created_at ASC`,
       [orgId]
     );
 
@@ -42,13 +43,14 @@ router.get('/fab/active', requireHat('FAB'), async (req, res, next) => {
     const orgId = user.orgId;
 
     const result = await pool.query(
-      `SELECT wo.*, u.name as operator_name, a.name as accepted_by_name, f.shop_order_id
+      `SELECT wo.*, u.name as operator_name, a.name as accepted_by_name, f.shop_order_id, st.name as station_name
        FROM booth_work_orders wo
        LEFT JOIN booth_users u ON u.id = wo.operator_id
        LEFT JOIN booth_users a ON a.id = wo.accepted_by
        LEFT JOIN booth_fulfillments f ON f.id = wo.fulfillment_id
-       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'preparing')
-       ORDER BY wo.created_at ASC`,
+       LEFT JOIN booth_stations st ON st.id = wo.station_id
+       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'preparing', 'Accepted', 'Running')
+       ORDER BY wo.priority DESC NULLS LAST, wo.created_at ASC`,
       [orgId]
     );
 
@@ -70,18 +72,19 @@ router.get('/fab/history', requireHat('FAB'), async (req, res, next) => {
 
     const countRes = await pool.query(
       `SELECT COUNT(*) as cnt FROM booth_work_orders
-       WHERE org_id = $1 AND status IN ('completed', 'cancelled')`,
+       WHERE org_id = $1 AND status IN ('completed', 'cancelled', 'Completed', 'Cancelled', 'Failed', 'Archived')`,
       [orgId]
     );
     const total = parseInt(countRes.rows[0].cnt);
 
     const dataRes = await pool.query(
-      `SELECT wo.*, u.name as operator_name, a.name as accepted_by_name, f.shop_order_id
+      `SELECT wo.*, u.name as operator_name, a.name as accepted_by_name, f.shop_order_id, st.name as station_name
        FROM booth_work_orders wo
        LEFT JOIN booth_users u ON u.id = wo.operator_id
        LEFT JOIN booth_users a ON a.id = wo.accepted_by
        LEFT JOIN booth_fulfillments f ON f.id = wo.fulfillment_id
-       WHERE wo.org_id = $1 AND wo.status IN ('completed', 'cancelled')
+       LEFT JOIN booth_stations st ON st.id = wo.station_id
+       WHERE wo.org_id = $1 AND wo.status IN ('completed', 'cancelled', 'Completed', 'Cancelled', 'Failed', 'Archived')
        ORDER BY wo.created_at DESC
        LIMIT $2 OFFSET $3`,
       [orgId, pageSize, offset]

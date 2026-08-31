@@ -12,16 +12,22 @@ import { api } from '../../api';
 interface WorkOrder {
   id: number;
   wo_no: string;
+  job_id?: string;
+  job_type?: string;
   product_name: string;
   qty: number;
   qty_completed: number;
   status: string;
   production_stage: string;
-  priority: string;
+  priority: string | number;
+  priority_num?: number;
   planned_start: string;
   planned_end: string;
   started_at: string | null;
   completed_at: string | null;
+  sla_minutes?: number;
+  dispatched_at?: string;
+  station_name?: string;
 }
 
 interface StageInfo {
@@ -43,6 +49,27 @@ const PRIORITY_MAP: Record<string, { label: string; color: string }> = {
   normal: { label: '普通', color: 'processing' },
   high: { label: '高', color: 'warning' },
   urgent: { label: '紧急', color: 'error' },
+};
+
+// 优先级数值转颜色
+const getPriorityColor = (p: number | string) => {
+  const n = typeof p === 'number' ? p : parseInt(String(p)) || 5;
+  if (n >= 8) return '#ff4d4f';
+  if (n >= 5) return '#fa8c16';
+  if (n >= 3) return '#faad14';
+  return '#d9d9d9';
+};
+
+// SLA 剩余时间
+const getSlaRemaining = (slaMinutes: number, dispatchedAt: string | null) => {
+  if (!dispatchedAt) return null;
+  const start = new Date(dispatchedAt).getTime();
+  const deadline = start + slaMinutes * 60 * 1000;
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return { text: '已超时', overdue: true };
+  const hours = Math.floor(remaining / (60 * 60 * 1000));
+  const mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+  return { text: hours > 0 ? `${hours}h${mins}m` : `${mins}m`, overdue: false };
 };
 
 export default function ProductionDashboard() {
@@ -68,9 +95,9 @@ export default function ProductionDashboard() {
         const now = new Date();
 
         orders.forEach((wo) => {
-          if (wo.status === 'completed') {
+          if (wo.status === 'completed' || wo.status === 'Completed') {
             completed++;
-          } else if (wo.status === 'in_progress') {
+          } else if (wo.status === 'in_progress' || wo.status === 'Running') {
             const stage = stageList.find((s) => s.key === wo.production_stage);
             if (stage) stage.orders.push(wo);
             // Check if delayed
@@ -80,10 +107,19 @@ export default function ProductionDashboard() {
           }
         });
 
+        // Sort each stage's orders by priority (highest first)
+        stageList.forEach((stage) => {
+          stage.orders.sort((a, b) => {
+            const pa = a.priority_num || (typeof a.priority === 'number' ? a.priority : 5);
+            const pb = b.priority_num || (typeof b.priority === 'number' ? b.priority : 5);
+            return pb - pa;
+          });
+        });
+
         setStages(stageList);
         setStats({
-          total: orders.filter((o) => o.status !== 'cancelled').length,
-          inProgress: orders.filter((o) => o.status === 'in_progress').length,
+          total: orders.filter((o) => o.status !== 'cancelled' && o.status !== 'Cancelled').length,
+          inProgress: orders.filter((o) => o.status === 'in_progress' || o.status === 'Running').length,
           completed,
           delayed,
         });
@@ -173,18 +209,33 @@ export default function ProductionDashboard() {
                     stage.orders.map((wo) => {
                       const progress = getProgress(wo);
                       const timeInfo = wo.planned_end ? getTimeRemaining(wo.planned_end) : null;
-                      const priority = PRIORITY_MAP[wo.priority] || PRIORITY_MAP.normal;
+                      // Support both old priority (string) and new priority (number 1-10)
+                      const priorityNum = wo.priority_num || (typeof wo.priority === 'number' ? wo.priority : 5);
+                      const priority = PRIORITY_MAP[wo.priority as string] || { label: `P${priorityNum}`, color: getPriorityColor(priorityNum) };
+                      // SLA info
+                      const slaInfo = wo.sla_minutes && wo.dispatched_at ? getSlaRemaining(wo.sla_minutes, wo.dispatched_at) : null;
 
                       return (
                         <Card
                           key={wo.id}
                           size="small"
-                          style={{ marginBottom: 12, borderLeft: `3px solid ${stage.color}` }}
+                          style={{ 
+                            marginBottom: 12, 
+                            borderLeft: `3px solid ${stage.color}`,
+                            ...(slaInfo?.overdue ? { borderColor: '#ff4d4f', background: '#fff2f0' } : {})
+                          }}
                           styles={{ body: { padding: '8px 12px' } }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                             <div>
-                              <div style={{ fontWeight: 600, fontSize: 13 }}>{wo.wo_no}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {wo.job_id && (
+                                  <span style={{ fontSize: 11, color: '#1890ff', fontFamily: 'monospace' }}>
+                                    {wo.job_id}
+                                  </span>
+                                )}
+                                <span style={{ fontWeight: 600, fontSize: 13 }}>{wo.wo_no || wo.job_id}</span>
+                              </div>
                               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{wo.product_name}</div>
                             </div>
                             <Tag color={priority.color} style={{ marginRight: 0 }}>{priority.label}</Tag>
@@ -203,17 +254,18 @@ export default function ProductionDashboard() {
                             />
                           </div>
 
-                          {timeInfo && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                              <span style={{ color: '#999' }}>
-                                <ClockCircleOutlined style={{ marginRight: 4 }} />
-                                剩余
-                              </span>
-                              <span style={{ color: timeInfo.isOverdue ? '#ff4d4f' : '#52c41a', fontWeight: timeInfo.isOverdue ? 600 : 400 }}>
-                                {timeInfo.text}
-                              </span>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                            <span style={{ color: '#999' }}>
+                              <ClockCircleOutlined style={{ marginRight: 4 }} />
+                              {slaInfo ? 'SLA' : '剩余'}
+                            </span>
+                            <span style={{ 
+                              color: slaInfo?.overdue || timeInfo?.isOverdue ? '#ff4d4f' : '#52c41a', 
+                              fontWeight: slaInfo?.overdue || timeInfo?.isOverdue ? 600 : 400 
+                            }}>
+                              {slaInfo ? slaInfo.text : timeInfo?.text || '-'}
+                            </span>
+                          </div>
                         </Card>
                       );
                     })

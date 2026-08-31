@@ -490,6 +490,61 @@ CREATE INDEX IF NOT EXISTS idx_market_products_org_status ON booth_market_produc
 CREATE INDEX IF NOT EXISTS idx_market_admissions_org_status ON booth_market_supplier_admissions(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_market_orders_org_status ON booth_market_orders(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_po_supplier_id ON booth_purchase_orders(supplier_id);
+
+-- ====== 工单 FAB-OPT-01：Job 模型对齐 BOOTH-S-A1.0 ======
+
+-- Station 表（工位/工作站）
+CREATE TABLE IF NOT EXISTS booth_stations (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  type TEXT NOT NULL,
+  -- type: FAB / WH / DL / SVC
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'offline',
+  -- status: online / offline / busy
+  capacity INTEGER NOT NULL DEFAULT 1,
+  current_load INTEGER NOT NULL DEFAULT 0,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, name)
+);
+
+-- 扩展 booth_work_orders 为 Job 模型
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS job_id TEXT;
+-- job_id: 业务号 J-xxx
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS job_type TEXT DEFAULT 'PRODUCE';
+-- job_type: PICK / PACK / SHIP / SERVE / PRODUCE
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS station_id BIGINT REFERENCES booth_stations(id);
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS payload JSONB DEFAULT '{}';
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 5;
+-- priority: 1-10, 10 最高
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS sla_minutes INTEGER;
+-- SLA 分钟数
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ;
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ;
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+
+-- 状态映射说明：
+-- 旧状态 → 新状态（兼容期同时支持两种写法）
+-- pending → Pending
+-- accepted → Accepted  
+-- preparing → Running
+-- completed → Completed
+-- cancelled → Cancelled
+-- 新增：Dispatched (已派单待接单), Failed (失败), Archived (归档)
+
+-- 为现有工单生成 job_id（如果为空）
+UPDATE booth_work_orders SET job_id = 'J-' || LPAD(id::TEXT, 6, '0') WHERE job_id IS NULL;
+
+-- FAB-OPT-01 索引
+CREATE UNIQUE INDEX IF NOT EXISTS idx_work_orders_job_id ON booth_work_orders(job_id) WHERE job_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_work_orders_org_status ON booth_work_orders(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_work_orders_station ON booth_work_orders(station_id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_priority ON booth_work_orders(priority DESC);
+CREATE INDEX IF NOT EXISTS idx_stations_org_type ON booth_stations(org_id, type);
+CREATE INDEX IF NOT EXISTS idx_stations_status ON booth_stations(status);
 `;
 
 // In-memory store for org modes

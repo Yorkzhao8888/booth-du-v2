@@ -13,7 +13,21 @@ export interface WorkOrderData {
   completedAt?: string;
   progress?: number;
   note?: string;
+  job_id?: string;
+  job_type?: string;
+  priority?: number;
+  sla_minutes?: number;
+  dispatched_at?: string;
+  station_name?: string;
 }
+
+// 优先级徽标颜色
+const getPriorityColor = (priority: number) => {
+  if (priority >= 8) return '#ff4d4f';
+  if (priority >= 5) return '#fa8c16';
+  if (priority >= 3) return '#faad14';
+  return '#d9d9d9';
+};
 
 interface WorkOrderCardProps {
   workOrder: WorkOrderData;
@@ -29,14 +43,38 @@ const WorkOrderCard: React.FC<WorkOrderCardProps> = ({ workOrder, actions }) => 
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            {workOrder.job_id && (
+              <span style={{ fontSize: 12, color: '#1890ff', fontFamily: 'monospace' }}>
+                {workOrder.job_id}
+              </span>
+            )}
+            {workOrder.job_type && (
+              <span style={{ fontSize: 11, background: '#e6f7ff', color: '#1890ff', padding: '1px 6px', borderRadius: 4 }}>
+                {workOrder.job_type}
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
             {workOrder.productName}
           </div>
-          <div style={{ color: '#666', fontSize: 13, marginBottom: 4 }}>
-            数量: {workOrder.qty}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#666', fontSize: 13, marginBottom: 4 }}>
+            <span>数量: {workOrder.qty}</span>
+            {workOrder.priority && (
+              <span style={{ 
+                background: getPriorityColor(workOrder.priority), 
+                color: '#fff', 
+                padding: '1px 6px', 
+                borderRadius: 4,
+                fontSize: 11
+              }}>
+                P{workOrder.priority}
+              </span>
+            )}
           </div>
           <div style={{ color: '#999', fontSize: 12 }}>
             {dayjs(workOrder.createdAt).format('MM-DD HH:mm')}
+            {workOrder.station_name && ` · ${workOrder.station_name}`}
           </div>
         </div>
         <StatusTag status={workOrder.status} />

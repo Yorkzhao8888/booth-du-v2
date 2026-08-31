@@ -187,16 +187,16 @@ router.get('/fab/stages', requireAuth, async (req, res) => {
 router.get('/fab/dashboard', requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    // booth_work_orders 实际列: id, org_id, fulfillment_id, product_name, qty, status, boms, progress, 
-    // accepted_by, operator_id, accepted_at, started_at, completed_at, cancelled_at, cancel_reason, created_at, production_stage
     const result = await pool.query(
-      `SELECT wo.id, wo.product_name, wo.qty, wo.status, wo.progress, wo.production_stage,
+      `SELECT wo.id, wo.wo_no, wo.job_id, wo.job_type, wo.product_name, wo.qty, wo.status, wo.progress, 
+              wo.production_stage, wo.priority, wo.sla_minutes, wo.dispatched_at,
               wo.started_at, wo.completed_at, wo.created_at,
-              u.name as operator_name
+              u.name as operator_name, st.name as station_name
        FROM booth_work_orders wo
        LEFT JOIN booth_users u ON wo.operator_id = u.id
-       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'in_progress')
-       ORDER BY wo.production_stage, wo.created_at ASC`,
+       LEFT JOIN booth_stations st ON wo.station_id = st.id
+       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'in_progress', 'Accepted', 'Running')
+       ORDER BY wo.priority DESC NULLS LAST, wo.created_at ASC`,
       [user.orgId]
     );
     res.json({ success: true, data: { orders: result.rows } });

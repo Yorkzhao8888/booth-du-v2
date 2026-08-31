@@ -72,8 +72,8 @@ const FabActive: React.FC = () => {
     }
   };
 
-  const acceptedOrders = orders.filter((o) => o.status === 'accepted');
-  const preparingOrders = orders.filter((o) => o.status === 'preparing');
+  const acceptedOrders = orders.filter((o) => o.status === 'accepted' || o.status === 'Accepted' || o.status === 'Dispatched');
+  const preparingOrders = orders.filter((o) => o.status === 'preparing' || o.status === 'Running');
 
   return (
     <div style={{ padding: 12 }}>
