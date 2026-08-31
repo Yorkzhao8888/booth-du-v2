@@ -191,9 +191,20 @@ router.get('/work-orders', async (req, res, next) => {
     let paramIdx = 2;
 
     if (status) {
-      whereClause += ` AND wo.status = $${paramIdx}`;
-      params.push(status);
-      paramIdx++;
+      // 兼容新旧状态：旧 in_progress/preparing 同时匹配新 Running
+      const statusMap: Record<string, string[]> = {
+        pending: ['pending', 'Pending', 'Dispatched'],
+        accepted: ['accepted', 'Accepted'],
+        preparing: ['preparing', 'in_progress', 'Running'],
+        in_progress: ['preparing', 'in_progress', 'Running'],
+        completed: ['completed', 'Completed', 'Archived'],
+        cancelled: ['cancelled', 'Cancelled', 'Failed'],
+      };
+      const matchedStatuses = statusMap[status] || [status];
+      const placeholders = matchedStatuses.map((_, i) => `$${paramIdx + i}`).join(', ');
+      whereClause += ` AND wo.status IN (${placeholders})`;
+      params.push(...matchedStatuses);
+      paramIdx += matchedStatuses.length;
     }
 
     const countRes = await pool.query(

@@ -1,6 +1,31 @@
 import { pool } from '../db.js';
 import { broadcast } from '../sse.js';
 
+// 状态归一化：将新旧状态统一映射
+// 旧 5 态: pending/accepted/preparing/completed/cancelled
+// 新 8 态: Pending/Dispatched/Accepted/Running/Completed/Failed/Cancelled/Archived
+function normalizeStatus(status: string): string {
+  const map: Record<string, string> = {
+    // 旧态
+    pending: 'pending',
+    accepted: 'accepted',
+    preparing: 'preparing',
+    in_progress: 'preparing', // 旧 in_progress 等同于 preparing
+    completed: 'completed',
+    cancelled: 'cancelled',
+    // 新态映射到旧态语义
+    Pending: 'pending',
+    Dispatched: 'pending', // Dispatched 视为已派单待接单
+    Accepted: 'accepted',
+    Running: 'preparing',
+    Completed: 'completed',
+    Failed: 'cancelled',
+    Cancelled: 'cancelled',
+    Archived: 'completed', // Archived 视为已完成归档
+  };
+  return map[status] || status;
+}
+
 export interface BomItem {
   skuId: number;
   skuName?: string;
@@ -30,7 +55,8 @@ export async function acceptWorkOrder(id: number, userId: number) {
       throw { statusCode: 404, code: 'NOT_FOUND', error: 'Work order not found' };
     }
     const wo = woRes.rows[0];
-    if (wo.status !== 'pending') {
+    const normalizedStatus = normalizeStatus(wo.status);
+    if (normalizedStatus !== 'pending') {
       throw { statusCode: 400, code: 'INVALID_STATE', error: `Cannot accept work order in ${wo.status} state` };
     }
 
@@ -71,7 +97,8 @@ export async function startWorkOrder(id: number, userId: number) {
       throw { statusCode: 404, code: 'NOT_FOUND', error: 'Work order not found' };
     }
     const wo = woRes.rows[0];
-    if (wo.status !== 'accepted') {
+    const normalizedStatus = normalizeStatus(wo.status);
+    if (normalizedStatus !== 'accepted') {
       throw { statusCode: 400, code: 'INVALID_STATE', error: `Cannot start work order in ${wo.status} state` };
     }
 
@@ -202,7 +229,8 @@ export async function completeWorkOrder(id: number, userId: number) {
       throw { statusCode: 404, code: 'NOT_FOUND', error: 'Work order not found' };
     }
     const wo = woRes.rows[0];
-    if (wo.status !== 'preparing') {
+    const normalizedStatus = normalizeStatus(wo.status);
+    if (normalizedStatus !== 'preparing') {
       throw { statusCode: 400, code: 'INVALID_STATE', error: `Cannot complete work order in ${wo.status} state` };
     }
 
@@ -267,10 +295,11 @@ export async function cancelWorkOrder(id: number, reason: string, userId: number
       throw { statusCode: 404, code: 'NOT_FOUND', error: 'Work order not found' };
     }
     const wo = woRes.rows[0];
-    if (wo.status === 'preparing') {
+    const normalizedStatus = normalizeStatus(wo.status);
+    if (normalizedStatus === 'preparing') {
       throw { statusCode: 400, code: 'INVALID_STATE', error: 'Cannot cancel a preparing work order' };
     }
-    if (wo.status === 'completed' || wo.status === 'cancelled') {
+    if (normalizedStatus === 'completed' || normalizedStatus === 'cancelled') {
       throw { statusCode: 400, code: 'INVALID_STATE', error: `Work order is already ${wo.status}` };
     }
 

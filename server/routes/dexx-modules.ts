@@ -6,6 +6,27 @@ import { createProfitSnapshot } from '../services/profit-service.js';
 
 const router = Router();
 
+// 状态归一化：将新旧状态统一映射
+function normalizeStatus(status: string): string {
+  const map: Record<string, string> = {
+    pending: 'pending',
+    accepted: 'accepted',
+    preparing: 'preparing',
+    in_progress: 'preparing',
+    completed: 'completed',
+    cancelled: 'cancelled',
+    Pending: 'pending',
+    Dispatched: 'pending',
+    Accepted: 'accepted',
+    Running: 'preparing',
+    Completed: 'completed',
+    Failed: 'cancelled',
+    Cancelled: 'cancelled',
+    Archived: 'completed',
+  };
+  return map[status] || status;
+}
+
 // ====== FAB: Report work (工序报工) ======
 router.post('/fab/report', requireHat('FAB'), async (req, res, next) => {
   const client = await pool.connect();
@@ -20,7 +41,7 @@ router.post('/fab/report', requireHat('FAB'), async (req, res, next) => {
       'SELECT * FROM booth_work_orders WHERE id = $1 AND org_id = $2 FOR UPDATE',
       [workOrderId, user.orgId]
     );
-    if (!woRes.rows.length || woRes.rows[0].status !== 'in_progress') {
+    if (!woRes.rows.length || normalizeStatus(woRes.rows[0].status) !== 'preparing') {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'Work order not in progress', code: 'INVALID_STATE' });
     }
@@ -61,14 +82,14 @@ router.post('/fab/complete', requireHat('FAB'), async (req, res, next) => {
       'SELECT * FROM booth_work_orders WHERE id = $1 AND org_id = $2 FOR UPDATE',
       [workOrderId, user.orgId]
     );
-    if (!woRes.rows.length || woRes.rows[0].status !== 'in_progress') {
+    if (!woRes.rows.length || normalizeStatus(woRes.rows[0].status) !== 'preparing') {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'Work order not in progress', code: 'INVALID_STATE' });
     }
 
     // Update work order status
     await client.query(
-      `UPDATE booth_work_orders SET status = 'completed', completed_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      `UPDATE booth_work_orders SET status = 'completed', completed_at = NOW() WHERE id = $1`,
       [workOrderId]
     );
 
@@ -121,7 +142,7 @@ router.post('/fab/stage/advance', requireHat('FAB'), async (req, res, next) => {
     }
 
     const wo = woRes.rows[0];
-    if (wo.status !== 'in_progress') {
+    if (normalizeStatus(wo.status) !== 'preparing') {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, error: 'Work order not in progress', code: 'INVALID_STATE' });
     }
@@ -141,7 +162,7 @@ router.post('/fab/stage/advance', requireHat('FAB'), async (req, res, next) => {
 
     // Update stage
     await client.query(
-      `UPDATE booth_work_orders SET production_stage = $1, updated_at = NOW() WHERE id = $2`,
+      `UPDATE booth_work_orders SET production_stage = $1 WHERE id = $2`,
       [targetStage, workOrderId]
     );
 
@@ -188,14 +209,14 @@ router.get('/fab/dashboard', requireAuth, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const result = await pool.query(
-      `SELECT wo.id, wo.wo_no, wo.job_id, wo.job_type, wo.product_name, wo.qty, wo.status, wo.progress, 
+      `SELECT wo.id, wo.job_id, wo.job_type, wo.product_name, wo.qty, wo.status, wo.progress, 
               wo.production_stage, wo.priority, wo.sla_minutes, wo.dispatched_at,
               wo.started_at, wo.completed_at, wo.created_at,
               u.name as operator_name, st.name as station_name
        FROM booth_work_orders wo
        LEFT JOIN booth_users u ON wo.operator_id = u.id
        LEFT JOIN booth_stations st ON wo.station_id = st.id
-       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'in_progress', 'Accepted', 'Running')
+       WHERE wo.org_id = $1 AND wo.status IN ('accepted', 'in_progress', 'preparing', 'Accepted', 'Running')
        ORDER BY wo.priority DESC NULLS LAST, wo.created_at ASC`,
       [user.orgId]
     );
