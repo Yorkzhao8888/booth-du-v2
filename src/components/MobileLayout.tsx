@@ -17,12 +17,16 @@ import {
   ApartmentOutlined,
   DashboardOutlined,
   LineChartOutlined,
+  SendOutlined,
+  NodeIndexOutlined,
+  SettingOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
 const { Header, Content } = Layout;
 
-type ModuleType = 'fab' | 'fab-zone' | 'wh' | 'dl' | 'svc' | 'stocktake';
+type ModuleType = 'fab' | 'fab-zone' | 'wh' | 'wh-supply' | 'dl' | 'svc' | 'stocktake';
 
 // 工单视角 tabs
 const fabTabs = [
@@ -50,6 +54,14 @@ const whTabs = [
   { key: '/dexx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
 ];
 
+// 供给视角 tabs
+const whSupplyTabs = [
+  { key: '/dexx/wh/supply-orders', label: '供给单', icon: <SendOutlined /> },
+  { key: '/dexx/wh/supply-line-feed', label: '补给线', icon: <NodeIndexOutlined /> },
+  { key: '/dexx/wh/device-supply', label: '设备', icon: <SettingOutlined /> },
+  { key: '/dexx/wh/plaza-supply', label: '场地', icon: <HomeOutlined /> },
+];
+
 const dlTabs = [
   { key: '/dexx/dl', label: '配送任务', icon: <CarOutlined /> },
 ];
@@ -70,6 +82,7 @@ const MobileLayout: React.FC = () => {
   const getInitialModule = (): ModuleType => {
     const p = location.pathname;
     if (p.includes('/fab/zone/')) return 'fab-zone';
+    if (p.includes('/wh/supply') || p.includes('/wh/device') || p.includes('/wh/plaza')) return 'wh-supply';
     if (p.includes('/wh/')) return 'wh';
     if (p.includes('/dl')) return 'dl';
     if (p.includes('/svc')) return 'svc';
@@ -88,6 +101,7 @@ const MobileLayout: React.FC = () => {
     showFab ? { label: '工单', value: 'fab' as ModuleType } : null,
     showFab ? { label: '产线', value: 'fab-zone' as ModuleType } : null,
     showWh ? { label: '仓储', value: 'wh' as ModuleType } : null,
+    showWh ? { label: '供给', value: 'wh-supply' as ModuleType } : null,
     showDl ? { label: '配送', value: 'dl' as ModuleType } : null,
     showSvc ? { label: '服务', value: 'svc' as ModuleType } : null,
   ].filter(Boolean) as { label: string; value: ModuleType }[];
@@ -98,6 +112,7 @@ const MobileLayout: React.FC = () => {
     fab: fabTabs,
     'fab-zone': fabZoneTabs,
     wh: whTabs,
+    'wh-supply': whSupplyTabs,
     dl: dlTabs,
     svc: svcTabs,
     stocktake: stocktakeTabs,
@@ -115,6 +130,7 @@ const MobileLayout: React.FC = () => {
     fab: '/dexx/fab/queue',
     'fab-zone': '/dexx/fab/zone/preprocessing',
     wh: '/dexx/wh/inventory',
+    'wh-supply': '/dexx/wh/supply-orders',
     dl: '/dexx/dl',
     svc: '/dexx/svc',
     stocktake: '/dexx/stocktake',

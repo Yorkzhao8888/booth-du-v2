@@ -547,6 +547,126 @@ CREATE INDEX IF NOT EXISTS idx_work_orders_station ON booth_work_orders(station_
 CREATE INDEX IF NOT EXISTS idx_work_orders_priority ON booth_work_orders(priority DESC);
 CREATE INDEX IF NOT EXISTS idx_stations_org_type ON booth_stations(org_id, type);
 CREATE INDEX IF NOT EXISTS idx_stations_status ON booth_stations(status);
+
+-- ====== WH-SUPPLY-01：供给执行单元 ======
+
+-- 供给单
+CREATE TABLE IF NOT EXISTS booth_supply_orders (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  supply_no TEXT NOT NULL UNIQUE,
+  supply_type TEXT NOT NULL DEFAULT 'material',
+  -- supply_type: material(原料) / device(设备) / plaza(场地)
+  target_type TEXT,
+  -- target_type: production_line(产线) / work_order(工单) / station(工位) / service(服务单)
+  target_id BIGINT,
+  target_name TEXT,
+  from_warehouse_type TEXT DEFAULT 'material',
+  -- 来源仓类型: material / device / plaza
+  sku_id BIGINT,
+  sku_name TEXT,
+  qty NUMERIC(12,3) DEFAULT 0,
+  unit TEXT,
+  device_id BIGINT,
+  plaza_resource_id BIGINT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  -- status: pending(待执行) / dispatched(已下发) / supplied(已供给) / returned(已退回) / cancelled(已取消)
+  remark TEXT,
+  created_by BIGINT,
+  supplied_at TIMESTAMPTZ,
+  returned_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_supply_org_type ON booth_supply_orders(org_id, supply_type);
+CREATE INDEX IF NOT EXISTS idx_supply_org_status ON booth_supply_orders(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_supply_target ON booth_supply_orders(target_type, target_id);
+
+-- 设备档案
+CREATE TABLE IF NOT EXISTS booth_devices (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  device_code TEXT NOT NULL,
+  device_name TEXT NOT NULL,
+  device_type TEXT,
+  -- device_type: production(生产设备) / packaging(包装设备) / sorting(分拣设备) / auxiliary(辅助设备)
+  serial_no TEXT,
+  status TEXT NOT NULL DEFAULT 'idle',
+  -- status: idle(空闲) / in_use(使用中) / maintenance(维保中) / retired(已报废)
+  location TEXT,
+  assigned_line TEXT,
+  -- 当前分配到的产线
+  purchase_date DATE,
+  warranty_until DATE,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, device_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_devices_org_status ON booth_devices(org_id, status);
+
+-- 设备维保履历
+CREATE TABLE IF NOT EXISTS booth_device_maintenance_logs (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  device_id BIGINT NOT NULL REFERENCES booth_devices(id),
+  maintenance_type TEXT NOT NULL DEFAULT 'routine',
+  -- maintenance_type: routine(日常保养) / repair(维修) / inspection(巡检) / calibration(校准)
+  description TEXT,
+  operator_id BIGINT,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  cost NUMERIC(12,2) DEFAULT 0,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_maintenance_device ON booth_device_maintenance_logs(device_id);
+
+-- 场地资源池 (Plaza)
+CREATE TABLE IF NOT EXISTS booth_plaza_resources (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  resource_code TEXT NOT NULL,
+  resource_name TEXT NOT NULL,
+  plaza_type TEXT NOT NULL DEFAULT 'standard',
+  -- plaza_type: standard(标准铺位) / cold_storage(冷藏区) / hot_zone(热区) / storage(仓储区)
+  area_sqm NUMERIC(8,2) DEFAULT 0,
+  capacity INTEGER DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'available',
+  -- status: available(可用) / booked(已预订) / occupied(占用中) / maintenance(维护中)
+  location TEXT,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, resource_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_plaza_org_status ON booth_plaza_resources(org_id, status);
+
+-- 场地预订记录
+CREATE TABLE IF NOT EXISTS booth_plaza_bookings (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  resource_id BIGINT NOT NULL REFERENCES booth_plaza_resources(id),
+  booking_no TEXT NOT NULL UNIQUE,
+  booker_id BIGINT,
+  purpose TEXT,
+  -- 用途: production / storage / event / display
+  start_at TIMESTAMPTZ NOT NULL,
+  end_at TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL DEFAULT 'booked',
+  -- status: booked(已预订) / checked_in(已入驻) / released(已释放) / cancelled(已取消)
+  billing_amount NUMERIC(12,2) DEFAULT 0,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_plaza_bookings_resource ON booth_plaza_bookings(resource_id);
+CREATE INDEX IF NOT EXISTS idx_plaza_bookings_org_status ON booth_plaza_bookings(org_id, status);
 `;
 
 // In-memory store for org modes

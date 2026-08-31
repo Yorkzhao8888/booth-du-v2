@@ -113,11 +113,11 @@ const getMenuItemsByRole = (role: string) => {
     ],
   };
 
-  // WH 仓管铺
+  // WH 仓管铺（供给视角）
   const whItems = {
     key: 'wh',
     icon: <HomeOutlined />,
-    label: 'WH 仓管铺',
+    label: 'WH 供给铺',
     children: [
       { key: '/du/batches', label: '批次库存' },
       { key: '/du/inventory', label: '库存总览' },
@@ -130,6 +130,13 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/dexx/stocktake', label: '盘点执行' },
         { key: '/dexx/wh/inbound', label: '入库' },
         { key: '/dexx/wh/outbound', label: '出库' },
+        { type: 'divider' },
+        { key: 'wh-supply-group', label: '供给执行', type: 'group', children: [
+          { key: '/dexx/wh/supply-orders', label: '供给单' },
+          { key: '/dexx/wh/supply-line-feed', label: '补给产线' },
+          { key: '/dexx/wh/device-supply', label: '设备供给' },
+          { key: '/dexx/wh/plaza-supply', label: '场地供给' },
+        ]},
       ] : []),
     ],
   };

@@ -51,6 +51,10 @@ import DexxSvcExec from './pages/dexx/SvcExec';
 import DexxProductionDashboard from './pages/dexx/ProductionDashboard';
 import DexxYieldTracking from './pages/dexx/YieldTracking';
 import DexxFabZoneView from './pages/dexx/FabZoneView';
+import DexxSupplyOrders from './pages/dexx/SupplyOrders';
+import DexxSupplyLineFeed from './pages/dexx/SupplyLineFeed';
+import DexxDeviceSupply from './pages/dexx/DeviceSupply';
+import DexxPlazaSupply from './pages/dexx/PlazaSupply';
 // DM pages
 import DmDashboard from './pages/dm/Dashboard';
 // DXX pages
@@ -237,6 +241,10 @@ const App: React.FC = () => {
           <Route path="wh/outbound" element={<ErrorBoundary><DexxWhOutbound /></ErrorBoundary>} />
           <Route path="wh/txns" element={<ErrorBoundary><DexxWhTxns /></ErrorBoundary>} />
           <Route path="stocktake" element={<ErrorBoundary><DexxStocktakeExec /></ErrorBoundary>} />
+          <Route path="wh/supply-orders" element={<ErrorBoundary><DexxSupplyOrders /></ErrorBoundary>} />
+          <Route path="wh/supply-line-feed" element={<ErrorBoundary><DexxSupplyLineFeed /></ErrorBoundary>} />
+          <Route path="wh/device-supply" element={<ErrorBoundary><DexxDeviceSupply /></ErrorBoundary>} />
+          <Route path="wh/plaza-supply" element={<ErrorBoundary><DexxPlazaSupply /></ErrorBoundary>} />
           <Route path="dl" element={<ErrorBoundary><DexxDlExec /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
         </Route>
