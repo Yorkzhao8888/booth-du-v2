@@ -50,6 +50,7 @@ import DexxDlExec from './pages/dexx/DlExec';
 import DexxSvcExec from './pages/dexx/SvcExec';
 import DexxProductionDashboard from './pages/dexx/ProductionDashboard';
 import DexxYieldTracking from './pages/dexx/YieldTracking';
+import DexxFabZoneView from './pages/dexx/FabZoneView';
 // DM pages
 import DmDashboard from './pages/dm/Dashboard';
 // DXX pages
@@ -228,6 +229,7 @@ const App: React.FC = () => {
           <Route path="fab/history" element={<ErrorBoundary><DexxFabHistory /></ErrorBoundary>} />
           <Route path="fab/operations" element={<ErrorBoundary><DexxFabOperations /></ErrorBoundary>} />
           <Route path="fab/dashboard" element={<ErrorBoundary><DexxProductionDashboard /></ErrorBoundary>} />
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
           <Route path="fab/yield" element={<ErrorBoundary><DexxYieldTracking /></ErrorBoundary>} />
           <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
           <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />

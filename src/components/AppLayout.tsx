@@ -22,6 +22,7 @@ import {
   HomeOutlined,
   TruckOutlined,
   HeartOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -63,11 +64,11 @@ const getMenuItemsByRole = (role: string) => {
     })),
   };
 
-  // FAB 制造铺
-  const fabItems = {
-    key: 'fab',
+  // FAB 制造铺 - 工单视角
+  const fabOrderItems = {
+    key: 'fab-orders',
     icon: <ExperimentOutlined />,
-    label: 'FAB 制造铺',
+    label: 'FAB 工单视角',
     children: [
       ...(role === 'dex' ? [
         { key: '/dex/work-orders', label: '工单调度' },
@@ -79,10 +80,36 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/dexx/fab/dashboard', label: '产线看板' },
         { key: '/dexx/fab/yield', label: '良品率追踪' },
         { key: '/dexx/qc', label: '质检执行' },
+        { key: '/dexx/fab/history', label: '历史工单' },
       ] : []),
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du/work-orders', label: '工单管理' },
       ] : []),
+    ],
+  };
+
+  // FAB 制造铺 - 产线视角（四大生产区只读看板）
+  const fabZoneItems = {
+    key: 'fab-zones',
+    icon: <ApartmentOutlined />,
+    label: 'FAB 产线视角',
+    children: role === 'dexx' ? [
+      { key: '/dexx/fab/zone/preprocessing', label: '前置工序' },
+      { key: '/dexx/fab/zone/production', label: '制作' },
+      { key: '/dexx/fab/zone/packaging', label: '包装' },
+      { key: '/dexx/fab/zone/sorting', label: '分拣' },
+    ] : [],
+  };
+
+  // FAB 制造铺（合并）
+  const fabItems = {
+    key: 'fab',
+    icon: <ExperimentOutlined />,
+    label: 'FAB 制造铺',
+    children: [
+      ...fabOrderItems.children,
+      { type: 'divider' },
+      { key: 'fab-zone-group', label: '产线视角', type: 'group', children: fabZoneItems.children },
     ],
   };
 

@@ -11,6 +11,18 @@ const statusMap: Record<string, { color: string; label: string }> = {
   exception: { color: 'error', label: '异常' },
 };
 
+const categoryMap: Record<string, string> = {
+  customer: '客户服务',
+  internal: '内部服务',
+};
+
+const serviceTypeMap: Record<string, string> = {
+  qa: '质检',
+  production: '生产',
+  maintenance: '维护',
+  line_setup: '线体架设',
+};
+
 const SvcDispatch: React.FC = () => {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,6 +74,8 @@ const SvcDispatch: React.FC = () => {
 
   const columns = [
     { title: '任务号', dataIndex: 'task_no', width: 140 },
+    { title: '类别', dataIndex: 'service_category', width: 90, render: (v: string) => <Tag>{categoryMap[v] || v || '客户'}</Tag> },
+    { title: '类型', dataIndex: 'service_type', width: 80, render: (v: string) => v ? <Tag color="blue">{serviceTypeMap[v] || v}</Tag> : '-' },
     { title: '服务内容', dataIndex: 'service_content', width: 200, ellipsis: true },
     { title: '客户', dataIndex: 'customer_name', width: 100 },
     { title: '要求时间', dataIndex: 'required_at', width: 160, render: (v: string) => v ? new Date(v).toLocaleString() : '-' },
@@ -80,7 +94,18 @@ const SvcDispatch: React.FC = () => {
       <Table dataSource={tasks} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 20 }} scroll={{ x: 1000 }} />
 
       <Modal title="新建服务任务" open={createVisible} onCancel={() => setCreateVisible(false)} onOk={() => createForm.submit()} width={500}>
-        <Form form={createForm} layout="vertical" onFinish={handleCreate}>
+        <Form form={createForm} layout="vertical" onFinish={handleCreate} initialValues={{ serviceCategory: 'customer' }}>
+          <Form.Item name="serviceCategory" label="服务类别" rules={[{ required: true }]}>
+            <Select options={[{ value: 'customer', label: '客户服务' }, { value: 'internal', label: '内部服务' }]} />
+          </Form.Item>
+          <Form.Item name="serviceType" label="服务类型">
+            <Select allowClear placeholder="选择类型" options={[
+              { value: 'qa', label: '质检' },
+              { value: 'production', label: '生产' },
+              { value: 'maintenance', label: '维护' },
+              { value: 'line_setup', label: '线体架设' },
+            ]} />
+          </Form.Item>
           <Form.Item name="serviceContent" label="服务内容" rules={[{ required: true }]}><Input.TextArea rows={3} /></Form.Item>
           <Form.Item name="customerName" label="客户姓名"><Input /></Form.Item>
           <Form.Item name="customerPhone" label="客户电话"><Input /></Form.Item>

@@ -51,8 +51,10 @@ router.get('/svc/tasks', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const status = req.query.status as string;
+    const service_category = req.query.service_category as string;
     let where = 'WHERE org_id = $1'; const params: any[] = [user.orgId]; let idx = 2;
     if (status) { where += ` AND status = $${idx}`; params.push(status); idx++; }
+    if (service_category) { where += ` AND service_category = $${idx}`; params.push(service_category); idx++; }
     const r = await pool.query(`SELECT * FROM booth_svc_tasks ${where} ORDER BY created_at DESC`, params);
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
   } catch (err) { next(err); }
@@ -61,12 +63,12 @@ router.get('/svc/tasks', async (req, res, next) => {
 router.post('/svc/tasks', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const { fulfillmentId, serviceContent, customerName, customerPhone, assigneeId, requiredAt, remark } = req.body;
+    const { fulfillmentId, serviceContent, customerName, customerPhone, assigneeId, requiredAt, remark, serviceCategory, serviceType } = req.body;
     const taskNo = `SVC${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const r = await pool.query(
-      `INSERT INTO booth_svc_tasks (org_id, task_no, fulfillment_id, service_content, customer_name, customer_phone, assignee_id, assigned_at, required_at, remark)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,${assigneeId ? 'NOW()' : 'NULL'},$8,$9) RETURNING *`,
-      [user.orgId, taskNo, fulfillmentId, serviceContent, customerName, customerPhone, assigneeId || null, requiredAt, remark]
+      `INSERT INTO booth_svc_tasks (org_id, task_no, fulfillment_id, service_content, customer_name, customer_phone, assignee_id, assigned_at, required_at, remark, service_category, service_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,${assigneeId ? 'NOW()' : 'NULL'},$8,$9,$10,$11) RETURNING *`,
+      [user.orgId, taskNo, fulfillmentId, serviceContent, customerName, customerPhone, assigneeId || null, requiredAt, remark, serviceCategory || 'customer', serviceType || null]
     );
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }

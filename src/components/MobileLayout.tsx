@@ -14,19 +14,29 @@ import {
   AuditOutlined,
   CarOutlined,
   CustomerServiceOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
 const { Header, Content } = Layout;
 
-type ModuleType = 'fab' | 'wh' | 'dl' | 'svc' | 'stocktake';
+type ModuleType = 'fab' | 'fab-zone' | 'wh' | 'dl' | 'svc' | 'stocktake';
 
+// 工单视角 tabs
 const fabTabs = [
   { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
   { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
   { key: '/dexx/fab/operations', label: '报工', icon: <ToolOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
+];
+
+// 产线视角 tabs（四大生产区只读看板）
+const fabZoneTabs = [
+  { key: '/dexx/fab/zone/preprocessing', label: '前置工序', icon: <ApartmentOutlined /> },
+  { key: '/dexx/fab/zone/production', label: '制作', icon: <ApartmentOutlined /> },
+  { key: '/dexx/fab/zone/packaging', label: '包装', icon: <ApartmentOutlined /> },
+  { key: '/dexx/fab/zone/sorting', label: '分拣', icon: <ApartmentOutlined /> },
 ];
 
 const whTabs = [
@@ -55,6 +65,7 @@ const MobileLayout: React.FC = () => {
 
   const getInitialModule = (): ModuleType => {
     const p = location.pathname;
+    if (p.includes('/fab/zone/')) return 'fab-zone';
     if (p.includes('/wh/')) return 'wh';
     if (p.includes('/dl')) return 'dl';
     if (p.includes('/svc')) return 'svc';
@@ -70,7 +81,8 @@ const MobileLayout: React.FC = () => {
   const showSvc = hasHat('SVC');
 
   const segmentedOptions = [
-    showFab ? { label: '生产', value: 'fab' as ModuleType } : null,
+    showFab ? { label: '工单', value: 'fab' as ModuleType } : null,
+    showFab ? { label: '产线', value: 'fab-zone' as ModuleType } : null,
     showWh ? { label: '仓储', value: 'wh' as ModuleType } : null,
     showDl ? { label: '配送', value: 'dl' as ModuleType } : null,
     showSvc ? { label: '服务', value: 'svc' as ModuleType } : null,
@@ -80,6 +92,7 @@ const MobileLayout: React.FC = () => {
 
   const tabsMap: Record<ModuleType, typeof fabTabs> = {
     fab: fabTabs,
+    'fab-zone': fabZoneTabs,
     wh: whTabs,
     dl: dlTabs,
     svc: svcTabs,
@@ -96,6 +109,7 @@ const MobileLayout: React.FC = () => {
 
   const moduleDefaultPath: Record<ModuleType, string> = {
     fab: '/dexx/fab/queue',
+    'fab-zone': '/dexx/fab/zone/preprocessing',
     wh: '/dexx/wh/inventory',
     dl: '/dexx/dl',
     svc: '/dexx/svc',

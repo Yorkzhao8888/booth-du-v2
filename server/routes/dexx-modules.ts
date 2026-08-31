@@ -702,10 +702,12 @@ router.post('/dl/tasks/:id/exception', requireHat('DL'), async (req, res, next) 
 router.get('/svc/queue', requireHat('SVC'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const r = await pool.query(
-      `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status = 'assigned' ORDER BY created_at`,
-      [user.orgId, user.userId!]
-    );
+    const { service_category } = req.query;
+    let sql = `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status = 'assigned'`;
+    const params: any[] = [user.orgId, user.userId!];
+    if (service_category) { sql += ` AND service_category = $${params.length + 1}`; params.push(service_category); }
+    sql += ` ORDER BY created_at`;
+    const r = await pool.query(sql, params);
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
   } catch (err) { next(err); }
 });
@@ -714,10 +716,12 @@ router.get('/svc/queue', requireHat('SVC'), async (req, res, next) => {
 router.get('/svc/active', requireHat('SVC'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const r = await pool.query(
-      `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status IN ('accepted','in_service') ORDER BY updated_at DESC`,
-      [user.orgId, user.userId!]
-    );
+    const { service_category } = req.query;
+    let sql = `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status IN ('accepted','in_service')`;
+    const params: any[] = [user.orgId, user.userId!];
+    if (service_category) { sql += ` AND service_category = $${params.length + 1}`; params.push(service_category); }
+    sql += ` ORDER BY updated_at DESC`;
+    const r = await pool.query(sql, params);
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
   } catch (err) { next(err); }
 });
@@ -726,10 +730,12 @@ router.get('/svc/active', requireHat('SVC'), async (req, res, next) => {
 router.get('/svc/history', requireHat('SVC'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const r = await pool.query(
-      `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status IN ('completed','exception','cancelled') ORDER BY updated_at DESC`,
-      [user.orgId, user.userId!]
-    );
+    const { service_category } = req.query;
+    let sql = `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 AND status IN ('completed','exception','cancelled')`;
+    const params: any[] = [user.orgId, user.userId!];
+    if (service_category) { sql += ` AND service_category = $${params.length + 1}`; params.push(service_category); }
+    sql += ` ORDER BY updated_at DESC`;
+    const r = await pool.query(sql, params);
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
   } catch (err) { next(err); }
 });
@@ -738,10 +744,12 @@ router.get('/svc/history', requireHat('SVC'), async (req, res, next) => {
 router.get('/svc/tasks', requireHat('SVC'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
-    const r = await pool.query(
-      `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2 ORDER BY created_at DESC`,
-      [user.orgId, user.userId!]
-    );
+    const { service_category } = req.query;
+    let sql = `SELECT * FROM booth_svc_tasks WHERE org_id = $1 AND assignee_id = $2`;
+    const params: any[] = [user.orgId, user.userId!];
+    if (service_category) { sql += ` AND service_category = $${params.length + 1}`; params.push(service_category); }
+    sql += ` ORDER BY created_at DESC`;
+    const r = await pool.query(sql, params);
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
   } catch (err) { next(err); }
 });
