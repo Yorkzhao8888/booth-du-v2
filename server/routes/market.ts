@@ -535,4 +535,132 @@ router.get('/overview/stats', async (req, res, next) => {
   }
 });
 
+// ============ BOOTH-OPT-01: MKT 接单 ATP 校验 ============
+
+// QueryCapacity: 供 Market 检索可承诺量
+router.get('/capacity/query', async (req, res, next) => {
+  try {
+    const user = getUser(req);
+    const { start_date } = req.query;
+    const dateStr = (start_date as string) || new Date().toISOString().slice(0, 10);
+
+    const resources = await pool.query(
+      `SELECT cr.id, cr.resource_code, cr.resource_name, cr.resource_type, cr.traffic_cap, cr.unit,
+       cr.shift_hours_per_day, cr.efficiency_rate,
+       COALESCE(
+         (SELECT SUM(cl.occupied_qty) FROM booth_capacity_load cl
+          WHERE cl.resource_id = cr.id AND cl.org_id = $1
+          AND cl.slot_date >= $2::date AND cl.slot_date <= $2::date + INTERVAL '7 days'),
+         0) as load_7d
+       FROM booth_capacity_resources cr
+       WHERE cr.org_id = $1 AND cr.status = 'active'
+       ORDER BY cr.resource_type, cr.resource_code`,
+      [user.orgId, dateStr]
+    );
+
+    const items = resources.rows.map((r: any) => {
+      const dailyCap = Math.round(r.traffic_cap * (r.shift_hours_per_day || 8) * (r.efficiency_rate || 1));
+      const load = parseFloat(r.load_7d) || 0;
+      return {
+        resource_id: r.id,
+        resource_code: r.resource_code,
+        resource_name: r.resource_name,
+        resource_type: r.resource_type,
+        daily_capacity: dailyCap,
+        load_7d: Math.round(load),
+        remaining_7d: Math.max(0, dailyCap * 7 - Math.round(load)),
+        load_rate: dailyCap * 7 > 0 ? Math.min(100, Math.round((load / (dailyCap * 7)) * 100)) : 0,
+      };
+    });
+
+    const totalCap7d = items.reduce((s: number, i: any) => s + i.daily_capacity * 7, 0);
+    const totalLoad7d = items.reduce((s: number, i: any) => s + i.load_7d, 0);
+
+    res.json({
+      success: true,
+      data: {
+        query_date: dateStr,
+        items,
+        summary: {
+          total_resources: items.length,
+          total_capacity_7d: totalCap7d,
+          total_load_7d: totalLoad7d,
+          total_remaining_7d: Math.max(0, totalCap7d - totalLoad7d),
+          overall_load_rate: totalCap7d > 0 ? Math.min(100, Math.round((totalLoad7d / totalCap7d) * 100)) : 0,
+        },
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// ATP 校验：MKT 接单前调用
+router.post('/atp/check', async (req, res, next) => {
+  try {
+    const user = getUser(req);
+    const { requestedQty, product, startDate } = req.body;
+    const qty = requestedQty || 0;
+    const dateStr = startDate || new Date().toISOString().slice(0, 10);
+
+    const resources = await pool.query(
+      `SELECT cr.id, cr.traffic_cap, cr.shift_hours_per_day, cr.efficiency_rate,
+       COALESCE(
+         (SELECT SUM(cl.occupied_qty) FROM booth_capacity_load cl
+          WHERE cl.resource_id = cr.id AND cl.org_id = $1
+          AND cl.slot_date = $2::date),
+         0) as current_load
+       FROM booth_capacity_resources cr
+       WHERE cr.org_id = $1 AND cr.status = 'active'`,
+      [user.orgId, dateStr]
+    );
+
+    let totalDailyCap = 0;
+    let totalLoad = 0;
+    for (const r of resources.rows) {
+      const cap = Math.round(r.traffic_cap * (r.shift_hours_per_day || 8) * (r.efficiency_rate || 1));
+      totalDailyCap += cap;
+      totalLoad += parseFloat(r.current_load) || 0;
+    }
+    const remaining = Math.max(0, totalDailyCap - Math.round(totalLoad));
+    const canFulfill = qty <= remaining;
+
+    let earliestDate: string | null = canFulfill ? dateStr : null;
+    let queuePosition = 0;
+    if (!canFulfill && totalDailyCap > 0) {
+      const overflow = qty - remaining;
+      const daysNeeded = Math.ceil(overflow / totalDailyCap);
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + daysNeeded + 1);
+      earliestDate = d.toISOString().slice(0, 10);
+      queuePosition = Math.ceil(qty / totalDailyCap);
+    }
+
+    // 创建 ATP 承诺记录
+    let commitmentId: number | null = null;
+    if (canFulfill) {
+      const commitNo = `ATP${Date.now()}${Math.floor(Math.random() * 1000)}`;
+      const cR = await pool.query(
+        `INSERT INTO booth_atp_commitments (org_id, commitment_no, source_type, requested_qty, requested_product, atp_qty, earliest_date, queue_position, status)
+         VALUES ($1,$2,'market_order',$3,$4,$5,$6,$7,'pending') RETURNING id`,
+        [user.orgId, commitNo, qty, product, remaining, earliestDate, 0]
+      );
+      commitmentId = cR.rows[0]?.id || null;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        requested_qty: qty,
+        atp_qty: remaining,
+        can_fulfill: canFulfill,
+        earliest_date: earliestDate,
+        queue_position: queuePosition,
+        commitment_id: commitmentId,
+        total_daily_capacity: totalDailyCap,
+        current_load: Math.round(totalLoad),
+        load_rate: totalDailyCap > 0 ? Math.min(100, Math.round((totalLoad / totalDailyCap) * 100)) : 0,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 export default router;

@@ -287,4 +287,107 @@ router.post('/restock/request', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ====== BOOTH-OPT-01: QueryCapacity (EX 执行管理只读) ======
+
+// 查询产能负荷概览（只读，不含价格）
+router.get('/capacity/overview', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const r = await pool.query(
+      `SELECT cr.id, cr.resource_code, cr.resource_name, cr.resource_type, cr.traffic_cap, cr.unit,
+       cr.shift_hours_per_day, cr.efficiency_rate, cr.status,
+       COALESCE(
+         (SELECT SUM(cl.occupied_qty) FROM booth_capacity_load cl
+          WHERE cl.resource_id = cr.id AND cl.org_id = $1
+          AND cl.slot_date >= CURRENT_DATE
+          AND cl.slot_date <= CURRENT_DATE + INTERVAL '7 days'),
+         0) as total_load_7d
+       FROM booth_capacity_resources cr
+       WHERE cr.org_id = $1 AND cr.status = 'active'
+       ORDER BY cr.resource_type, cr.resource_code`,
+      [user.orgId]
+    );
+    const items = r.rows.map((row: any) => {
+      const dailyCap = Math.round(row.traffic_cap * (row.shift_hours_per_day || 8) * (row.efficiency_rate || 1));
+      const load = parseFloat(row.total_load_7d) || 0;
+      return {
+        ...row,
+        daily_capacity: dailyCap,
+        total_load_7d: Math.round(load),
+        remaining_7d: Math.max(0, dailyCap * 7 - Math.round(load)),
+        load_rate_7d: dailyCap * 7 > 0 ? Math.min(100, Math.round((load / (dailyCap * 7)) * 100)) : 0,
+      };
+    });
+    // 汇总
+    const totalCap7d = items.reduce((s: number, i: any) => s + i.daily_capacity * 7, 0);
+    const totalLoad7d = items.reduce((s: number, i: any) => s + i.total_load_7d, 0);
+    res.json({
+      success: true,
+      data: {
+        items,
+        summary: {
+          total_resources: items.length,
+          total_capacity_7d: totalCap7d,
+          total_load_7d: totalLoad7d,
+          overall_load_rate: totalCap7d > 0 ? Math.min(100, Math.round((totalLoad7d / totalCap7d) * 100)) : 0,
+        },
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// ATP 快速查询（供 dex 调度时参考）
+router.post('/capacity/atp-check', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { requestedQty, startDate } = req.body;
+    const qty = requestedQty || 0;
+    const dateStr = startDate || new Date().toISOString().slice(0, 10);
+
+    const resources = await pool.query(
+      `SELECT cr.id, cr.traffic_cap, cr.shift_hours_per_day, cr.efficiency_rate,
+       COALESCE(
+         (SELECT SUM(cl.occupied_qty) FROM booth_capacity_load cl
+          WHERE cl.resource_id = cr.id AND cl.org_id = $1
+          AND cl.slot_date = $2::date),
+         0) as current_load
+       FROM booth_capacity_resources cr
+       WHERE cr.org_id = $1 AND cr.status = 'active'`,
+      [user.orgId, dateStr]
+    );
+
+    let totalDailyCap = 0;
+    let totalLoad = 0;
+    for (const r of resources.rows) {
+      const cap = Math.round(r.traffic_cap * (r.shift_hours_per_day || 8) * (r.efficiency_rate || 1));
+      totalDailyCap += cap;
+      totalLoad += parseFloat(r.current_load) || 0;
+    }
+    const remaining = Math.max(0, totalDailyCap - Math.round(totalLoad));
+    const canFulfill = qty <= remaining;
+
+    let earliestDate: string | null = canFulfill ? dateStr : null;
+    let queuePosition = 0;
+    if (!canFulfill && totalDailyCap > 0) {
+      const overflow = qty - remaining;
+      const daysNeeded = Math.ceil(overflow / totalDailyCap);
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + daysNeeded + 1);
+      earliestDate = d.toISOString().slice(0, 10);
+      queuePosition = Math.ceil(qty / totalDailyCap);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        requested_qty: qty,
+        atp_qty: remaining,
+        can_fulfill: canFulfill,
+        earliest_date: earliestDate,
+        queue_position: queuePosition,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 export default router;

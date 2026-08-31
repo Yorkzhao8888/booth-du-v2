@@ -125,7 +125,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/du/inventory-transfer', label: '库存调拨' },
       { key: '/du/expiry-control', label: '效期管控' },
       { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
-      ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }] : []),
+      ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }, { key: '/dex/capacity', label: '产能查询' }] : []),
       ...(role === 'dexx' ? [
         { key: '/dexx/stocktake', label: '盘点执行' },
         { key: '/dexx/wh/inbound', label: '入库' },
@@ -175,6 +175,8 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/em/admissions', label: '供应商准入' },
       { key: '/em/strategies', label: '供给策略' },
       { key: '/em/capacity-plans', label: '产能规划' },
+      { key: '/em/capacity-resources', label: '产能资源' },
+      { key: '/em/atp-commitments', label: 'ATP承诺' },
     ],
   };
 

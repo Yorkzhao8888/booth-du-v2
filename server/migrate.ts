@@ -667,6 +667,88 @@ CREATE TABLE IF NOT EXISTS booth_plaza_bookings (
 
 CREATE INDEX IF NOT EXISTS idx_plaza_bookings_resource ON booth_plaza_bookings(resource_id);
 CREATE INDEX IF NOT EXISTS idx_plaza_bookings_org_status ON booth_plaza_bookings(org_id, status);
+
+-- ====== BOOTH-OPT-01：ATP 产能与交期承诺 ======
+
+-- 产能资源表（产线/工位/人力，含 traffic_cap 容量上限）
+CREATE TABLE IF NOT EXISTS booth_capacity_resources (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  resource_code TEXT NOT NULL,
+  resource_name TEXT NOT NULL,
+  resource_type TEXT NOT NULL DEFAULT 'line',
+  -- resource_type: line(产线) / station(工位) / labor(人力)
+  traffic_cap INTEGER NOT NULL DEFAULT 0,
+  -- 容量上限（A1.35 对齐）：单位时段最大产出/处理量
+  unit TEXT NOT NULL DEFAULT '件/小时',
+  -- 产能单位
+  shift_hours_per_day NUMERIC(4,1) DEFAULT 8,
+  -- 每日有效工时
+  efficiency_rate NUMERIC(4,2) DEFAULT 1.00,
+  -- 效率系数 (0~1)
+  status TEXT NOT NULL DEFAULT 'active',
+  -- status: active(启用) / inactive(停用) / maintenance(维护中)
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(org_id, resource_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cap_res_org_type ON booth_capacity_resources(org_id, resource_type);
+CREATE INDEX IF NOT EXISTS idx_cap_res_org_status ON booth_capacity_resources(org_id, status);
+
+-- 产能负荷记录（资源 + 时段 + 占用量）
+CREATE TABLE IF NOT EXISTS booth_capacity_load (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  resource_id BIGINT NOT NULL REFERENCES booth_capacity_resources(id),
+  slot_date DATE NOT NULL,
+  -- 时段日期
+  slot_hour INTEGER DEFAULT 0,
+  -- 时段小时 (0~23)，0 表示日级汇总
+  occupied_qty NUMERIC(12,3) NOT NULL DEFAULT 0,
+  -- 已占用量
+  ref_type TEXT,
+  -- ref_type: work_order(工单) / fulfillment(履约单) / market_order(市场订单)
+  ref_id BIGINT,
+  -- 关联单据 ID
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cap_load_resource_date ON booth_capacity_load(resource_id, slot_date);
+CREATE INDEX IF NOT EXISTS idx_cap_load_org_date ON booth_capacity_load(org_id, slot_date);
+
+-- ATP 可承诺量与交期承诺记录
+CREATE TABLE IF NOT EXISTS booth_atp_commitments (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  commitment_no TEXT NOT NULL UNIQUE,
+  -- 来源
+  source_type TEXT NOT NULL DEFAULT 'market_order',
+  -- source_type: market_order(市场订单) / internal(内部)
+  source_id BIGINT,
+  -- 来源单据 ID
+  -- 请求参数
+  requested_qty INTEGER NOT NULL DEFAULT 0,
+  requested_product TEXT,
+  -- 承诺结果
+  atp_qty INTEGER NOT NULL DEFAULT 0,
+  -- 可承诺量
+  earliest_date TIMESTAMPTZ,
+  -- 最早可交付时点
+  queue_position INTEGER DEFAULT 0,
+  -- 排队位置
+  status TEXT NOT NULL DEFAULT 'pending',
+  -- status: pending(待确认) / confirmed(已确认) / rejected(已拒绝) / expired(已过期)
+  confirmed_at TIMESTAMPTZ,
+  confirmed_by BIGINT,
+  remark TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_atp_org_status ON booth_atp_commitments(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_atp_source ON booth_atp_commitments(source_type, source_id);
 `;
 
 // In-memory store for org modes

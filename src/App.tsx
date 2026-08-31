@@ -34,6 +34,7 @@ import DexInventory from './pages/dex/Inventory';
 import DexDlDispatch from './pages/dex/DlDispatch';
 import DexSvcDispatch from './pages/dex/SvcDispatch';
 import DexStocktakeApproval from './pages/dex/StocktakeApproval';
+import DexCapacityQuery from './pages/dex/CapacityQuery';
 // DEXX pages
 import DexxModuleEntry from './pages/dexx/ModuleEntry';
 import DexxFabQueue from './pages/dexx/FabQueue';
@@ -64,6 +65,8 @@ import EmDashboard from './pages/em/Dashboard';
 import EmSupplierAdmissions from './pages/em/SupplierAdmissions';
 import EmSupplyStrategies from './pages/em/SupplyStrategies';
 import EmCapacityPlanning from './pages/em/CapacityPlanning';
+import EmCapacityResources from './pages/em/CapacityResources';
+import EmAtpCommitments from './pages/em/AtpCommitments';
 // Market pages
 import MarketDashboard from './pages/market/Dashboard';
 // Common pages
@@ -216,6 +219,7 @@ const App: React.FC = () => {
           <Route path="dl-dispatch" element={<ErrorBoundary><DexDlDispatch /></ErrorBoundary>} />
           <Route path="svc-dispatch" element={<ErrorBoundary><DexSvcDispatch /></ErrorBoundary>} />
           <Route path="stocktakes" element={<ErrorBoundary><DexStocktakeApproval /></ErrorBoundary>} />
+          <Route path="capacity" element={<ErrorBoundary><DexCapacityQuery /></ErrorBoundary>} />
         </Route>
 
         {/* DEXX routes */}
@@ -262,6 +266,8 @@ const App: React.FC = () => {
           <Route path="admissions" element={<ErrorBoundary><EmSupplierAdmissions /></ErrorBoundary>} />
           <Route path="strategies" element={<ErrorBoundary><EmSupplyStrategies /></ErrorBoundary>} />
           <Route path="capacity-plans" element={<ErrorBoundary><EmCapacityPlanning /></ErrorBoundary>} />
+          <Route path="capacity-resources" element={<ErrorBoundary><EmCapacityResources /></ErrorBoundary>} />
+          <Route path="atp-commitments" element={<ErrorBoundary><EmAtpCommitments /></ErrorBoundary>} />
         </Route>
 
         {/* Market routes (em/du/dx/dm can access) */}
