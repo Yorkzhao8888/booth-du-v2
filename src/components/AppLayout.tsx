@@ -177,6 +177,9 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/em/capacity-plans', label: '产能规划' },
       { key: '/em/capacity-resources', label: '产能资源' },
       { key: '/em/atp-commitments', label: 'ATP承诺' },
+      { key: '/em/sgu-catalog', label: 'SGU目录' },
+      { key: '/em/sgu-listings', label: '挂牌管理' },
+      { key: '/em/sgu-pending', label: 'SKU待办' },
     ],
   };
 

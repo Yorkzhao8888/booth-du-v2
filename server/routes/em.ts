@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { requireAuth, type JwtPayload } from '../auth.js';
+import { broadcast } from '../sse.js';
 
 const router = Router();
 
@@ -740,6 +741,205 @@ router.post('/atp/commitments/:id/reject', async (req, res, next) => {
       [reason, req.params.id, user.orgId]
     );
     if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot reject: invalid state', code: 'INVALID_STATE' });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ==================== SGU Catalog (供给目录) ====================
+
+// GET /sgu/catalog - list SGU catalog entries
+router.get('/sgu/catalog', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { boothType, status, skuId } = req.query;
+    let sql = `SELECT sc.*, s.sku_code, s.name as sku_name, s.unit
+               FROM booth_sgu_catalog sc
+               JOIN booth_skus s ON s.id = sc.sku_id
+               WHERE sc.org_id = $1`;
+    const params: any[] = [user.orgId];
+    let idx = 2;
+    if (boothType) { sql += ` AND sc.booth_type = $${idx++}`; params.push(boothType); }
+    if (status) { sql += ` AND sc.status = $${idx++}`; params.push(status); }
+    if (skuId) { sql += ` AND sc.sku_id = $${idx++}`; params.push(skuId); }
+    sql += ' ORDER BY sc.created_at DESC';
+    const r = await pool.query(sql, params);
+    res.json({ success: true, data: r.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /sgu/catalog - create SGU catalog entry (CreateSGU)
+router.post('/sgu/catalog', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { skuId, boothType, trafficCap, leadTimeHours, unitPrice, description, capacityResourceId } = req.body;
+    if (!skuId || !boothType) return res.status(400).json({ success: false, error: 'skuId and boothType required', code: 'MISSING_PARAM' });
+    const sguNo = `SGU-${Date.now().toString(36).toUpperCase()}`;
+    const r = await pool.query(
+      `INSERT INTO booth_sgu_catalog (org_id, sgu_no, sku_id, booth_type, traffic_cap, lead_time_hours, unit_price, description, capacity_resource_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [user.orgId, sguNo, skuId, boothType, trafficCap || 0, leadTimeHours || 24, unitPrice || 0, description || null, capacityResourceId || null]
+    );
+    // Publish SGU-Created event
+    broadcast(user.orgId, 'sgu.created', { sguId: r.rows[0].id, sguNo, boothType, skuId });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PUT /sgu/catalog/:id - update SGU catalog entry
+router.put('/sgu/catalog/:id', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { trafficCap, leadTimeHours, unitPrice, description, status, capacityResourceId } = req.body;
+    const r = await pool.query(
+      `UPDATE booth_sgu_catalog SET traffic_cap = COALESCE($1, traffic_cap), lead_time_hours = COALESCE($2, lead_time_hours),
+       unit_price = COALESCE($3, unit_price), description = COALESCE($4, description), status = COALESCE($5, status),
+       capacity_resource_id = COALESCE($6, capacity_resource_id), updated_at = NOW()
+       WHERE id = $7 AND org_id = $8 RETURNING *`,
+      [trafficCap, leadTimeHours, unitPrice, description, status, capacityResourceId, req.params.id, user.orgId]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ==================== SGU Listings (挂牌管理) ====================
+
+// GET /sgu/listings - list listings
+router.get('/sgu/listings', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { status } = req.query;
+    let sql = `SELECT sl.*, sc.sgu_no, sc.booth_type, s.sku_code, s.name as sku_name, s.unit, sc.unit_price
+               FROM booth_sgu_listings sl
+               JOIN booth_sgu_catalog sc ON sc.id = sl.sgu_id
+               JOIN booth_skus s ON s.id = sc.sku_id
+               WHERE sl.org_id = $1`;
+    const params: any[] = [user.orgId];
+    let idx = 2;
+    if (status) { sql += ` AND sl.status = $${idx++}`; params.push(status); }
+    sql += ' ORDER BY sl.created_at DESC';
+    const r = await pool.query(sql, params);
+    res.json({ success: true, data: r.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /sgu/listings - create listing (挂牌)
+router.post('/sgu/listings', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { sguId } = req.body;
+    if (!sguId) return res.status(400).json({ success: false, error: 'sguId required', code: 'MISSING_PARAM' });
+    const listingNo = `LST-${Date.now().toString(36).toUpperCase()}`;
+    const r = await pool.query(
+      `INSERT INTO booth_sgu_listings (org_id, sgu_id, listing_no, status, market_visible)
+       VALUES ($1, $2, $3, 'pending', FALSE) RETURNING *`,
+      [user.orgId, sguId, listingNo]
+    );
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// PUT /sgu/listings/:id/list - list to market (上架)
+router.put('/sgu/listings/:id/list', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const r = await pool.query(
+      `UPDATE booth_sgu_listings SET status = 'listed', market_visible = TRUE, listed_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND org_id = $2 AND status IN ('pending', 'suspended') RETURNING *`,
+      [req.params.id, user.orgId]
+    );
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot list: invalid state', code: 'INVALID_STATE' });
+    // Publish event for Market
+    const listing = r.rows[0];
+    broadcast(user.orgId, 'sgu.listed', { listingId: listing.id, sguId: listing.sguId });
+    res.json({ success: true, data: listing });
+  } catch (err) { next(err); }
+});
+
+// PUT /sgu/listings/:id/delist - delist from market (下架)
+router.put('/sgu/listings/:id/delist', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const r = await pool.query(
+      `UPDATE booth_sgu_listings SET status = 'delisted', market_visible = FALSE, delisted_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND org_id = $2 AND status = 'listed' RETURNING *`,
+      [req.params.id, user.orgId]
+    );
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Cannot delist: invalid state', code: 'INVALID_STATE' });
+    broadcast(user.orgId, 'sgu.delisted', { listingId: r.rows[0].id, sguId: r.rows[0].sguId });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ==================== SGU Pending (SKU-Created 触发待办) ====================
+
+// GET /sgu/pending - list pending SGU creation tasks
+router.get('/sgu/pending', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const r = await pool.query(
+      `SELECT sp.*, s.sku_code, s.name as sku_name, s.unit
+       FROM booth_sgu_pending sp
+       JOIN booth_skus s ON s.id = sp.sku_id
+       WHERE sp.org_id = $1 AND sp.status = 'pending'
+       ORDER BY sp.created_at DESC`,
+      [user.orgId]
+    );
+    res.json({ success: true, data: r.rows });
+  } catch (err) { next(err); }
+});
+
+// POST /sgu/pending/:id/create - create SGU from pending task
+router.post('/sgu/pending/:id/create', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { boothType, trafficCap, leadTimeHours, unitPrice } = req.body;
+    const pending = await pool.query(
+      `SELECT * FROM booth_sgu_pending WHERE id = $1 AND org_id = $2 AND status = 'pending'`,
+      [req.params.id, user.orgId]
+    );
+    if (!pending.rows.length) return res.status(400).json({ success: false, error: 'Not found or already resolved', code: 'INVALID_STATE' });
+    const p = pending.rows[0];
+    const sguNo = `SGU-${Date.now().toString(36).toUpperCase()}`;
+    const sgu = await pool.query(
+      `INSERT INTO booth_sgu_catalog (org_id, sgu_no, sku_id, booth_type, traffic_cap, lead_time_hours, unit_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [user.orgId, sguNo, p.skuId, boothType || p.suggestedBoothType || 'sundry', trafficCap || 0, leadTimeHours || 24, unitPrice || 0]
+    );
+    await pool.query(
+      `UPDATE booth_sgu_pending SET status = 'created', resolved_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+    broadcast(user.orgId, 'sgu.created', { sguId: sgu.rows[0].id, sguNo, skuId: p.skuId });
+    res.json({ success: true, data: sgu.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// POST /sgu/pending/:id/ignore - ignore pending task
+router.post('/sgu/pending/:id/ignore', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const r = await pool.query(
+      `UPDATE booth_sgu_pending SET status = 'ignored', resolved_at = NOW() WHERE id = $1 AND org_id = $2 AND status = 'pending' RETURNING *`,
+      [req.params.id, user.orgId]
+    );
+    if (!r.rows.length) return res.status(400).json({ success: false, error: 'Not found or already resolved', code: 'INVALID_STATE' });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// POST /sgu/trigger-sku-created - simulate SKU-Created event (for testing)
+router.post('/sgu/trigger-sku-created', async (req: any, res: any, next: any) => {
+  try {
+    const user = getUser(req);
+    const { skuId, suggestedBoothType } = req.body;
+    if (!skuId) return res.status(400).json({ success: false, error: 'skuId required', code: 'MISSING_PARAM' });
+    const r = await pool.query(
+      `INSERT INTO booth_sgu_pending (org_id, sku_id, source, suggested_booth_type, created_by)
+       VALUES ($1, $2, 'sku-created', $3, $4) RETURNING *`,
+      [user.orgId, skuId, suggestedBoothType || 'sundry', user.userId]
+    );
+    broadcast(user.orgId, 'sku.created', { skuId, suggestedBoothType });
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }
 });

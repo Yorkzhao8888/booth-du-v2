@@ -749,6 +749,55 @@ CREATE TABLE IF NOT EXISTS booth_atp_commitments (
 
 CREATE INDEX IF NOT EXISTS idx_atp_org_status ON booth_atp_commitments(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_atp_source ON booth_atp_commitments(source_type, source_id);
+
+-- SGU Catalog (供给目录)
+CREATE TABLE IF NOT EXISTS booth_sgu_catalog (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  sgu_no VARCHAR(50) NOT NULL UNIQUE,
+  sku_id INTEGER NOT NULL REFERENCES booth_skus(id),
+  booth_type VARCHAR(20) NOT NULL, -- sundry/material/device/plaza
+  status VARCHAR(20) NOT NULL DEFAULT 'draft', -- draft/active/suspended/delisted
+  capacity_resource_id INTEGER REFERENCES booth_capacity_resources(id),
+  traffic_cap INTEGER DEFAULT 0,
+  lead_time_hours INTEGER DEFAULT 24,
+  unit_price INTEGER DEFAULT 0,
+  currency VARCHAR(10) DEFAULT 'CNY',
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- SGU Listings (挂牌记录 - 面向Market的对外条目)
+CREATE TABLE IF NOT EXISTS booth_sgu_listings (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  sgu_id INTEGER NOT NULL REFERENCES booth_sgu_catalog(id),
+  listing_no VARCHAR(50) NOT NULL UNIQUE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending/listed/delisted/suspended
+  market_visible BOOLEAN NOT NULL DEFAULT FALSE,
+  listed_at TIMESTAMPTZ,
+  delisted_at TIMESTAMPTZ,
+  external_ref VARCHAR(100), -- Market侧引用ID
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- SKU-Created subscription triggers (Shop新品触发Booth创建SGU的待办)
+CREATE TABLE IF NOT EXISTS booth_sgu_pending (
+  id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  sku_id INTEGER NOT NULL REFERENCES booth_skus(id),
+  source VARCHAR(50) NOT NULL DEFAULT 'sku-created', -- SKU-Created event
+  status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending/created/ignored
+  suggested_booth_type VARCHAR(20),
+  created_by INTEGER REFERENCES booth_users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_sgu_catalog_org_type ON booth_sgu_catalog(org_id, booth_type);
+CREATE INDEX IF NOT EXISTS idx_sgu_catalog_status ON booth_sgu_catalog(status);
+CREATE INDEX IF NOT EXISTS idx_sgu_listings_org ON booth_sgu_listings(org_id);
+CREATE INDEX IF NOT EXISTS idx_sgu_listings_status ON booth_sgu_listings(status);
+CREATE INDEX IF NOT EXISTS idx_sgu_pending_org ON booth_sgu_pending(org_id, status);
 `;
 
 // In-memory store for org modes

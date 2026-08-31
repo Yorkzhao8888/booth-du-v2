@@ -663,4 +663,29 @@ router.post('/atp/check', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ==================== SGU Listings (Market 可检索) ====================
+
+// GET /sgu/listings - Market 检索挂牌的 SGU 目录（只读，不含价格）
+router.get('/sgu/listings', async (req, res, next) => {
+  try {
+    const user = getUser(req);
+    const { boothType, skuId, search } = req.query;
+    let sql = `SELECT sl.id, sl.listing_no, sl.sgu_id, sl.status, sl.market_visible, sl.listed_at,
+               sc.sgu_no, sc.booth_type, sc.traffic_cap, sc.lead_time_hours, sc.description,
+               s.sku_code, s.name as sku_name, s.unit
+               FROM booth_sgu_listings sl
+               JOIN booth_sgu_catalog sc ON sc.id = sl.sgu_id
+               JOIN booth_skus s ON s.id = sc.sku_id
+               WHERE sl.org_id = $1 AND sl.status = 'listed' AND sl.market_visible = TRUE`;
+    const params: any[] = [user.orgId];
+    let idx = 2;
+    if (boothType) { sql += ` AND sc.booth_type = $${idx++}`; params.push(boothType); }
+    if (skuId) { sql += ` AND sc.sku_id = $${idx++}`; params.push(skuId); }
+    if (search) { sql += ` AND (s.name ILIKE $${idx} OR s.sku_code ILIKE $${idx})`; params.push(`%${search}%`); idx++; }
+    sql += ' ORDER BY sl.listed_at DESC';
+    const r = await pool.query(sql, params);
+    res.json({ success: true, data: r.rows });
+  } catch (err) { next(err); }
+});
+
 export default router;

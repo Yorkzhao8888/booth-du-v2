@@ -67,6 +67,9 @@ import EmSupplyStrategies from './pages/em/SupplyStrategies';
 import EmCapacityPlanning from './pages/em/CapacityPlanning';
 import EmCapacityResources from './pages/em/CapacityResources';
 import EmAtpCommitments from './pages/em/AtpCommitments';
+import EmSguCatalog from './pages/em/SguCatalog';
+import EmSguListings from './pages/em/SguListings';
+import EmSguPending from './pages/em/SguPending';
 // Market pages
 import MarketDashboard from './pages/market/Dashboard';
 // Common pages
@@ -268,6 +271,9 @@ const App: React.FC = () => {
           <Route path="capacity-plans" element={<ErrorBoundary><EmCapacityPlanning /></ErrorBoundary>} />
           <Route path="capacity-resources" element={<ErrorBoundary><EmCapacityResources /></ErrorBoundary>} />
           <Route path="atp-commitments" element={<ErrorBoundary><EmAtpCommitments /></ErrorBoundary>} />
+          <Route path="sgu-catalog" element={<ErrorBoundary><EmSguCatalog /></ErrorBoundary>} />
+          <Route path="sgu-listings" element={<ErrorBoundary><EmSguListings /></ErrorBoundary>} />
+          <Route path="sgu-pending" element={<ErrorBoundary><EmSguPending /></ErrorBoundary>} />
         </Route>
 
         {/* Market routes (em/du/dx/dm can access) */}
