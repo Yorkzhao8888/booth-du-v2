@@ -967,6 +967,7 @@ export async function migrate() {
       // FAB-MES-05: Station-OS 产线/作业站融合 - booth_stations 升级为 Station 实体
       await client.query(
         `ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS code TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS zone_type TEXT;
          ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS station_type TEXT DEFAULT 'manual';
          ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS state TEXT DEFAULT 'provisioning';
          ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS fault_strategy TEXT DEFAULT 'bypass';
@@ -982,11 +983,25 @@ export async function migrate() {
          UPDATE booth_stations SET zone_type = type WHERE zone_type IS NULL;
          UPDATE booth_stations SET traffic_cap = capacity WHERE traffic_cap = 0;`
       );
-      // 生成规范编码: {org_id}.{ZONE}.{STATION_TYPE}-{seq}
+      // 生成规范编码: {org_id}.{ZONE}.{STATION_TYPE}-{seq} (seq 从已有编码最大值续号, 避免唯一索引碰撞)
       const stationRows = await client.query(
         `SELECT id, org_id, type, station_type FROM booth_stations WHERE code IS NULL OR code = '' ORDER BY id`
       );
+      const existingMax = await client.query(
+        `SELECT org_id, code FROM booth_stations WHERE code IS NOT NULL AND code <> ''`
+      );
       const typeSeqCount: Record<string, number> = {};
+      const seqRe = /-(\d+)$/;
+      for (const row of existingMax.rows) {
+        const m = seqRe.exec(String(row.code));
+        if (!m) continue;
+        const parts = String(row.code).split('.');
+        if (parts.length < 3) continue;
+        const stTypePart = parts[2].split('-')[0];
+        const key = `${row.org_id}.${parts[1]}.${stTypePart}`;
+        const seq = parseInt(m[1], 10);
+        if (!(key in typeSeqCount) || seq > typeSeqCount[key]) typeSeqCount[key] = seq;
+      }
       for (const st of stationRows.rows) {
         const zoneUpper = String(st.type || 'FAB').toUpperCase();
         const stType = String(st.station_type || 'manual').toUpperCase();
