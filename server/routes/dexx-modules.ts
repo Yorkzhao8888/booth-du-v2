@@ -33,7 +33,7 @@ router.post('/fab/report', requireHat('FAB'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     const user = (req as any).user as JwtPayload;
-    const { workOrderId, seq, opName, qtyCompleted, remark } = req.body;
+    const { workOrderId, seq, opName, qtyCompleted, remark, equipmentId } = req.body;
 
     await client.query('BEGIN');
 
@@ -57,11 +57,23 @@ router.post('/fab/report', requireHat('FAB'), async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Operation already reported', code: 'DUPLICATE' });
     }
 
+    // Validate equipment belongs to org if provided (FAB-MES-01)
+    if (equipmentId) {
+      const eqRes = await client.query(
+        'SELECT id FROM booth_equipment WHERE id = $1 AND org_id = $2',
+        [equipmentId, user.orgId]
+      );
+      if (!eqRes.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Equipment not found', code: 'EQUIPMENT_NOT_FOUND' });
+      }
+    }
+
     // Insert fab operation
     const foRes = await client.query(
-      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [user.orgId, workOrderId, seq, opName, qtyCompleted, user.userId!]
+      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id, equipment_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [user.orgId, workOrderId, seq, opName, qtyCompleted, user.userId!, equipmentId || null]
     );
 
     await client.query('COMMIT');
@@ -168,10 +180,21 @@ router.post('/fab/stage/advance', requireHat('FAB'), async (req, res, next) => {
     );
 
     // Record stage transition in operations log
+    const equipmentId = req.body.equipmentId || null;
+    if (equipmentId) {
+      const eqRes = await client.query(
+        'SELECT id FROM booth_equipment WHERE id = $1 AND org_id = $2',
+        [equipmentId, user.orgId]
+      );
+      if (!eqRes.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Equipment not found', code: 'EQUIPMENT_NOT_FOUND' });
+      }
+    }
     await client.query(
-      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [user.orgId, workOrderId, targetIdx + 100, `stage_${targetStage}`, 0, user.userId!]
+      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id, equipment_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [user.orgId, workOrderId, targetIdx + 100, `stage_${targetStage}`, 0, user.userId!, equipmentId]
     );
 
     await client.query('COMMIT');
@@ -1479,6 +1502,317 @@ router.get('/fab/zone/:stage', requireHat('FAB'), async (req, res, next) => {
         total: orders.rows.length,
       },
     });
+  } catch (err) { next(err); }
+});
+
+/* ============ FAB-MES-01 设备台账 + OEE 稼动率 ============ */
+
+// GET /dexx/fab/equipment 设备台账列表（含当前状态/OEE/上次保养）
+router.get('/fab/equipment', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { stationId } = req.query;
+    let sql = `SELECT e.*, s.name AS station_name, s.code AS station_code
+               FROM booth_equipment e
+               LEFT JOIN booth_stations s ON s.id = e.station_id
+               WHERE e.org_id = $1`;
+    const params: (string | number)[] = [user.orgId];
+    if (stationId) { params.push(String(stationId)); sql += ` AND e.station_id = $${params.length}`; }
+    sql += ' ORDER BY e.created_at DESC';
+    const eqRes = await pool.query(sql, params);
+    res.json({ success: true, data: { equipment: eqRes.rows, total: eqRes.rows.length } });
+  } catch (err) { next(err); }
+});
+
+// POST /dexx/fab/equipment 新建设备
+router.post('/fab/equipment', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { stationId, code, name, type, ratedCapacity, purchaseDate, maintenanceCycleDays, lastMaintenanceAt } = req.body;
+    if (!name || !type) {
+      return res.status(400).json({ success: false, error: 'name and type are required', code: 'MISSING_FIELDS' });
+    }
+    let finalCode = code;
+    if (!finalCode) {
+      const maxRes = await pool.query(
+        `SELECT code FROM booth_equipment WHERE org_id = $1 AND code LIKE 'EQ-%' ORDER BY created_at DESC LIMIT 1`,
+        [user.orgId]
+      );
+      const lastSeq = maxRes.rows.length ? parseInt(maxRes.rows[0].code.replace('EQ-', ''), 10) || 0 : 0;
+      finalCode = `EQ-${String(lastSeq + 1).padStart(3, '0')}`;
+    }
+    const dup = await pool.query('SELECT id FROM booth_equipment WHERE org_id = $1 AND code = $2', [user.orgId, finalCode]);
+    if (dup.rows.length) {
+      return res.status(409).json({ success: false, error: 'Equipment code already exists', code: 'DUPLICATE_CODE' });
+    }
+    if (stationId) {
+      const stRes = await pool.query('SELECT id FROM booth_stations WHERE id = $1 AND org_id = $2', [stationId, user.orgId]);
+      if (!stRes.rows.length) {
+        return res.status(400).json({ success: false, error: 'Station not found', code: 'STATION_NOT_FOUND' });
+      }
+    }
+    const ins = await pool.query(
+      `INSERT INTO booth_equipment (org_id, station_id, code, name, type, status, rated_capacity, purchase_date, maintenance_cycle_days, last_maintenance_at)
+       VALUES ($1,$2,$3,$4,$5,'idle',$6,$7,$8,$9) RETURNING *`,
+      [user.orgId, stationId || null, finalCode, name, type, ratedCapacity || null,
+        purchaseDate || null, maintenanceCycleDays || null, lastMaintenanceAt || null]
+    );
+    const eq = ins.rows[0];
+    await pool.query(
+      `INSERT INTO booth_equipment_status_log (org_id, equipment_id, from_status, to_status, reason, operator_id, started_at)
+       VALUES ($1,$2,NULL,'idle','initial',$3,NOW())`,
+      [user.orgId, eq.id, user.userId!]
+    );
+    broadcast(user.orgId, 'equipment.created', { equipmentId: eq.id, code: eq.code });
+    res.status(201).json({ success: true, data: eq });
+  } catch (err) { next(err); }
+});
+
+// POST /dexx/fab/equipment/:id/status 变更设备状态 + 停机原因
+router.post('/fab/equipment/:id/status', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { status, reason } = req.body;
+    const VALID = ['running', 'idle', 'down', 'maintenance'];
+    if (!status || !VALID.includes(status)) {
+      return res.status(400).json({ success: false, error: `Invalid status, must be one of: ${VALID.join('/')}`, code: 'INVALID_STATUS' });
+    }
+    const eqRes = await pool.query('SELECT * FROM booth_equipment WHERE id = $1 AND org_id = $2', [req.params.id, user.orgId]);
+    if (!eqRes.rows.length) {
+      return res.status(404).json({ success: false, error: 'Equipment not found', code: 'NOT_FOUND' });
+    }
+    const prev = eqRes.rows[0];
+    if (prev.status === status) {
+      return res.status(400).json({ success: false, error: 'Status unchanged', code: 'SAME_STATUS' });
+    }
+    // Close open status log row
+    await pool.query(
+      `UPDATE booth_equipment_status_log SET ended_at = NOW()
+       WHERE equipment_id = $1 AND ended_at IS NULL`,
+      [req.params.id]
+    );
+    await pool.query(
+      `INSERT INTO booth_equipment_status_log (org_id, equipment_id, from_status, to_status, reason, operator_id, started_at)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())`,
+      [user.orgId, req.params.id, prev.status, status, reason || null, user.userId!]
+    );
+    // Exiting maintenance → record maintenance completion on equipment
+    let updSql = 'UPDATE booth_equipment SET status = $1';
+    const updParams: (string | number)[] = [status];
+    if (prev.status === 'maintenance' && status !== 'maintenance') {
+      updSql += ', last_maintenance_at = NOW()';
+    }
+    updSql += ' WHERE id = $2 RETURNING *';
+    updParams.push(req.params.id);
+    const upd = await pool.query(updSql, updParams);
+    // Exiting maintenance → auto-close related due/overdue plans
+    if (prev.status === 'maintenance' && status !== 'maintenance') {
+      await pool.query(
+        `UPDATE booth_maintenance_plans SET status='done', last_done_at=NOW(),
+           next_due_at = NOW() + (cycle_days || ' days')::interval
+         WHERE equipment_id = $1 AND org_id = $2 AND status IN ('pending','overdue')`,
+        [req.params.id, user.orgId]
+      );
+    }
+    broadcast(user.orgId, 'equipment.status', { equipmentId: req.params.id, from: prev.status, to: status });
+    res.json({ success: true, data: upd.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// OEE 计算核心：三率分解，数据不足返回 null（前端显示 N/A）
+async function computeOee(orgId: number | string, equipmentId: string, from: Date, to: Date) {
+  const plannedMinutes = Math.max(1, Math.round((to.getTime() - from.getTime()) / 60000));
+  // Availability: running time overlap within window
+  const logRes = await pool.query(
+    `SELECT to_status, started_at, ended_at FROM booth_equipment_status_log
+     WHERE equipment_id = $1 AND org_id = $2 AND to_status = 'running' AND started_at < $4
+       AND (ended_at IS NULL OR ended_at > $3)`,
+    [equipmentId, orgId, from, to]
+  );
+  let runningMinutes = 0;
+  for (const row of logRes.rows) {
+    const s = new Date(row.started_at) > from ? new Date(row.started_at) : from;
+    const e = row.ended_at ? (new Date(row.ended_at) < to ? new Date(row.ended_at) : to) : to;
+    if (e > s) runningMinutes += Math.round((e.getTime() - s.getTime()) / 60000);
+  }
+  const hasLog = logRes.rows.length > 0;
+  const availability = hasLog && plannedMinutes > 0 ? runningMinutes / plannedMinutes : null;
+
+  // Equipment rated capacity
+  const eqRes = await pool.query('SELECT rated_capacity FROM booth_equipment WHERE id = $1 AND org_id = $2', [equipmentId, orgId]);
+  const ratedCapacity = eqRes.rows.length ? Number(eqRes.rows[0].rated_capacity) : null;
+
+  // Performance: actual output / (rated_capacity × running time)
+  const opRes = await pool.query(
+    `SELECT COALESCE(SUM(reported_qty),0) AS output FROM booth_fab_operations
+     WHERE equipment_id = $1 AND org_id = $2 AND completed_at BETWEEN $3 AND $4`,
+    [equipmentId, orgId, from, to]
+  );
+  const outputQty = Number(opRes.rows[0]?.output || 0);
+  const hasOps = outputQty > 0;
+  const runningDays = runningMinutes / (24 * 60);
+  const expectedOutput = ratedCapacity && runningDays > 0 ? ratedCapacity * runningDays : null;
+  const performance = expectedOutput && expectedOutput > 0 && hasOps ? outputQty / expectedOutput : null;
+
+  // Quality: pass / total from quality checks of work orders processed on this equipment
+  const qcRes = await pool.query(
+    `SELECT COALESCE(SUM(qc.qty_pass),0) AS pass, COALESCE(SUM(qc.qty_reject),0) AS reject
+     FROM booth_quality_checks qc
+     JOIN booth_fab_operations fo ON fo.work_order_id = qc.work_order_id AND fo.org_id = qc.org_id
+     WHERE fo.equipment_id = $1 AND fo.org_id = $2 AND qc.checked_at BETWEEN $3 AND $4`,
+    [equipmentId, orgId, from, to]
+  );
+  const passQty = Number(qcRes.rows[0]?.pass || 0);
+  const rejectQty = Number(qcRes.rows[0]?.reject || 0);
+  const totalChecked = passQty + rejectQty;
+  const quality = totalChecked > 0 ? passQty / totalChecked : null;
+
+  const oee = availability !== null && performance !== null && quality !== null
+    ? availability * performance * quality : null;
+  return {
+    availability, performance, quality, oee,
+    running_minutes: runningMinutes, planned_minutes: plannedMinutes,
+    output_qty: outputQty, pass_qty: passQty, reject_qty: rejectQty,
+    rated_capacity: ratedCapacity,
+  };
+}
+
+// GET /dexx/fab/equipment/oee/dashboard 全厂 OEE 汇总（先注册，避免与 :id 冲突）
+router.get('/fab/equipment/oee/dashboard', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(to.getTime() - 7 * 24 * 3600 * 1000);
+    const eqRes = await pool.query(
+      `SELECT e.*, s.name AS station_name FROM booth_equipment e
+       LEFT JOIN booth_stations s ON s.id = e.station_id WHERE e.org_id = $1 ORDER BY e.code`,
+      [user.orgId]
+    );
+    const items = [];
+    for (const eq of eqRes.rows) {
+      const oee = await computeOee(user.orgId, eq.id, from, to);
+      items.push({
+        equipment_id: eq.id, code: eq.code, name: eq.name, type: eq.type,
+        status: eq.status, station_name: eq.station_name,
+        ...oee,
+      });
+    }
+    // 全厂汇总：各率取有值设备的平均；全无数据则 N/A
+    const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+    const availArr = items.map(i => i.availability).filter((v): v is number => v !== null);
+    const perfArr = items.map(i => i.performance).filter((v): v is number => v !== null);
+    const qualArr = items.map(i => i.quality).filter((v): v is number => v !== null);
+    const plantAvailability = avg(availArr);
+    const plantPerformance = avg(perfArr);
+    const plantQuality = avg(qualArr);
+    const plantOee = plantAvailability !== null && plantPerformance !== null && plantQuality !== null
+      ? plantAvailability * plantPerformance * plantQuality : null;
+    // 停机原因 TOP 排行
+    const downRes = await pool.query(
+      `SELECT COALESCE(NULLIF(reason, ''), '未填写') AS reason, COUNT(*) AS cnt
+       FROM booth_equipment_status_log
+       WHERE org_id = $1 AND to_status = 'down' AND started_at BETWEEN $2 AND $3
+       GROUP BY 1 ORDER BY cnt DESC LIMIT 10`,
+      [user.orgId, from, to]
+    );
+    res.json({
+      success: true,
+      data: {
+        window: { from, to },
+        plant: { availability: plantAvailability, performance: plantPerformance, quality: plantQuality, oee: plantOee },
+        equipment: items,
+        downtime_top: downRes.rows,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /dexx/fab/equipment/:id 单设备详情（含最近状态流水 + 挂载工位）
+router.get('/fab/equipment/:id', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const q = await pool.query(
+      `SELECT e.*, s.code AS station_code, s.name AS station_name, s.state AS station_state
+       FROM booth_equipment e LEFT JOIN booth_stations s ON s.id = e.station_id
+       WHERE e.id = $1 AND e.org_id = $2`,
+      [req.params.id, user.orgId]
+    );
+    if (!q.rows.length) return res.status(404).json({ success: false, error: 'Equipment not found', code: 'NOT_FOUND' });
+    const logs = await pool.query(
+      `SELECT id, from_status, to_status, reason, operator_id, started_at, ended_at
+       FROM booth_equipment_status_log WHERE equipment_id = $1
+       ORDER BY started_at DESC LIMIT 30`,
+      [req.params.id]
+    );
+    res.json({ success: true, data: { equipment: q.rows[0], status_log: logs.rows } });
+  } catch (err) { next(err); }
+});
+
+// GET /dexx/fab/equipment/:id/oee 单设备 OEE
+router.get('/fab/equipment/:id/oee', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const ex = await pool.query('SELECT id FROM booth_equipment WHERE id = $1 AND org_id = $2', [req.params.id, user.orgId]);
+    if (!ex.rows.length) return res.status(404).json({ success: false, error: 'Equipment not found', code: 'NOT_FOUND' });
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(to.getTime() - 7 * 24 * 3600 * 1000);
+    const oee = await computeOee(user.orgId, req.params.id, from, to);
+    res.json({ success: true, data: { equipment_id: req.params.id, window: { from, to }, ...oee } });
+  } catch (err) { next(err); }
+});
+
+// GET /dexx/fab/maintenance/plans 保养计划列表（含 overdue 预警）
+router.get('/fab/maintenance/plans', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    // 先刷新 overdue 标记
+    await pool.query(
+      `UPDATE booth_maintenance_plans SET status = 'overdue'
+       WHERE org_id = $1 AND status = 'pending' AND next_due_at < NOW()`,
+      [user.orgId]
+    );
+    const plans = await pool.query(
+      `SELECT mp.*, e.code AS equipment_code, e.name AS equipment_name, e.type AS equipment_type
+       FROM booth_maintenance_plans mp
+       JOIN booth_equipment e ON e.id = mp.equipment_id
+       WHERE mp.org_id = $1
+       ORDER BY CASE WHEN mp.status = 'overdue' THEN 0 WHEN mp.status = 'pending' THEN 1 ELSE 2 END,
+                mp.next_due_at ASC NULLS LAST`,
+      [user.orgId]
+    );
+    const now = new Date();
+    const rows = plans.rows.map((p) => ({
+      ...p,
+      overdue: p.status === 'overdue' || (p.status === 'pending' && p.next_due_at && new Date(p.next_due_at) < now),
+      days_left: p.next_due_at ? Math.ceil((new Date(p.next_due_at).getTime() - now.getTime()) / 86400000) : null,
+    }));
+    res.json({ success: true, data: { plans: rows, total: rows.length } });
+  } catch (err) { next(err); }
+});
+
+// POST /dexx/fab/maintenance/plans/:id/done 完成保养
+router.post('/fab/maintenance/plans/:id/done', async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const planRes = await pool.query(
+      'SELECT * FROM booth_maintenance_plans WHERE id = $1 AND org_id = $2',
+      [req.params.id, user.orgId]
+    );
+    if (!planRes.rows.length) return res.status(404).json({ success: false, error: 'Plan not found', code: 'NOT_FOUND' });
+    const plan = planRes.rows[0];
+    if (plan.status === 'done') {
+      return res.status(400).json({ success: false, error: 'Plan already done', code: 'ALREADY_DONE' });
+    }
+    const cycleDays = plan.cycle_days || 30;
+    const upd = await pool.query(
+      `UPDATE booth_maintenance_plans
+       SET status = 'done', last_done_at = NOW(), next_due_at = NOW() + ($2 || ' days')::interval
+       WHERE id = $1 RETURNING *`,
+      [req.params.id, String(cycleDays)]
+    );
+    await pool.query('UPDATE booth_equipment SET last_maintenance_at = NOW() WHERE id = $1', [plan.equipment_id]);
+    broadcast(user.orgId, 'maintenance.done', { planId: req.params.id, equipmentId: plan.equipment_id });
+    res.json({ success: true, data: upd.rows[0] });
   } catch (err) { next(err); }
 });
 

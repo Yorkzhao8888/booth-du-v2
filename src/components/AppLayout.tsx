@@ -23,6 +23,8 @@ import {
   TruckOutlined,
   HeartOutlined,
   ApartmentOutlined,
+  CalendarOutlined,
+  HeatMapOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -112,6 +114,9 @@ const getMenuItemsByRole = (role: string) => {
       { key: 'fab-zone-group', label: '产线视角', type: 'group', children: fabZoneItems.children },
       { type: 'divider' },
       { key: '/dexx/fab/stations', label: 'Station 作业站' },
+      { key: '/dexx/fab/equipment', label: '设备台账' },
+      { key: '/dexx/fab/equipment/oee', label: 'OEE 稼动率' },
+      { key: '/dexx/fab/maintenance', label: '保养日历' },
     ],
   };
 

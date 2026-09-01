@@ -54,6 +54,10 @@ import DexxYieldTracking from './pages/dexx/YieldTracking';
 import DexxFabZoneView from './pages/dexx/FabZoneView';
 import DexxFabStations from './pages/dexx/FabStations';
 import DexxFabStationDetail from './pages/dexx/FabStationDetail';
+import DexxFabEquipment from './pages/dexx/FabEquipment';
+import DexxFabEquipmentOee from './pages/dexx/FabEquipmentOee';
+import DexxFabOeeDashboard from './pages/dexx/FabOeeDashboard';
+import DexxFabMaintenance from './pages/dexx/FabMaintenance';
 import DexxSupplyOrders from './pages/dexx/SupplyOrders';
 import DexxSupplyLineFeed from './pages/dexx/SupplyLineFeed';
 import DexxDeviceSupply from './pages/dexx/DeviceSupply';
@@ -250,6 +254,10 @@ const App: React.FC = () => {
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
           <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
           <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
           <Route path="fab/yield" element={<ErrorBoundary><DexxYieldTracking /></ErrorBoundary>} />
           <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
           <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />

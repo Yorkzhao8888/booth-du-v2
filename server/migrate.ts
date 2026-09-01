@@ -1017,6 +1017,64 @@ export async function migrate() {
         `CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_org_code ON booth_stations(org_id, code);`
       );
 
+      // ===== FAB-MES-01: 设备台账 + OEE 稼动率 =====
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS booth_equipment (
+          id SERIAL PRIMARY KEY,
+          org_id INTEGER NOT NULL DEFAULT 1 REFERENCES booth_orgs(id),
+          station_id INTEGER REFERENCES booth_stations(id),
+          code TEXT NOT NULL,
+          name TEXT NOT NULL,
+          type TEXT DEFAULT 'device',
+          status TEXT NOT NULL DEFAULT 'idle',
+          rated_capacity NUMERIC DEFAULT 0,
+          purchase_date DATE,
+          last_maintenance_at TIMESTAMPTZ,
+          maintenance_cycle_days INTEGER,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_equipment_org_code ON booth_equipment(org_id, code);`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_equipment_station ON booth_equipment(station_id);`);
+      await client.query(`ALTER TABLE booth_equipment ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();`);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS booth_equipment_status_log (
+          id SERIAL PRIMARY KEY,
+          org_id INTEGER NOT NULL DEFAULT 1 REFERENCES booth_orgs(id),
+          equipment_id INTEGER NOT NULL REFERENCES booth_equipment(id),
+          from_status TEXT,
+          to_status TEXT NOT NULL,
+          reason TEXT,
+          operator_id INTEGER,
+          started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          ended_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_equipment_log_equip ON booth_equipment_status_log(equipment_id, started_at);`);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS booth_maintenance_plans (
+          id SERIAL PRIMARY KEY,
+          org_id INTEGER NOT NULL DEFAULT 1 REFERENCES booth_orgs(id),
+          equipment_id INTEGER NOT NULL REFERENCES booth_equipment(id),
+          plan_name TEXT NOT NULL,
+          cycle_days INTEGER DEFAULT 30,
+          last_done_at TIMESTAMPTZ,
+          next_due_at TIMESTAMPTZ,
+          assignee_id INTEGER,
+          status TEXT NOT NULL DEFAULT 'pending',
+          remark TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_maintenance_plans_org_status ON booth_maintenance_plans(org_id, status);`);
+
+      // 工序表加 equipment_id（追溯与 OEE 数据基础）
+      await client.query(`ALTER TABLE booth_fab_operations ADD COLUMN IF NOT EXISTS equipment_id INTEGER REFERENCES booth_equipment(id);`);
+
       // Seed sku_cost for all existing SKUs if not exists
       const skuCostCheck = await client.query('SELECT COUNT(*) as cnt FROM booth_sku_cost WHERE org_id = 1');
       if (parseInt(skuCostCheck.rows[0].cnt) === 0) {

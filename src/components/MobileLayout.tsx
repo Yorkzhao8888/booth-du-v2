@@ -17,6 +17,7 @@ import {
   ApartmentOutlined,
   DashboardOutlined,
   LineChartOutlined,
+  CalendarOutlined,
   SendOutlined,
   NodeIndexOutlined,
   SettingOutlined,
@@ -26,7 +27,7 @@ import { useAuthStore } from '../store';
 
 const { Header, Content } = Layout;
 
-type ModuleType = 'fab' | 'fab-zone' | 'wh' | 'wh-supply' | 'dl' | 'svc' | 'stocktake';
+type ModuleType = 'fab' | 'fab-zone' | 'fab-eq' | 'wh' | 'wh-supply' | 'dl' | 'svc' | 'stocktake';
 
 // 工单视角 tabs
 const fabTabs = [
@@ -38,6 +39,13 @@ const fabTabs = [
   { key: '/dexx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
+];
+
+// 设备视角 tabs（设备台账 / OEE / 保养）
+const fabEqTabs = [
+  { key: '/dexx/fab/equipment', label: '设备台账', icon: <ToolOutlined /> },
+  { key: '/dexx/fab/equipment/oee', label: 'OEE', icon: <DashboardOutlined /> },
+  { key: '/dexx/fab/maintenance', label: '保养', icon: <CalendarOutlined /> },
 ];
 
 // 产线视角 tabs（四大生产区只读看板）
@@ -79,6 +87,7 @@ const stocktakeTabs = [
 /** 根据 pathname 推断当前所属模块 */
 const resolveModule = (pathname: string): ModuleType => {
   if (pathname.includes('/fab/zone/')) return 'fab-zone';
+  if (pathname.includes('/fab/equipment') || pathname.includes('/fab/maintenance')) return 'fab-eq';
   if (pathname.includes('/wh/supply') || pathname.includes('/wh/device') || pathname.includes('/wh/plaza')) return 'wh-supply';
   if (pathname.includes('/wh/')) return 'wh';
   if (pathname.includes('/dl')) return 'dl';
@@ -108,6 +117,7 @@ const MobileLayout: React.FC = () => {
   const segmentedOptions = [
     showFab ? { label: '工单', value: 'fab' as ModuleType } : null,
     showFab ? { label: '产线', value: 'fab-zone' as ModuleType } : null,
+    showFab ? { label: '设备', value: 'fab-eq' as ModuleType } : null,
     showWh ? { label: '仓储', value: 'wh' as ModuleType } : null,
     showWh ? { label: '供给', value: 'wh-supply' as ModuleType } : null,
     showDl ? { label: '配送', value: 'dl' as ModuleType } : null,
@@ -119,6 +129,7 @@ const MobileLayout: React.FC = () => {
   const tabsMap: Record<ModuleType, typeof fabTabs> = {
     fab: fabTabs,
     'fab-zone': fabZoneTabs,
+    'fab-eq': fabEqTabs,
     wh: whTabs,
     'wh-supply': whSupplyTabs,
     dl: dlTabs,
@@ -137,6 +148,7 @@ const MobileLayout: React.FC = () => {
   const moduleDefaultPath: Record<ModuleType, string> = {
     fab: '/dexx/fab/queue',
     'fab-zone': '/dexx/fab/zone/preprocessing',
+    'fab-eq': '/dexx/fab/equipment',
     wh: '/dexx/wh/inventory',
     'wh-supply': '/dexx/wh/supply-orders',
     dl: '/dexx/dl',
