@@ -69,10 +69,10 @@ router.post('/fab/report', requireHat('FAB'), async (req, res, next) => {
       }
     }
 
-    // Insert fab operation
+    // Insert fab operation (completed_at=NOW(): OEE 按完成时间聚合报工产出)
     const foRes = await client.query(
-      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id, equipment_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id, equipment_id, completed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
       [user.orgId, workOrderId, seq, opName, qtyCompleted, user.userId!, equipmentId || null]
     );
 
@@ -192,8 +192,8 @@ router.post('/fab/stage/advance', requireHat('FAB'), async (req, res, next) => {
       }
     }
     await client.query(
-      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id, equipment_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO booth_fab_operations (org_id, work_order_id, seq, name, reported_qty, operator_id, equipment_id, completed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
       [user.orgId, workOrderId, targetIdx + 100, `stage_${targetStage}`, 0, user.userId!, equipmentId]
     );
 
@@ -1508,7 +1508,7 @@ router.get('/fab/zone/:stage', requireHat('FAB'), async (req, res, next) => {
 /* ============ FAB-MES-01 设备台账 + OEE 稼动率 ============ */
 
 // GET /dexx/fab/equipment 设备台账列表（含当前状态/OEE/上次保养）
-router.get('/fab/equipment', async (req, res, next) => {
+router.get('/fab/equipment', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { stationId } = req.query;
@@ -1525,7 +1525,7 @@ router.get('/fab/equipment', async (req, res, next) => {
 });
 
 // POST /dexx/fab/equipment 新建设备
-router.post('/fab/equipment', async (req, res, next) => {
+router.post('/fab/equipment', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { stationId, code, name, type, ratedCapacity, purchaseDate, maintenanceCycleDays, lastMaintenanceAt } = req.body;
@@ -1563,13 +1563,22 @@ router.post('/fab/equipment', async (req, res, next) => {
        VALUES ($1,$2,NULL,'idle','initial',$3,NOW())`,
       [user.orgId, eq.id, user.userId!]
     );
+    // maintenanceCycleDays>0 时自动生成首条保养计划 (FAB-MES-01-FIX Bug2)
+    if (maintenanceCycleDays && Number(maintenanceCycleDays) > 0) {
+      const cycle = Number(maintenanceCycleDays);
+      await pool.query(
+        `INSERT INTO booth_maintenance_plans (org_id, equipment_id, plan_name, cycle_days, next_due_at, status, remark)
+         VALUES ($1,$2,$3,$4,NOW() + ($5 || ' days')::interval,'pending','新建设备自动生成')`,
+        [user.orgId, eq.id, `${eq.name} 例行保养`, cycle, String(cycle)]
+      );
+    }
     broadcast(user.orgId, 'equipment.created', { equipmentId: eq.id, code: eq.code });
     res.status(201).json({ success: true, data: eq });
   } catch (err) { next(err); }
 });
 
 // POST /dexx/fab/equipment/:id/status 变更设备状态 + 停机原因
-router.post('/fab/equipment/:id/status', async (req, res, next) => {
+router.post('/fab/equipment/:id/status', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { status, reason } = req.body;
@@ -1678,7 +1687,7 @@ async function computeOee(orgId: number | string, equipmentId: string, from: Dat
 }
 
 // GET /dexx/fab/equipment/oee/dashboard 全厂 OEE 汇总（先注册，避免与 :id 冲突）
-router.get('/fab/equipment/oee/dashboard', async (req, res, next) => {
+router.get('/fab/equipment/oee/dashboard', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
@@ -1728,7 +1737,7 @@ router.get('/fab/equipment/oee/dashboard', async (req, res, next) => {
 });
 
 // GET /dexx/fab/equipment/:id 单设备详情（含最近状态流水 + 挂载工位）
-router.get('/fab/equipment/:id', async (req, res, next) => {
+router.get('/fab/equipment/:id', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const q = await pool.query(
@@ -1749,7 +1758,7 @@ router.get('/fab/equipment/:id', async (req, res, next) => {
 });
 
 // GET /dexx/fab/equipment/:id/oee 单设备 OEE
-router.get('/fab/equipment/:id/oee', async (req, res, next) => {
+router.get('/fab/equipment/:id/oee', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const ex = await pool.query('SELECT id FROM booth_equipment WHERE id = $1 AND org_id = $2', [req.params.id, user.orgId]);
@@ -1762,7 +1771,7 @@ router.get('/fab/equipment/:id/oee', async (req, res, next) => {
 });
 
 // GET /dexx/fab/maintenance/plans 保养计划列表（含 overdue 预警）
-router.get('/fab/maintenance/plans', async (req, res, next) => {
+router.get('/fab/maintenance/plans', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     // 先刷新 overdue 标记
@@ -1791,7 +1800,7 @@ router.get('/fab/maintenance/plans', async (req, res, next) => {
 });
 
 // POST /dexx/fab/maintenance/plans/:id/done 完成保养
-router.post('/fab/maintenance/plans/:id/done', async (req, res, next) => {
+router.post('/fab/maintenance/plans/:id/done', requireHat('FAB'), async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const planRes = await pool.query(
