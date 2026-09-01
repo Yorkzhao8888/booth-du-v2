@@ -49,6 +49,7 @@ import DexxFabOperations from './pages/dexx/FabOperations';
 import DexxFabAndon from './pages/dexx/FabAndon';
 import DexxQcExecute from './pages/dexx/QcExecute';
 import DexxFabTrace from './pages/dexx/FabTrace';
+import DexxFabPlugins from './pages/dexx/FabPlugins';
 import DexxFabDefects from './pages/dexx/FabDefects';
 import DexxStocktakeExec from './pages/dexx/StocktakeExec';
 import DexxDlExec from './pages/dexx/DlExec';
@@ -287,6 +288,7 @@ const App: React.FC = () => {
           <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
           <Route path="fab/trace" element={<ErrorBoundary><DexxFabTrace /></ErrorBoundary>} />
           <Route path="fab/defects" element={<ErrorBoundary><DexxFabDefects /></ErrorBoundary>} />
+          <Route path="fab/plugins" element={<ErrorBoundary><DexxFabPlugins /></ErrorBoundary>} />
           <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />
           <Route path="wh/inbound" element={<ErrorBoundary><DexxWhInbound /></ErrorBoundary>} />
           <Route path="wh/outbound" element={<ErrorBoundary><DexxWhOutbound /></ErrorBoundary>} />

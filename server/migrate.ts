@@ -961,6 +961,37 @@ UPDATE booth_fulfillments SET contract_status = 'Executing', milestones = COALES
 WHERE contract_status IS NULL AND status = 'dispatched';
 UPDATE booth_fulfillments SET contract_status = 'Created', milestones = COALESCE(milestones, '{}'::jsonb)
 WHERE contract_status IS NULL;
+
+-- [BOOTH-PK-01] Station 能力插件(v1.1 能力登记+匹配子集, 复用 booth_stations 作挂载宿主):
+-- 能力是执行能力登记层, 执行仍走 booth_fab_operations, 不建并行执行引擎
+CREATE TABLE IF NOT EXISTS station_capabilities (
+  id SERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  station_id BIGINT NOT NULL,
+  capability_code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  inputs JSONB NOT NULL DEFAULT '[]'::jsonb,
+  outputs JSONB NOT NULL DEFAULT '[]'::jsonb,
+  estimated_time INTEGER,
+  rate NUMERIC(12,2),
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_station_cap ON station_capabilities(org_id, station_id, capability_code);
+CREATE INDEX IF NOT EXISTS idx_station_cap_status ON station_capabilities(org_id, status);
+
+CREATE TABLE IF NOT EXISTS station_capability_mounts (
+  id SERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  station_id BIGINT NOT NULL,
+  capability_id BIGINT NOT NULL REFERENCES station_capabilities(id) ON DELETE CASCADE,
+  mount_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  state TEXT NOT NULL DEFAULT 'registered',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_station_cap_mount ON station_capability_mounts(org_id, station_id, capability_id);
+CREATE INDEX IF NOT EXISTS idx_station_cap_mount_station ON station_capability_mounts(org_id, station_id);
 `;
 
 // In-memory store for org modes

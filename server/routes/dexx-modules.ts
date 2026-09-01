@@ -20,11 +20,13 @@ import dexxDlRoutes from './dexx-dl.js';
 import dexxSvcRoutes from './dexx-svc.js';
 import dexxFabTraceRoutes from './dexx-fab-trace.js';
 import dexxFabMesRoutes from './dexx-fab-mes.js';
+import stationCapabilityRoutes from './station-capabilities.js';
 
 const router = Router();
 
 router.use(dexxFabRoutes);
 router.use(dexxFabTraceRoutes);
+router.use(stationCapabilityRoutes);
 router.use(dexxWhRoutes);
 router.use(dexxDlRoutes);
 router.use(dexxSvcRoutes);

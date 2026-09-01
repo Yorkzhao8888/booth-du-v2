@@ -99,6 +99,22 @@ export default function FabStationDetail() {
     fetchStation();
   }, [fetchStation]);
 
+  // [BOOTH-PK-01] 能力槽位
+  const [caps, setCaps] = useState<any[]>([]);
+  const fetchCaps = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/dexx/fab/station/${id}/capabilities`);
+      if (res?.success) setCaps(res.data?.mounts || []);
+    } catch {
+      // ignore
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchCaps();
+  }, [fetchCaps]);
+
   // 后端 report-status 合法枚举: run/idle/paused/down/maintenance (run→busy 映射)
   // 页面状态机值 busy → 提交 run; provisioning/decommissioned 不可上报
   const toApiState = (s: string): string => (s === 'busy' ? 'run' : s);
@@ -260,6 +276,25 @@ export default function FabStationDetail() {
                     children: <span style={{ fontFamily: MONO, fontSize: 12 }}>{a} <Tag style={{ fontSize: 10 }}>占位登记</Tag></span>,
                   }))}
                 />
+              ),
+            },
+            {
+              key: 'capabilities',
+              label: '能力槽位（PK-01）',
+              children: caps.length === 0 ? (
+                <Empty description="该 Station 未登记能力 — 前往「能力市场」登记" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                  {caps.map((cp: any) => (
+                    <Card key={cp.capability_id} size="small" style={{ width: 240 }} title={<span style={{ fontFamily: MONO, fontSize: 12 }}>{cp.capability_code}</span>} extra={<Tag color={cp.cap_status === 'active' ? 'green' : 'default'}>{cp.cap_status === 'active' ? '可用' : '停用'}</Tag>}>
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{cp.name}</div>
+                      <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                        节拍 {cp.rate ?? '-'} · 预估 {cp.estimated_time ? `${cp.estimated_time}s` : '-'}
+                      </div>
+                      <div style={{ marginTop: 6 }}><Tag style={{ fontSize: 10 }}>挂载: {cp.mount_state}</Tag></div>
+                    </Card>
+                  ))}
+                </div>
               ),
             },
           ]}

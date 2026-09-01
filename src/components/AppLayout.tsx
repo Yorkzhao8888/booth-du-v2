@@ -126,6 +126,12 @@ const getMenuItemsByRole = (role: string) => {
       { key: `${fabBase}/equipment/oee`, label: 'OEE 稼动率' },
       { key: `${fabBase}/maintenance`, label: '保养日历' },
       { key: `${fabBase}/andon`, label: '安灯异常中心' },
+      ...(role === 'dexx'
+        ? [
+            { type: 'divider' as const },
+            { key: `${fabBase}/plugins`, label: '能力市场' },
+          ]
+        : []),
     ],
   };
 
