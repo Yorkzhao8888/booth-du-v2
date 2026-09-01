@@ -29,6 +29,12 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   Archived: [], // 终态
 };
 
+// ---------------------------------------------------------------------------
+// [DEPRECATED - 兼容层] 旧状态(小写) ↔ 新状态(8态大写) 双向映射
+// 兼容截止日: 2026-12-31。届时移除需主 Agent 另行裁定（线上存量调用归零后）。
+// 约定: 本兼容层保持冻结 — 只读不改，禁止新增依赖此映射的接口/字段。
+// 仍在写入旧状态字符串的新代码属于违规，应直接使用 VALID_STATUSES 8 态。
+// ---------------------------------------------------------------------------
 // 旧状态 → 新状态映射
 const OLD_TO_NEW_STATUS: Record<string, string> = {
   pending: 'Pending',
@@ -39,6 +45,7 @@ const OLD_TO_NEW_STATUS: Record<string, string> = {
 };
 
 // 新状态 → 旧状态映射（兼容期）
+// 注意: 当前代码库内已无消费方（仅作为旧系统对接基线保留）。
 const NEW_TO_OLD_STATUS: Record<string, string> = {
   Pending: 'pending',
   Dispatched: 'pending', // Dispatched 在旧系统视为 pending
@@ -61,6 +68,8 @@ async function generateJobId(orgId: number): Promise<string> {
 }
 
 // 标准化状态（支持新旧两种写法）
+// [DEPRECATED - 兼容层] 兼容截止日: 2026-12-31。归一化入口保持只读冻结，
+// 新代码的入参必须直接是 8 态大写；此处仅兜底历史存量的小写状态。
 function normalizeStatus(status: string): string {
   // 如果是新状态格式（首字母大写）
   if (VALID_STATUSES.includes(status)) {
@@ -691,9 +700,17 @@ router.post('/station/callback', async (req, res, next) => {
   }
 });
 
+// ===========================================================================
+// [DEPRECATED - 兼容层] 旧版 accept/start/complete 三段式直改接口
+// 兼容截止日: 2026-12-31。届时下线需主 Agent 另行裁定（先确认线上调用归零）。
+// 约定:
+//   - 三个接口仅保留现状行为，冻结不改、不扩展（禁止新增字段/状态分支）
+//   - 新代码一律走标准状态机接口（带 VALID_TRANSITIONS 校验的主路径）
+//   - 与旧状态映射(NEW_TO_OLD_STATUS)同批评估移除
+// ===========================================================================
 // ============ 兼容旧 API 的状态转换 ============
 
-// POST /jobs/:job_id/accept - 兼容旧 accept 接口
+// POST /jobs/:job_id/accept - [DEPRECATED] 兼容旧 accept 接口，截止 2026-12-31
 router.post('/jobs/:job_id/accept', async (req, res, next) => {
   const client = await pool.connect();
   try {
@@ -744,7 +761,7 @@ router.post('/jobs/:job_id/accept', async (req, res, next) => {
   }
 });
 
-// POST /jobs/:job_id/start - 兼容旧 start 接口
+// POST /jobs/:job_id/start - [DEPRECATED] 兼容旧 start 接口，截止 2026-12-31
 router.post('/jobs/:job_id/start', async (req, res, next) => {
   const client = await pool.connect();
   try {
@@ -795,7 +812,7 @@ router.post('/jobs/:job_id/start', async (req, res, next) => {
   }
 });
 
-// POST /jobs/:job_id/complete - 兼容旧 complete 接口
+// POST /jobs/:job_id/complete - [DEPRECATED] 兼容旧 complete 接口，截止 2026-12-31
 router.post('/jobs/:job_id/complete', async (req, res, next) => {
   const client = await pool.connect();
   try {
