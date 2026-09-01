@@ -22,6 +22,7 @@ import {
   NodeIndexOutlined,
   SettingOutlined,
   HomeOutlined,
+  AlertOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -39,6 +40,7 @@ const fabTabs = [
   { key: '/dexx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
+  { key: '/dexx/fab/andon', label: '安灯', icon: <AlertOutlined /> },
 ];
 
 // 设备视角 tabs（设备台账 / OEE / 保养）

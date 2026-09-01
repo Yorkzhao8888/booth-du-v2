@@ -60,7 +60,22 @@ export function checkAndBroadcastSlaAlerts(orgId: number, items: any[]) {
       fulfillmentId: item.fulfillment_id || null,
       minutesToDue,
     });
+
+    // FAB-MES-03 联动：SLA 超时自动落 overdue 安灯（防重逻辑在 handler 内）
+    if (level === 'overdue' && autoAndonHandler) {
+      try {
+        autoAndonHandler(orgId, item);
+      } catch {
+        // 安灯联动失败不影响 SLA 广播主链路
+      }
+    }
   }
+}
+
+// 安灯服务注册的自动处理器（晚绑定避免循环依赖）
+let autoAndonHandler: ((orgId: number, item: Record<string, unknown>) => void | Promise<void>) | null = null;
+export function setAutoAndonHandler(fn: (orgId: number, item: Record<string, unknown>) => void | Promise<void>) {
+  autoAndonHandler = fn;
 }
 
 export function startHeartbeat() {

@@ -45,6 +45,7 @@ import DexxWhInbound from './pages/dexx/WhInbound';
 import DexxWhOutbound from './pages/dexx/WhOutbound';
 import DexxWhTxns from './pages/dexx/WhTxns';
 import DexxFabOperations from './pages/dexx/FabOperations';
+import DexxFabAndon from './pages/dexx/FabAndon';
 import DexxQcExecute from './pages/dexx/QcExecute';
 import DexxStocktakeExec from './pages/dexx/StocktakeExec';
 import DexxDlExec from './pages/dexx/DlExec';
@@ -250,6 +251,7 @@ const App: React.FC = () => {
           <Route path="fab/active" element={<ErrorBoundary><DexxFabActive /></ErrorBoundary>} />
           <Route path="fab/history" element={<ErrorBoundary><DexxFabHistory /></ErrorBoundary>} />
           <Route path="fab/operations" element={<ErrorBoundary><DexxFabOperations /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
           <Route path="fab/dashboard" element={<ErrorBoundary><DexxProductionDashboard /></ErrorBoundary>} />
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
           <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />

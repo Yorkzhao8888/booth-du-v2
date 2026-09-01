@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, message, Tag, List, Space, Steps, Descriptions, Divider } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, InputNumber, message, Tag, List, Space, Steps, Descriptions, Divider, Select } from 'antd';
+import { AlertOutlined } from '@ant-design/icons';
 import { api } from '../../api';
+
+const ANDON_TYPES = [
+  { value: 'shortage', label: '缺料' },
+  { value: 'equipment', label: '设备故障' },
+  { value: 'quality', label: '品质异常' },
+  { value: 'overdue', label: '超时预警' },
+  { value: 'other', label: '其他' },
+];
+
+const ANDON_SEVERITIES = [
+  { value: 'low', label: '低' },
+  { value: 'medium', label: '中' },
+  { value: 'high', label: '高' },
+  { value: 'critical', label: '紧急' },
+];
 
 const STAGE_LABELS: Record<string, string> = {
   preprocessing: '前置工序',
@@ -40,6 +56,31 @@ const FabOperations = () => {
   const [selectedWo, setSelectedWo] = useState<any>(null);
   const [operations, setOperations] = useState<any[]>([]);
   const [form] = Form.useForm();
+  const [andonForm] = Form.useForm();
+  const [andonVisible, setAndonVisible] = useState(false);
+  const [andonSubmitting, setAndonSubmitting] = useState(false);
+
+  const submitAndon = async () => {
+    try {
+      const v = await andonForm.validateFields();
+      setAndonSubmitting(true);
+      const res = await api.post('/dexx/fab/andon', {
+        type: v.type,
+        severity: v.severity,
+        message: v.message,
+        work_order_id: selectedWo?.id ?? null,
+        station_id: null,
+      });
+      message.success(`安灯 #${res.id} 已发起，请等待响应`);
+      setAndonVisible(false);
+      andonForm.resetFields();
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e?.response?.data?.error || '发起安灯失败');
+    } finally {
+      setAndonSubmitting(false);
+    }
+  };
 
   const fetchActiveOrders = async () => {
     setLoading(true);
@@ -127,8 +168,58 @@ const FabOperations = () => {
   ];
 
   return (
-    <Card title="工序报工">
+    <Card
+      title="工序报工"
+      extra={
+        <Button type="primary" danger icon={<AlertOutlined />} onClick={() => setAndonVisible(true)}>
+          一键呼叫
+        </Button>
+      }
+    >
       <Table dataSource={activeOrders} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} />
+
+      <Modal
+        title="安灯一键呼叫"
+        open={andonVisible}
+        onCancel={() => setAndonVisible(false)}
+        onOk={submitAndon}
+        confirmLoading={andonSubmitting}
+        okText="发起安灯"
+        cancelText="取消"
+      >
+        <Alert
+          type="warning"
+          showIcon
+          message="发起后将按严重度升级通知（班组 → 管理层 → 店主）"
+          style={{ marginBottom: 16 }}
+        />
+        <Form form={andonForm} layout="vertical" initialValues={{ type: 'other', severity: 'medium' }}>
+          <Form.Item name="type" label="异常类型" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 'equipment', label: '设备故障' },
+                { value: 'shortage', label: '缺料' },
+                { value: 'quality', label: '品质异常' },
+                { value: 'overdue', label: '超时' },
+                { value: 'other', label: '其他' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="severity" label="严重度" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 'low', label: '低' },
+                { value: 'medium', label: '中' },
+                { value: 'high', label: '高' },
+                { value: 'critical', label: '严重' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="message" label="异常描述" rules={[{ required: true, message: '请描述异常情况' }]}>
+            <Input.TextArea rows={3} placeholder="例如：压面机异响，疑似皮带打滑" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal
         title={`报工 - ${selectedWo?.wo_no || ''} (${selectedWo?.product_name || ''})`}

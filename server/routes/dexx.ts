@@ -5,6 +5,7 @@ import type { JwtPayload } from '../auth.js';
 import { acceptWorkOrder, startWorkOrder, completeWorkOrder } from '../services/work-order-service.js';
 import { inbound, outbound } from '../services/inventory-service.js';
 import { stripPriceFields } from '../services/fulfillment-service.js';
+import { createAndonEvent } from '../services/andon-service.js';
 
 const router = Router();
 
@@ -127,6 +128,33 @@ router.post('/fab/work-orders/:id/start', requireHat('FAB'), async (req, res, ne
     res.json({ success: true, data: result });
   } catch (err: any) {
     if (err.statusCode) {
+      // 安灯联动：开始制作缺料(INSUFFICIENT_STOCK 409) → 自动落 shortage 安灯
+      if (err.code === 'INSUFFICIENT_STOCK') {
+        try {
+          // @ts-ignore
+          const user = req.user as JwtPayload;
+          const woId = parseInt(req.params.id);
+          const andon = await createAndonEvent({
+            orgId: user.orgId as number,
+            type: 'shortage',
+            severity: (err.shortages?.length ?? 0) > 2 ? 'high' : 'medium',
+            message: `开始制作缺料：${(err.shortages || []).map((s: any) => `${s.name || s.sku || s.item}缺${s.shortage ?? s.short ?? ''}`).join('；') || '物料不足'}`,
+            workOrderId: woId,
+            callerId: user.userId,
+            auto: true,
+          });
+          return res.status(409).json({
+            success: false,
+            error: err.error,
+            code: err.code,
+            ...(err.shortages ? { shortages: err.shortages } : {}),
+            andonId: andon.id,
+            andonNo: `AND-${andon.id}`,
+          });
+        } catch (andonErr) {
+          console.error('[andon] shortage auto-andon failed:', andonErr);
+        }
+      }
       return res.status(err.statusCode).json({
         success: false,
         error: err.error,

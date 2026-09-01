@@ -117,6 +117,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: '/dexx/fab/equipment', label: '设备台账' },
       { key: '/dexx/fab/equipment/oee', label: 'OEE 稼动率' },
       { key: '/dexx/fab/maintenance', label: '保养日历' },
+      { key: '/dexx/fab/andon', label: '安灯异常中心' },
     ],
   };
 

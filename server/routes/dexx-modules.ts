@@ -3,6 +3,7 @@ import { pool } from '../db.js';
 import { requireAuth, requireRole, requireHat } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { createProfitSnapshot } from '../services/profit-service.js';
+import { createAndonEvent, andonStats } from '../services/andon-service.js';
 import { broadcast } from '../sse.js';
 
 const router = Router();
@@ -1822,6 +1823,117 @@ router.post('/fab/maintenance/plans/:id/done', requireHat('FAB'), async (req, re
     await pool.query('UPDATE booth_equipment SET last_maintenance_at = NOW() WHERE id = $1', [plan.equipment_id]);
     broadcast(user.orgId, 'maintenance.done', { planId: req.params.id, equipmentId: plan.equipment_id });
     res.json({ success: true, data: upd.rows[0] });
+  } catch (err) { next(err); }
+});
+
+/* ================= 安灯异常中心 (Andon, FAB-MES-03) ================= */
+// 发起安灯（工位一键呼叫）: 自动关联上下文（当前工单/设备）
+router.post('/fab/andon', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { type, severity, message, work_order_id, station_id, equipment_id } = req.body || {};
+    if (!type || !message) return res.status(400).json({ error: 'type 与 message 必填' });
+    if (!['shortage', 'equipment', 'quality', 'overdue', 'other'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid type, must be shortage/equipment/quality/overdue/other' });
+    }
+    if (!['low', 'medium', 'high', 'critical'].includes(severity || '')) {
+      return res.status(400).json({ error: 'Invalid severity, must be low/medium/high/critical' });
+    }
+    const ev = await createAndonEvent({
+      orgId: user.orgId, type, severity, message,
+      workOrderId: work_order_id || null, stationId: station_id || null, equipmentId: equipment_id || null,
+      callerId: user.userId, auto: false,
+    });
+    res.json({ success: true, data: ev });
+  } catch (err) { next(err); }
+});
+
+// 异常中心看板: open/processing 事件、severity 排序、响应/解决时效
+router.get('/fab/andon/board', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const evs = await pool.query(
+      `SELECT a.*, u1.name AS caller_name, u2.name AS assignee_name,
+              s.code AS station_code, s.name AS station_name,
+              e.code AS equipment_code, e.name AS equipment_name,
+              wo.job_id AS work_order_job
+       FROM booth_andon_events a
+       LEFT JOIN booth_users u1 ON u1.id = a.caller_id
+       LEFT JOIN booth_users u2 ON u2.id = a.assignee_id
+       LEFT JOIN booth_stations s ON s.id = a.station_id
+       LEFT JOIN booth_equipment e ON e.id = a.equipment_id
+       LEFT JOIN booth_work_orders wo ON wo.id = a.work_order_id
+       WHERE a.org_id = $1 AND a.status IN ('open','processing')
+       ORDER BY CASE a.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+                a.created_at ASC`,
+      [user.orgId]
+    );
+    const stats = await andonStats(user.orgId, '30 days');
+    res.json({ success: true, data: { events: evs.rows, stats } });
+  } catch (err) { next(err); }
+});
+
+// 指派处理人
+router.post('/fab/andon/:id/assign', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { assignee_id } = req.body || {};
+    if (!assignee_id) return res.status(400).json({ error: 'assignee_id 必填' });
+    const ev = await pool.query(
+      `UPDATE booth_andon_events SET assignee_id = $2, status = 'processing',
+              responded_at = COALESCE(responded_at, NOW())
+       WHERE id = $1 AND org_id = $3 AND status IN ('open','processing')
+       RETURNING *`,
+      [req.params.id, assignee_id, user.orgId]
+    );
+    if (!ev.rows.length) return res.status(404).json({ error: '安灯事件不存在或不可指派' });
+    broadcast(user.orgId, 'andon.updated', { id: ev.rows[0].id, status: 'processing' });
+    res.json({ success: true, data: ev.rows[0] });
+  } catch (err) { next(err); }
+});
+
+// 解决（含 solution 记录）→ 写入知识库候选
+router.post('/fab/andon/:id/resolve', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { solution } = req.body || {};
+    if (!solution) return res.status(400).json({ error: 'solution 必填' });
+    const ev = await pool.query(
+      `UPDATE booth_andon_events SET status = 'resolved', resolved_at = NOW(), solution = $2
+       WHERE id = $1 AND org_id = $3 AND status IN ('open','processing')
+       RETURNING *`,
+      [req.params.id, solution, user.orgId]
+    );
+    if (!ev.rows.length) return res.status(404).json({ error: '安灯事件不存在或已解决' });
+    const row = ev.rows[0];
+    // 知识库候选：异常描述 + 解决方案沉淀
+    await pool.query(
+      `INSERT INTO booth_knowledge_candidates (org_id, source_event_id, title, content, category, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [user.orgId, row.id, `【${row.type}】${(row.message || '').slice(0, 60)}`, solution, row.type, user.userId]
+    );
+    broadcast(user.orgId, 'andon.updated', { id: row.id, status: 'resolved' });
+    res.json({ success: true, data: row });
+  } catch (err) { next(err); }
+});
+
+// 历史事件 + 响应/解决时效统计
+router.get('/fab/andon/history', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 7 * 86400000);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const evs = await pool.query(
+      `SELECT a.*, u1.name AS caller_name, u2.name AS assignee_name
+       FROM booth_andon_events a
+       LEFT JOIN booth_users u1 ON u1.id = a.caller_id
+       LEFT JOIN booth_users u2 ON u2.id = a.assignee_id
+       WHERE a.org_id = $1 AND a.created_at BETWEEN $2 AND $3
+       ORDER BY a.created_at DESC LIMIT 500`,
+      [user.orgId, from.toISOString(), to.toISOString()]
+    );
+    const stats = await andonStats(user.orgId, '30 days');
+    res.json({ success: true, data: { events: evs.rows, stats, from: from.toISOString(), to: to.toISOString() } });
   } catch (err) { next(err); }
 });
 

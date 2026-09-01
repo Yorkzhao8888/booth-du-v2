@@ -1072,6 +1072,58 @@ export async function migrate() {
       `);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_maintenance_plans_org_status ON booth_maintenance_plans(org_id, status);`);
 
+      // ── FAB-MES-03 安灯异常中心 ─────────────────────────────
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS booth_andon_events (
+          id SERIAL PRIMARY KEY,
+          org_id INTEGER NOT NULL DEFAULT 1 REFERENCES booth_orgs(id),
+          work_order_id INTEGER,
+          station_id INTEGER,
+          equipment_id INTEGER,
+          type TEXT NOT NULL DEFAULT 'other',
+          severity TEXT NOT NULL DEFAULT 'medium',
+          message TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'open',
+          caller_id INTEGER,
+          assignee_id INTEGER,
+          responded_at TIMESTAMPTZ,
+          resolved_at TIMESTAMPTZ,
+          solution TEXT,
+          auto_generated BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_andon_events_org_status ON booth_andon_events(org_id, status, created_at DESC);`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_andon_events_org_severity ON booth_andon_events(org_id, severity, status);`);
+      await client.query(`ALTER TABLE booth_andon_events ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN NOT NULL DEFAULT FALSE;`);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS booth_andon_escalation (
+          id SERIAL PRIMARY KEY,
+          event_id INTEGER NOT NULL REFERENCES booth_andon_events(id),
+          level INTEGER NOT NULL,
+          target TEXT NOT NULL,
+          notified_at TIMESTAMPTZ DEFAULT NOW(),
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_andon_escalation_event ON booth_andon_escalation(event_id, level);`);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS booth_knowledge_candidates (
+          id SERIAL PRIMARY KEY,
+          org_id INTEGER NOT NULL DEFAULT 1 REFERENCES booth_orgs(id),
+          andon_event_id INTEGER,
+          title TEXT NOT NULL,
+          solution TEXT NOT NULL,
+          reporter_id INTEGER,
+          status TEXT NOT NULL DEFAULT 'candidate',
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_org ON booth_knowledge_candidates(org_id, status);`);
+
       // 工序表加 equipment_id（追溯与 OEE 数据基础）
       await client.query(`ALTER TABLE booth_fab_operations ADD COLUMN IF NOT EXISTS equipment_id INTEGER REFERENCES booth_equipment(id);`);
 

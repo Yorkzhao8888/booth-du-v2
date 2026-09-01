@@ -47,9 +47,12 @@ const FabActive: React.FC = () => {
       message.success('开始制作，原料已领用');
       fetchData();
     } catch (err: unknown) {
-      const e = err as { code?: number; error?: string; details?: ShortageItem[] };
+      const e = err as { code?: number; error?: string; details?: ShortageItem[]; andonId?: number };
       if (e.code === 409) {
         setShortageModal({ open: true, items: e.details || [] });
+        if (e.andonId) {
+          message.warning(`缺料安灯已自动生成 #${e.andonId}，已通知处理人`, 4);
+        }
       } else {
         message.error(e.error || '操作失败');
       }

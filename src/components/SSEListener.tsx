@@ -67,6 +67,29 @@ const SSEListener: React.FC = () => {
         window.dispatchEvent(new CustomEvent('booth:refresh'));
       });
 
+      // 安灯事件
+      es.addEventListener('andon_event', (e) => {
+        try {
+          const data = JSON.parse((e as MessageEvent).data);
+          const sevLabel: Record<string, string> = { low: '低', medium: '中', high: '高', critical: '紧急' };
+          message.warning(`安灯 #${data.event_no || data.id} [${sevLabel[data.severity] || data.severity}] ${data.message || ''}`, 5);
+        } catch {
+          message.warning('新安灯事件');
+        }
+        window.dispatchEvent(new CustomEvent('booth:andon'));
+        window.dispatchEvent(new CustomEvent('booth:refresh'));
+      });
+
+      es.addEventListener('andon_escalation', (e) => {
+        try {
+          const data = JSON.parse((e as MessageEvent).data);
+          message.error(`安灯 #${data.event_no || ''} 升级至 L${data.level}（${data.target || ''}）`, 5);
+        } catch {
+          message.error('安灯事件已升级');
+        }
+        window.dispatchEvent(new CustomEvent('booth:andon'));
+      });
+
       es.onerror = () => {
         es.close();
         reconnectTimer.current = setTimeout(connect, 3000);
