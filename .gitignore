@@ -92,3 +92,9 @@ logs/
 
 # CodeGraph index
 .codegraph
+# 密钥与证书文件
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
