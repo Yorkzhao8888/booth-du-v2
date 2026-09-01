@@ -1026,6 +1026,44 @@ CREATE TABLE IF NOT EXISTS equipment_telemetry_configs (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_telemetry_cfg ON equipment_telemetry_configs(org_id, equipment_id, metric);
 CREATE INDEX IF NOT EXISTS idx_telemetry_cfg_org ON equipment_telemetry_configs(org_id, enabled);
+
+-- [BOOTH-PK-04] 供给数据资产化 + 履约评分:
+-- 评分只基于真实业务数据聚合(fulfillments/quality_checks/andon/trace), 不做假分; 样本不足不给分;
+-- 绝不暴露采购价/售价/毛利(价格字段不进入评分与对外响应); 口径快照入表保证透明可复算。
+CREATE TABLE IF NOT EXISTS supplier_scores (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  booth_id BIGINT NOT NULL,
+  score_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  fulfillment_rate NUMERIC(5,2),
+  fulfillment_sample INTEGER NOT NULL DEFAULT 0,
+  on_time_rate NUMERIC(5,2),
+  on_time_sample INTEGER NOT NULL DEFAULT 0,
+  quality_rate NUMERIC(5,2),
+  quality_sample INTEGER NOT NULL DEFAULT 0,
+  response_time NUMERIC(10,2),
+  response_sample INTEGER NOT NULL DEFAULT 0,
+  trace_rate NUMERIC(5,2),
+  trace_sample INTEGER NOT NULL DEFAULT 0,
+  overall_score NUMERIC(5,2),
+  weights_snapshot JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_score ON supplier_scores(org_id, booth_id, score_date);
+CREATE INDEX IF NOT EXISTS idx_supplier_scores_booth ON supplier_scores(booth_id, score_date DESC);
+
+-- 评分口径配置: EM/EU 可配置各指标权重与样本门槛; 对外只读
+CREATE TABLE IF NOT EXISTS supplier_score_configs (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  weights JSONB NOT NULL DEFAULT '{"fulfillment":0.25,"on_time":0.25,"quality":0.25,"response":0.1,"trace":0.15}'::jsonb,
+  min_samples INTEGER NOT NULL DEFAULT 3,
+  window_days INTEGER NOT NULL DEFAULT 90,
+  updated_by BIGINT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_score_cfg ON supplier_score_configs(org_id);
 `;
 
 // In-memory store for org modes

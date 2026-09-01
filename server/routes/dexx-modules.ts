@@ -22,6 +22,7 @@ import dexxFabTraceRoutes from './dexx-fab-trace.js';
 import dexxFabMesRoutes from './dexx-fab-mes.js';
 import stationCapabilityRoutes from './station-capabilities.js';
 import dexxTelemetryRoutes from './dexx-telemetry.js';
+import supplierScoreRoutes from './supplier-score.js';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use(dexxFabRoutes);
 router.use(dexxFabTraceRoutes);
 router.use(stationCapabilityRoutes);
 router.use(dexxTelemetryRoutes);
+router.use(supplierScoreRoutes);
 router.use(dexxWhRoutes);
 router.use(dexxDlRoutes);
 router.use(dexxSvcRoutes);
