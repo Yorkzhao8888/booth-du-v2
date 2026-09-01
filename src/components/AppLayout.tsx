@@ -44,20 +44,24 @@ const getMenuItemsByRole = (role: string) => {
     icon: <ShopOutlined />,
     label: 'MKT 铺子管理',
     children: [
-      { key: '/du', label: '经营看板' },
-      { key: '/du/orders', label: '订单管理' },
-      { key: '/du/purchase-orders', label: '采购管理' },
-      { key: '/du/profit', label: '毛利核算' },
-      { key: '/du/boms', label: '商品/BOM' },
-      { key: '/du/replenishment', label: '智能补货' },
-      { key: '/du/suppliers', label: '供应商管理' },
-      { key: '/du/fulfillment-track', label: '履约追踪' },
-      { key: '/du/inventory-transfer', label: '库存调拨' },
-      { key: '/du/realtime-dashboard', label: '实时大屏' },
+      // /du/* 管理项仅对决策/管理层展示（dex 守卫仅放行 /dex，dex/dexx 点 /du/* 会被 RequireAuth 弹回）
+      ...(['du', 'dx', 'dm'].includes(role) ? [
+        { key: '/du', label: '经营看板' },
+        { key: '/du/orders', label: '订单管理' },
+        { key: '/du/purchase-orders', label: '采购管理' },
+        { key: '/du/profit', label: '毛利核算' },
+        { key: '/du/boms', label: '商品/BOM' },
+        { key: '/du/replenishment', label: '智能补货' },
+        { key: '/du/suppliers', label: '供应商管理' },
+        { key: '/du/fulfillment-track', label: '履约追踪' },
+        { key: '/du/inventory-transfer', label: '库存调拨' },
+        { key: '/du/realtime-dashboard', label: '实时大屏' },
+        { key: '/du/org-chart', label: '组织架构' },
+        ...(['du', 'dm'].includes(role) ? [{ key: '/du/employees', label: '员工管理' }] : []),
+      ] : []),
+      // dex 自有路由项（/dex/skus、/dex/boms 已在 App.tsx 注册）
       ...(role === 'dex' ? [{ key: '/dex/skus', label: 'SKU管理' }] : []),
       ...(role === 'dex' ? [{ key: '/dex/boms', label: 'BOM管理' }] : []),
-      { key: '/du/org-chart', label: '组织架构' },
-      ...(['du', 'dm'].includes(role) ? [{ key: '/du/employees', label: '员工管理' }] : []),
     ].map(item => ({
       ...item,
       label: isReadOnly && !item.label.includes('只读') && item.key !== '/du/org-chart' && item.key !== '/du/employees'
@@ -76,9 +80,9 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/dex/work-orders', label: '工单调度' },
       ] : []),
       ...(role === 'dexx' ? [
-        { key: '/dexx/fab-queue', label: '待接单' },
-        { key: '/dexx/fab-active', label: '制作中' },
-        { key: '/dexx/fab-operations', label: '工序报工' },
+        { key: '/dexx/fab/queue', label: '待接单' },
+        { key: '/dexx/fab/active', label: '制作中' },
+        { key: '/dexx/fab/operations', label: '工序报工' },
         { key: '/dexx/fab/dashboard', label: '产线看板' },
         { key: '/dexx/fab/yield', label: '良品率追踪' },
         { key: '/dexx/qc', label: '质检执行' },
@@ -110,14 +114,17 @@ const getMenuItemsByRole = (role: string) => {
     label: 'FAB 制造铺',
     children: [
       ...fabOrderItems.children,
-      { type: 'divider' },
-      { key: 'fab-zone-group', label: '产线视角', type: 'group', children: fabZoneItems.children },
-      { type: 'divider' },
-      { key: '/dexx/fab/stations', label: 'Station 作业站' },
-      { key: '/dexx/fab/equipment', label: '设备台账' },
-      { key: '/dexx/fab/equipment/oee', label: 'OEE 稼动率' },
-      { key: '/dexx/fab/maintenance', label: '保养日历' },
-      { key: '/dexx/fab/andon', label: '安灯异常中心' },
+      // 执行层专属入口仅 dexx 展示：du/dx/dex 守卫不放行 /dexx/*，展示必被弹回首页（回归根因 A）
+      ...(role === 'dexx' ? [
+        { type: 'divider' as const },
+        { key: 'fab-zone-group', label: '产线视角', type: 'group' as const, children: fabZoneItems.children },
+        { type: 'divider' as const },
+        { key: '/dexx/fab/stations', label: 'Station 作业站' },
+        { key: '/dexx/fab/equipment', label: '设备台账' },
+        { key: '/dexx/fab/equipment/oee', label: 'OEE 稼动率' },
+        { key: '/dexx/fab/maintenance', label: '保养日历' },
+        { key: '/dexx/fab/andon', label: '安灯异常中心' },
+      ] : []),
     ],
   };
 
@@ -127,12 +134,15 @@ const getMenuItemsByRole = (role: string) => {
     icon: <HomeOutlined />,
     label: 'WH 供给铺',
     children: [
-      { key: '/du/batches', label: '批次库存' },
-      { key: '/du/inventory', label: '库存总览' },
-      { key: '/du/inventory-alerts', label: '库存预警' },
-      { key: '/du/inventory-transfer', label: '库存调拨' },
-      { key: '/du/expiry-control', label: '效期管控' },
-      { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
+      // 管理视角仅 du/dx/dm（守卫放行 /du）；dex/dexx 点 /du/* 会被 RequireAuth 弹回首页
+      ...(['du', 'dx', 'dm'].includes(role) ? [
+        { key: '/du/batches', label: '批次库存' },
+        { key: '/du/inventory', label: '库存总览' },
+        { key: '/du/inventory-alerts', label: '库存预警' },
+        { key: '/du/inventory-transfer', label: '库存调拨' },
+        { key: '/du/expiry-control', label: '效期管控' },
+        { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
+      ] : []),
       ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }, { key: '/dex/capacity', label: '产能查询' }, { key: '/dex/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'dexx' ? [
         { key: '/dexx/stocktake', label: '盘点执行' },
@@ -217,6 +227,8 @@ const getMenuItemsByRole = (role: string) => {
   // DXX 一线经营：MKT（只读）+ WH + DL + SVC
   else if (role === 'dxx') {
     items.push(
+      // dxx 守卫仅放行 /dxx 与 /dexx；收敛后 mkt/wh/dl/svc 对 dxx 均为空组，会被末尾 filter 移除
+      { key: 'dxx-home', icon: <DashboardOutlined />, label: '一线经营', children: [{ key: '/dxx', label: '经营首页' }] },
       { ...mktItems, label: 'MKT 铺子（只读）' },
       { ...whItems, children: whItems.children.filter(i => !['/du/wh/warehouse-dashboard'].includes(i.key)) },
       dlItems,
@@ -276,7 +288,10 @@ const AppLayout: React.FC = () => {
 
   const userMenu = {
     items: [
-      { key: 'org', icon: <AppstoreOutlined />, label: '组织架构', onClick: () => navigate(`/${user?.role}/org-chart`) },
+      // dex/dexx 无 /{role}/org-chart 路由（点击会落 '*' 弹回首页），仅对有路由的角色展示
+      ...(user?.role !== 'dex' && user?.role !== 'dexx' ? [
+        { key: 'org', icon: <AppstoreOutlined />, label: '组织架构', onClick: () => navigate(`/${user?.role}/org-chart`) },
+      ] : []),
       { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout },
     ],
   };

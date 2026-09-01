@@ -785,9 +785,9 @@ router.post('/fab/andon/:id/resolve', requireHat('FAB'), async (req, res, next) 
     const row = ev.rows[0];
     // 知识库候选：异常描述 + 解决方案沉淀
     await pool.query(
-      `INSERT INTO booth_knowledge_candidates (org_id, source_event_id, title, content, category, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [user.orgId, row.id, `【${row.type}】${(row.message || '').slice(0, 60)}`, solution, row.type, user.userId]
+      `INSERT INTO booth_knowledge_candidates (org_id, andon_event_id, title, solution, reporter_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user.orgId, row.id, `【${row.type}】${(row.message || '').slice(0, 60)}`, solution, user.userId]
     );
     broadcast(user.orgId, 'andon.updated', { id: row.id, status: 'resolved' });
     res.json({ success: true, data: row });
