@@ -1,7 +1,7 @@
 // FAB-MES-03 安灯异常中心 Service
 // 异常秒级暴露 + 三级响应占位（声光→班组→管理层）+ 知识库联动
-import { pool } from '../db';
-import { broadcast, setAutoAndonHandler } from '../sse';
+import { pool } from '../db.js';
+import { broadcast, setAutoAndonHandler } from '../sse.js';
 
 export interface AndonInput {
   orgId: number;
