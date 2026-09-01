@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Button, message, Modal, Descriptions } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Button, message, Modal, Descriptions, Tooltip, Alert, Space, Badge } from 'antd';
+import { EyeOutlined, LockOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { api } from '../../api';
 
 interface SupplyQuote {
@@ -31,6 +31,12 @@ const statusLabels: Record<string, string> = {
   expired: '已过期',
 };
 
+// Monospace font style for numbers
+const monoStyle: React.CSSProperties = {
+  fontFamily: "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace",
+  fontVariantNumeric: 'tabular-nums',
+};
+
 export default function DexSupplyQuotes() {
   const [quotes, setQuotes] = useState<SupplyQuote[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,16 +58,80 @@ export default function DexSupplyQuotes() {
   useEffect(() => { fetchQuotes(); }, [page]);
 
   // DEX sees NO price fields - only quote metadata
+  // This is enforced by the backend which strips all price fields
   const columns = [
-    { title: '报价单号', dataIndex: 'quote_no', key: 'quote_no', width: 150 },
-    { title: 'SKU', dataIndex: 'sku_name', key: 'sku_name', width: 120, render: (v: string) => v || '-' },
-    { title: '铺类型', dataIndex: 'sgu_booth_type', key: 'sgu_booth_type', width: 80, render: (v: string) => v || '-' },
-    { title: '版本', dataIndex: 'version', key: 'version', width: 60 },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 80, render: (s: string) => <Tag color={statusColors[s]}>{statusLabels[s]}</Tag> },
-    { title: '生效日期', dataIndex: 'effective_from', key: 'effective_from', width: 100, render: (v: string) => v ? new Date(v).toLocaleDateString() : '-' },
-    { title: '失效日期', dataIndex: 'effective_to', key: 'effective_to', width: 100, render: (v: string) => v ? new Date(v).toLocaleDateString() : '-' },
     {
-      title: '操作', key: 'actions', width: 80,
+      title: '报价单号',
+      dataIndex: 'quote_no',
+      key: 'quote_no',
+      width: 150,
+      fixed: 'left' as const,
+      render: (v: string) => <span style={{ ...monoStyle, color: '#1F3A5F', fontWeight: 600 }}>{v}</span>,
+    },
+    {
+      title: 'SKU',
+      dataIndex: 'sku_name',
+      key: 'sku_name',
+      width: 120,
+      render: (v: string) => v || '-',
+    },
+    {
+      title: '铺类型',
+      dataIndex: 'sgu_booth_type',
+      key: 'sgu_booth_type',
+      width: 80,
+      render: (v: string) => {
+        const colors: Record<string, string> = { sundry: '#8c8c8c', material: '#16a37b', device: '#2f6bff', plaza: '#c9a227' };
+        const labels: Record<string, string> = { sundry: '杂货', material: '原料', device: '设备', plaza: '场地' };
+        return v ? <Tag color={colors[v] || '#8c8c8c'}>{labels[v] || v}</Tag> : '-';
+      },
+    },
+    {
+      title: '版本',
+      dataIndex: 'version',
+      key: 'version',
+      width: 70,
+      align: 'center' as const,
+      render: (v: number) => (
+        <Badge
+          count={`v${v}`}
+          style={{
+            backgroundColor: v > 1 ? '#c9a227' : '#8c8c8c',
+            fontFamily: monoStyle.fontFamily,
+            fontWeight: 600,
+          }}
+        />
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 90,
+      render: (s: string) => (
+        <Tag color={statusColors[s]} icon={s === 'approved' ? <span>✓</span> : null}>
+          {statusLabels[s]}
+        </Tag>
+      ),
+    },
+    {
+      title: '生效日期',
+      dataIndex: 'effective_from',
+      key: 'effective_from',
+      width: 110,
+      render: (v: string) => v ? <span style={monoStyle}>{new Date(v).toLocaleDateString()}</span> : '-',
+    },
+    {
+      title: '失效日期',
+      dataIndex: 'effective_to',
+      key: 'effective_to',
+      width: 110,
+      render: (v: string) => v ? <span style={monoStyle}>{new Date(v).toLocaleDateString()}</span> : '-',
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 80,
       render: (_: any, r: SupplyQuote) => (
         <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => { setSelectedQuote(r); setDetailOpen(true); }}>详情</Button>
       ),
@@ -70,7 +140,25 @@ export default function DexSupplyQuotes() {
 
   return (
     <div>
-      <Card title="供给报价单 (执行管理视图 - 仅单号/状态)">
+      <Card
+        title={
+          <Space>
+            <LockOutlined style={{ color: '#8c8c8c' }} />
+            <span>供给报价单</span>
+            <Tag color="warning" style={{ fontSize: 11 }}>DEX 执行管理 · 价格已脱敏</Tag>
+          </Space>
+        }
+      >
+        {/* Price boundary notice */}
+        <Alert
+          message="价格边界说明"
+          description="当前视图仅显示报价单号、状态等元数据。价格信息（BOM成本、人工费、供给价、毛利率等）仅对决策层（EM/DU/DX）可见，执行层不可见。"
+          type="info"
+          showIcon
+          icon={<InfoCircleOutlined />}
+          style={{ marginBottom: 16 }}
+        />
+
         <Table
           rowKey="id"
           columns={columns}
@@ -78,7 +166,8 @@ export default function DexSupplyQuotes() {
           loading={loading}
           pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
           size="small"
-          scroll={{ x: 800 }}
+          scroll={{ x: 900 }}
+          rowClassName={(_, i) => i % 2 === 1 ? 'booth-zebra' : ''}
         />
       </Card>
 
@@ -91,16 +180,19 @@ export default function DexSupplyQuotes() {
       >
         {selectedQuote && (
           <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="报价单号">{selectedQuote.quote_no}</Descriptions.Item>
+            <Descriptions.Item label="报价单号"><span style={monoStyle}>{selectedQuote.quote_no}</span></Descriptions.Item>
             <Descriptions.Item label="状态"><Tag color={statusColors[selectedQuote.status]}>{statusLabels[selectedQuote.status]}</Tag></Descriptions.Item>
             <Descriptions.Item label="SKU">{selectedQuote.sku_name || '-'}</Descriptions.Item>
             <Descriptions.Item label="铺类型">{selectedQuote.sgu_booth_type || '-'}</Descriptions.Item>
-            <Descriptions.Item label="版本">v{selectedQuote.version}</Descriptions.Item>
+            <Descriptions.Item label="版本"><Badge count={`v${selectedQuote.version}`} style={{ backgroundColor: selectedQuote.version > 1 ? '#c9a227' : '#8c8c8c' }} /></Descriptions.Item>
             <Descriptions.Item label="生效日期">{selectedQuote.effective_from ? new Date(selectedQuote.effective_from).toLocaleDateString() : '-'}</Descriptions.Item>
             <Descriptions.Item label="失效日期">{selectedQuote.effective_to ? new Date(selectedQuote.effective_to).toLocaleDateString() : '-'}</Descriptions.Item>
             <Descriptions.Item label="创建时间">{new Date(selectedQuote.created_at).toLocaleString()}</Descriptions.Item>
-            <Descriptions.Item label="价格信息" span={1}>
-              <span style={{ color: '#999' }}>价格信息仅决策层可见</span>
+            <Descriptions.Item label="价格信息">
+              <Space>
+                <LockOutlined style={{ color: '#d97b1f' }} />
+                <span style={{ color: '#999' }}>价格信息仅决策层可见</span>
+              </Space>
             </Descriptions.Item>
           </Descriptions>
         )}

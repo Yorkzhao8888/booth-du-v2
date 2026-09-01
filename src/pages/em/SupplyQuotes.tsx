@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select, DatePicker, message, Drawer, Descriptions, Timeline, Tabs } from 'antd';
-import { PlusOutlined, EyeOutlined, EditOutlined, CheckOutlined, CloseOutlined, HistoryOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select, DatePicker, message, Drawer, Descriptions, Timeline, Tabs, Tooltip, Badge } from 'antd';
+import { PlusOutlined, EyeOutlined, EditOutlined, CheckOutlined, CloseOutlined, HistoryOutlined, SwapOutlined, DollarOutlined } from '@ant-design/icons';
 import { api } from '../../api';
 
 interface SupplyQuote {
@@ -28,7 +28,12 @@ interface SupplyQuote {
 interface QuoteVersion {
   id: number;
   version: number;
+  bom_material_cost: number;
+  labor_cost: number;
+  manufacturing_fee: number;
   supply_price: number;
+  margin_rate: number;
+  gross_profit: number;
   total_price: number;
   status: string;
   change_reason: string | null;
@@ -60,6 +65,24 @@ const statusLabels: Record<string, string> = {
   expired: '已过期',
 };
 
+// Monospace font style for numbers
+const monoStyle: React.CSSProperties = {
+  fontFamily: "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace",
+  fontVariantNumeric: 'tabular-nums',
+};
+
+// Format currency with monospace
+const formatCurrency = (v: number | null | undefined): React.ReactNode => {
+  if (v === null || v === undefined) return '-';
+  return <span style={monoStyle}>¥{v.toFixed(2)}</span>;
+};
+
+// Format percentage with monospace
+const formatPercent = (v: number | null | undefined): React.ReactNode => {
+  if (v === null || v === undefined) return '-';
+  return <span style={monoStyle}>{v.toFixed(1)}%</span>;
+};
+
 export default function EmSupplyQuotes() {
   const [quotes, setQuotes] = useState<SupplyQuote[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,6 +92,7 @@ export default function EmSupplyQuotes() {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<SupplyQuote | null>(null);
   const [versions, setVersions] = useState<QuoteVersion[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -165,32 +189,173 @@ export default function EmSupplyQuotes() {
     setEditOpen(true);
   };
 
+  const showCompare = async (quote: SupplyQuote) => {
+    setSelectedQuote(quote);
+    try {
+      const vRes = await api(`/em/supply-quotes/${quote.id}/versions`);
+      setVersions(vRes.data || []);
+      setCompareOpen(true);
+    } catch { message.error('获取版本历史失败'); }
+  };
+
+  // Price composition columns with full detail
   const columns = [
-    { title: '报价单号', dataIndex: 'quote_no', key: 'quote_no', width: 150 },
-    { title: 'SKU', dataIndex: 'sku_name', key: 'sku_name', width: 120, render: (v: string) => v || '-' },
-    { title: '铺类型', dataIndex: 'sgu_booth_type', key: 'sgu_booth_type', width: 80, render: (v: string) => v || '-' },
-    { title: '供给价', dataIndex: 'supply_price', key: 'supply_price', width: 100, render: (v: number) => `¥${v?.toFixed(2)}` },
-    { title: '毛利率', dataIndex: 'margin_rate', key: 'margin_rate', width: 80, render: (v: number) => `${v}%` },
-    { title: '总价', dataIndex: 'total_price', key: 'total_price', width: 100, render: (v: number) => `¥${v?.toFixed(2)}` },
-    { title: '版本', dataIndex: 'version', key: 'version', width: 60 },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 80, render: (s: string) => <Tag color={statusColors[s]}>{statusLabels[s]}</Tag> },
     {
-      title: '操作', key: 'actions', width: 200,
+      title: '报价单号',
+      dataIndex: 'quote_no',
+      key: 'quote_no',
+      width: 140,
+      fixed: 'left' as const,
+      render: (v: string) => <span style={{ ...monoStyle, color: '#1F3A5F', fontWeight: 600 }}>{v}</span>,
+    },
+    {
+      title: 'SKU',
+      dataIndex: 'sku_name',
+      key: 'sku_name',
+      width: 100,
+      render: (v: string) => v || '-',
+    },
+    {
+      title: '铺类型',
+      dataIndex: 'sgu_booth_type',
+      key: 'sgu_booth_type',
+      width: 70,
+      render: (v: string) => {
+        const colors: Record<string, string> = { sundry: '#8c8c8c', material: '#16a37b', device: '#2f6bff', plaza: '#c9a227' };
+        const labels: Record<string, string> = { sundry: '杂货', material: '原料', device: '设备', plaza: '场地' };
+        return v ? <Tag color={colors[v] || '#8c8c8c'}>{labels[v] || v}</Tag> : '-';
+      },
+    },
+    {
+      title: <Tooltip title="BOM材料成本"><DollarOutlined style={{ color: '#16a37b' }} /> BOM</Tooltip>,
+      dataIndex: 'bom_material_cost',
+      key: 'bom_material_cost',
+      width: 90,
+      align: 'right' as const,
+      render: formatCurrency,
+    },
+    {
+      title: <Tooltip title="人工费"><DollarOutlined style={{ color: '#2f6bff' }} /> 人工</Tooltip>,
+      dataIndex: 'labor_cost',
+      key: 'labor_cost',
+      width: 80,
+      align: 'right' as const,
+      render: formatCurrency,
+    },
+    {
+      title: <Tooltip title="制造/服务费"><DollarOutlined style={{ color: '#c9a227' }} /> 制费</Tooltip>,
+      dataIndex: 'manufacturing_fee',
+      key: 'manufacturing_fee',
+      width: 80,
+      align: 'right' as const,
+      render: formatCurrency,
+    },
+    {
+      title: <Tooltip title="供给价 = BOM + 人工 + 制费"><strong style={{ color: '#1F3A5F' }}>供给价</strong></Tooltip>,
+      dataIndex: 'supply_price',
+      key: 'supply_price',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => <span style={{ ...monoStyle, color: '#1F3A5F', fontWeight: 600 }}>¥{v?.toFixed(2)}</span>,
+    },
+    {
+      title: <Tooltip title="毛利率"><strong style={{ color: '#c9a227' }}>毛利率</strong></Tooltip>,
+      dataIndex: 'margin_rate',
+      key: 'margin_rate',
+      width: 70,
+      align: 'right' as const,
+      render: formatPercent,
+    },
+    {
+      title: <Tooltip title="毛利额"><strong style={{ color: '#16a37b' }}>毛利</strong></Tooltip>,
+      dataIndex: 'gross_profit',
+      key: 'gross_profit',
+      width: 80,
+      align: 'right' as const,
+      render: formatCurrency,
+    },
+    {
+      title: <Tooltip title="总价 = 供给价 × (1 + 毛利率)"><strong style={{ color: '#16a37b' }}>总价</strong></Tooltip>,
+      dataIndex: 'total_price',
+      key: 'total_price',
+      width: 100,
+      align: 'right' as const,
+      render: (v: number) => <span style={{ ...monoStyle, color: '#16a37b', fontWeight: 600 }}>¥{v?.toFixed(2)}</span>,
+    },
+    {
+      title: '版本',
+      dataIndex: 'version',
+      key: 'version',
+      width: 70,
+      align: 'center' as const,
+      render: (v: number) => (
+        <Badge
+          count={`v${v}`}
+          style={{
+            backgroundColor: v > 1 ? '#c9a227' : '#8c8c8c',
+            fontFamily: monoStyle.fontFamily,
+            fontWeight: 600,
+          }}
+        />
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 80,
+      render: (s: string) => <Tag color={statusColors[s]}>{statusLabels[s]}</Tag>,
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 180,
+      fixed: 'right' as const,
       render: (_: any, r: SupplyQuote) => (
         <Space size="small">
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => showDetail(r)}>详情</Button>
-          {r.status === 'draft' && <Button type="link" size="small" icon={<EditOutlined />} onClick={() => showEdit(r)}>编辑</Button>}
-          {r.status === 'draft' && <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleApprove(r.id)}>批准</Button>}
-          {r.status === 'draft' && <Button type="link" size="small" danger icon={<CloseOutlined />} onClick={() => handleReject(r.id)}>拒绝</Button>}
+          <Tooltip title="查看详情+版本历史">
+            <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => showDetail(r)}>详情</Button>
+          </Tooltip>
+          {r.version > 1 && (
+            <Tooltip title="版本对比">
+              <Button type="link" size="small" icon={<SwapOutlined />} onClick={() => showCompare(r)}>对比</Button>
+            </Tooltip>
+          )}
+          {r.status === 'draft' && (
+            <>
+              <Button type="link" size="small" icon={<EditOutlined />} onClick={() => showEdit(r)}>编辑</Button>
+              <Button type="link" size="small" icon={<CheckOutlined />} onClick={() => handleApprove(r.id)}>批准</Button>
+            </>
+          )}
         </Space>
       ),
     },
   ];
 
+  // Version comparison columns
+  const versionColumns = [
+    { title: '版本', dataIndex: 'version', key: 'version', width: 60, render: (v: number) => <Badge count={`v${v}`} style={{ backgroundColor: '#1F3A5F' }} /> },
+    { title: 'BOM材料', dataIndex: 'bom_material_cost', key: 'bom_material_cost', width: 90, align: 'right' as const, render: formatCurrency },
+    { title: '人工费', dataIndex: 'labor_cost', key: 'labor_cost', width: 80, align: 'right' as const, render: formatCurrency },
+    { title: '制费', dataIndex: 'manufacturing_fee', key: 'manufacturing_fee', width: 80, align: 'right' as const, render: formatCurrency },
+    { title: '供给价', dataIndex: 'supply_price', key: 'supply_price', width: 90, align: 'right' as const, render: (v: number) => <span style={{ ...monoStyle, fontWeight: 600 }}>¥{v?.toFixed(2)}</span> },
+    { title: '毛利率', dataIndex: 'margin_rate', key: 'margin_rate', width: 70, align: 'right' as const, render: formatPercent },
+    { title: '总价', dataIndex: 'total_price', key: 'total_price', width: 90, align: 'right' as const, render: (v: number) => <span style={{ ...monoStyle, fontWeight: 600, color: '#16a37b' }}>¥{v?.toFixed(2)}</span> },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: (s: string) => <Tag color={statusColors[s]}>{statusLabels[s]}</Tag> },
+    { title: '变更原因', dataIndex: 'change_reason', key: 'change_reason', width: 150, render: (v: string) => v || '-' },
+    { title: '变更时间', dataIndex: 'created_at', key: 'created_at', width: 140, render: (v: string) => new Date(v).toLocaleString() },
+  ];
+
   return (
     <div>
       <Card
-        title="供给报价单管理"
+        title={
+          <Space>
+            <DollarOutlined style={{ color: '#c9a227' }} />
+            <span>供给报价单管理</span>
+            <Tag color="default" style={{ fontSize: 11 }}>EM 策略层 · 完整价格可见</Tag>
+          </Space>
+        }
         extra={
           <Space>
             <Select
@@ -198,7 +363,12 @@ export default function EmSupplyQuotes() {
               placeholder="状态筛选"
               allowClear
               onChange={(v) => { setStatusFilter(v || ''); setPage(1); }}
-              options={Object.entries(statusLabels).map(([k, v]) => ({ value: k, label: v }))}
+              options={[
+                { value: 'draft', label: '草稿' },
+                { value: 'pending', label: '待审批' },
+                { value: 'approved', label: '已批准' },
+                { value: 'rejected', label: '已拒绝' },
+              ]}
             />
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建报价单</Button>
           </Space>
@@ -211,27 +381,34 @@ export default function EmSupplyQuotes() {
           loading={loading}
           pagination={{ current: page, total, pageSize: 20, onChange: setPage }}
           size="small"
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1400 }}
+          rowClassName={(_, i) => i % 2 === 1 ? 'booth-zebra' : ''}
         />
       </Card>
 
       {/* Create Modal */}
-      <Modal title="新建供给报价单" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => form.submit()} width={600}>
+      <Modal
+        title="新建供给报价单"
+        open={createOpen}
+        onCancel={() => { setCreateOpen(false); form.resetFields(); }}
+        footer={null}
+        width={600}
+      >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
+          <Form.Item name="sguId" label="SGU ID" rules={[{ required: true, message: '请输入SGU ID' }]}>
+            <InputNumber style={{ width: '100%' }} placeholder="关联的SGU ID" />
+          </Form.Item>
           <Form.Item name="bomMaterialCost" label="BOM材料成本" rules={[{ required: true }]}>
-            <InputNumber prefix="¥" style={{ width: '100%' }} min={0} precision={2} />
+            <InputNumber style={{ width: '100%' }} prefix="¥" precision={2} min={0} />
           </Form.Item>
           <Form.Item name="laborCost" label="人工费" rules={[{ required: true }]}>
-            <InputNumber prefix="¥" style={{ width: '100%' }} min={0} precision={2} />
+            <InputNumber style={{ width: '100%' }} prefix="¥" precision={2} min={0} />
           </Form.Item>
           <Form.Item name="manufacturingFee" label="制造/服务费" rules={[{ required: true }]}>
-            <InputNumber prefix="¥" style={{ width: '100%' }} min={0} precision={2} />
+            <InputNumber style={{ width: '100%' }} prefix="¥" precision={2} min={0} />
           </Form.Item>
-          <Form.Item name="marginRate" label="毛利率 (%)" rules={[{ required: true }]}>
-            <InputNumber suffix="%" style={{ width: '100%' }} min={0} max={100} precision={2} />
-          </Form.Item>
-          <Form.Item name="skuId" label="关联SKU ID">
-            <InputNumber style={{ width: '100%' }} min={1} />
+          <Form.Item name="marginRate" label="毛利率(%)" rules={[{ required: true }]}>
+            <InputNumber style={{ width: '100%' }} suffix="%" precision={1} min={0} max={100} />
           </Form.Item>
           <Form.Item name="effectiveFrom" label="生效日期">
             <DatePicker style={{ width: '100%' }} />
@@ -239,29 +416,38 @@ export default function EmSupplyQuotes() {
           <Form.Item name="effectiveTo" label="失效日期">
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="notes" label="备注">
-            <Input.TextArea rows={3} />
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>创建报价单</Button>
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Edit Modal */}
-      <Modal title="编辑报价单" open={editOpen} onCancel={() => setEditOpen(false)} onOk={() => editForm.submit()} width={500}>
+      <Modal
+        title={`编辑报价单 - ${selectedQuote?.quote_no || ''}`}
+        open={editOpen}
+        onCancel={() => { setEditOpen(false); editForm.resetFields(); }}
+        footer={null}
+        width={600}
+      >
         <Form form={editForm} layout="vertical" onFinish={handleUpdate}>
           <Form.Item name="bomMaterialCost" label="BOM材料成本" rules={[{ required: true }]}>
-            <InputNumber prefix="¥" style={{ width: '100%' }} min={0} precision={2} />
+            <InputNumber style={{ width: '100%' }} prefix="¥" precision={2} min={0} />
           </Form.Item>
           <Form.Item name="laborCost" label="人工费" rules={[{ required: true }]}>
-            <InputNumber prefix="¥" style={{ width: '100%' }} min={0} precision={2} />
+            <InputNumber style={{ width: '100%' }} prefix="¥" precision={2} min={0} />
           </Form.Item>
           <Form.Item name="manufacturingFee" label="制造/服务费" rules={[{ required: true }]}>
-            <InputNumber prefix="¥" style={{ width: '100%' }} min={0} precision={2} />
+            <InputNumber style={{ width: '100%' }} prefix="¥" precision={2} min={0} />
           </Form.Item>
-          <Form.Item name="marginRate" label="毛利率 (%)" rules={[{ required: true }]}>
-            <InputNumber suffix="%" style={{ width: '100%' }} min={0} max={100} precision={2} />
+          <Form.Item name="marginRate" label="毛利率(%)" rules={[{ required: true }]}>
+            <InputNumber style={{ width: '100%' }} suffix="%" precision={1} min={0} max={100} />
           </Form.Item>
-          <Form.Item name="changeReason" label="变更原因" rules={[{ required: true }]}>
-            <Input.TextArea rows={2} placeholder="请输入变更原因" />
+          <Form.Item name="changeReason" label="变更原因" rules={[{ required: true, message: '请输入变更原因' }]}>
+            <Input.TextArea rows={3} placeholder="请说明变更原因（将记录到审计日志）" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block>提交变更</Button>
           </Form.Item>
         </Form>
       </Modal>
@@ -274,68 +460,85 @@ export default function EmSupplyQuotes() {
         width={600}
       >
         {selectedQuote && (
-          <Tabs items={[
-            {
-              key: 'detail',
-              label: '基本信息',
-              children: (
-                <Descriptions column={2} bordered size="small">
-                  <Descriptions.Item label="报价单号">{selectedQuote.quote_no}</Descriptions.Item>
-                  <Descriptions.Item label="状态"><Tag color={statusColors[selectedQuote.status]}>{statusLabels[selectedQuote.status]}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="SKU">{selectedQuote.sku_name || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="铺类型">{selectedQuote.sgu_booth_type || '-'}</Descriptions.Item>
-                  <Descriptions.Item label="版本">v{selectedQuote.version}</Descriptions.Item>
-                  <Descriptions.Item label="创建时间">{new Date(selectedQuote.created_at).toLocaleString()}</Descriptions.Item>
-                  <Descriptions.Item label="BOM材料成本" span={2}>¥{selectedQuote.bom_material_cost?.toFixed(2)}</Descriptions.Item>
-                  <Descriptions.Item label="人工费" span={2}>¥{selectedQuote.labor_cost?.toFixed(2)}</Descriptions.Item>
-                  <Descriptions.Item label="制造/服务费" span={2}>¥{selectedQuote.manufacturing_fee?.toFixed(2)}</Descriptions.Item>
-                  <Descriptions.Item label="供给价" span={2}><strong>¥{selectedQuote.supply_price?.toFixed(2)}</strong></Descriptions.Item>
-                  <Descriptions.Item label="毛利率">{selectedQuote.margin_rate}%</Descriptions.Item>
-                  <Descriptions.Item label="毛利额">¥{selectedQuote.gross_profit?.toFixed(2)}</Descriptions.Item>
-                  <Descriptions.Item label="总价" span={2}><strong style={{ fontSize: 16 }}>¥{selectedQuote.total_price?.toFixed(2)}</strong></Descriptions.Item>
-                  <Descriptions.Item label="生效日期">{selectedQuote.effective_from ? new Date(selectedQuote.effective_from).toLocaleDateString() : '-'}</Descriptions.Item>
-                  <Descriptions.Item label="失效日期">{selectedQuote.effective_to ? new Date(selectedQuote.effective_to).toLocaleDateString() : '-'}</Descriptions.Item>
-                </Descriptions>
-              ),
-            },
-            {
-              key: 'versions',
-              label: <span><HistoryOutlined /> 版本历史</span>,
-              children: (
-                <Timeline
-                  items={versions.map(v => ({
-                    children: (
-                      <div>
-                        <div><strong>v{v.version}</strong> - {v.changed_by_name || '系统'}</div>
-                        <div>供给价: ¥{v.supply_price?.toFixed(2)} | 总价: ¥{v.total_price?.toFixed(2)}</div>
-                        {v.change_reason && <div style={{ color: '#666' }}>{v.change_reason}</div>}
-                        <div style={{ color: '#999', fontSize: 12 }}>{new Date(v.created_at).toLocaleString()}</div>
-                      </div>
-                    ),
-                  }))}
-                />
-              ),
-            },
-            {
-              key: 'audit',
-              label: '审计日志',
-              children: (
-                <Timeline
-                  items={auditLogs.map(a => ({
-                    children: (
-                      <div>
-                        <div><Tag>{a.action}</Tag> {a.actor_name || '系统'}</div>
-                        {a.reason && <div style={{ color: '#666' }}>{a.reason}</div>}
-                        <div style={{ color: '#999', fontSize: 12 }}>{new Date(a.created_at).toLocaleString()}</div>
-                      </div>
-                    ),
-                  }))}
-                />
-              ),
-            },
-          ]} />
+          <Tabs
+            items={[
+              {
+                key: 'detail',
+                label: '报价详情',
+                children: (
+                  <Descriptions column={2} bordered size="small">
+                    <Descriptions.Item label="报价单号"><span style={monoStyle}>{selectedQuote.quote_no}</span></Descriptions.Item>
+                    <Descriptions.Item label="状态"><Tag color={statusColors[selectedQuote.status]}>{statusLabels[selectedQuote.status]}</Tag></Descriptions.Item>
+                    <Descriptions.Item label="SKU">{selectedQuote.sku_name || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="铺类型">{selectedQuote.sgu_booth_type || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="版本"><Badge count={`v${selectedQuote.version}`} style={{ backgroundColor: selectedQuote.version > 1 ? '#c9a227' : '#8c8c8c' }} /></Descriptions.Item>
+                    <Descriptions.Item label="创建时间">{new Date(selectedQuote.created_at).toLocaleString()}</Descriptions.Item>
+                    <Descriptions.Item label="BOM材料成本">{formatCurrency(selectedQuote.bom_material_cost)}</Descriptions.Item>
+                    <Descriptions.Item label="人工费">{formatCurrency(selectedQuote.labor_cost)}</Descriptions.Item>
+                    <Descriptions.Item label="制造/服务费">{formatCurrency(selectedQuote.manufacturing_fee)}</Descriptions.Item>
+                    <Descriptions.Item label="供给价"><span style={{ ...monoStyle, color: '#1F3A5F', fontWeight: 600, fontSize: 16 }}>¥{selectedQuote.supply_price?.toFixed(2)}</span></Descriptions.Item>
+                    <Descriptions.Item label="毛利率">{formatPercent(selectedQuote.margin_rate)}</Descriptions.Item>
+                    <Descriptions.Item label="毛利额">{formatCurrency(selectedQuote.gross_profit)}</Descriptions.Item>
+                    <Descriptions.Item label="总价" span={2}><span style={{ ...monoStyle, color: '#16a37b', fontWeight: 600, fontSize: 18 }}>¥{selectedQuote.total_price?.toFixed(2)}</span></Descriptions.Item>
+                    <Descriptions.Item label="生效日期">{selectedQuote.effective_from ? new Date(selectedQuote.effective_from).toLocaleDateString() : '-'}</Descriptions.Item>
+                    <Descriptions.Item label="失效日期">{selectedQuote.effective_to ? new Date(selectedQuote.effective_to).toLocaleDateString() : '-'}</Descriptions.Item>
+                  </Descriptions>
+                ),
+              },
+              {
+                key: 'versions',
+                label: <span><HistoryOutlined /> 版本历史</span>,
+                children: (
+                  <Table
+                    rowKey="id"
+                    columns={versionColumns}
+                    dataSource={versions}
+                    pagination={false}
+                    size="small"
+                    scroll={{ x: 900 }}
+                  />
+                ),
+              },
+              {
+                key: 'audit',
+                label: <span><HistoryOutlined /> 审计日志</span>,
+                children: (
+                  <Timeline
+                    items={auditLogs.map(log => ({
+                      children: (
+                        <div>
+                          <div><strong>{log.action}</strong> by {log.actor_name || '系统'}</div>
+                          {log.reason && <div style={{ color: '#666', fontSize: 12 }}>原因: {log.reason}</div>}
+                          <div style={{ color: '#999', fontSize: 11 }}>{new Date(log.created_at).toLocaleString()}</div>
+                        </div>
+                      ),
+                    }))}
+                  />
+                ),
+              },
+            ]}
+          />
         )}
       </Drawer>
+
+      {/* Version Compare Modal */}
+      <Modal
+        title={`版本对比 - ${selectedQuote?.quote_no || ''}`}
+        open={compareOpen}
+        onCancel={() => setCompareOpen(false)}
+        footer={null}
+        width={900}
+      >
+        <Table
+          rowKey="id"
+          columns={versionColumns}
+          dataSource={versions}
+          pagination={false}
+          size="small"
+          scroll={{ x: 900 }}
+          rowClassName={(_, i) => i % 2 === 1 ? 'booth-zebra' : ''}
+        />
+      </Modal>
     </div>
   );
 }
