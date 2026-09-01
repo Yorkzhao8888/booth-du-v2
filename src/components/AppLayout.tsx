@@ -143,6 +143,7 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/du/inventory-transfer', label: '库存调拨' },
         { key: '/du/expiry-control', label: '效期管控' },
         { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
+        { key: '/du/supply-orders', label: '供给订单' },
       ] : []),
       ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }, { key: '/dex/capacity', label: '产能查询' }, { key: '/dex/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'dexx' ? [

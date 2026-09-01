@@ -207,6 +207,18 @@ export async function startWorkOrder(id: number, userId: number) {
       [userId, id]
     );
 
+    // [BOOTH-PK-02] 契约推进: 工单 start → Scheduling → Executing(里程碑自动写入)
+    await client.query(
+      `UPDATE booth_fulfillments
+       SET contract_status = 'Executing',
+           milestones = COALESCE(milestones, '{}'::jsonb)
+             || jsonb_build_object('scheduled_at', to_jsonb(NOW()))
+             || jsonb_build_object('executing_at', to_jsonb(NOW()))
+       WHERE id = $1 AND org_id = $2
+         AND contract_status IN ('Confirmed', 'Planning')`,
+      [wo.fulfillment_id, wo.org_id]
+    );
+
     await client.query('COMMIT');
 
     broadcast(wo.org_id, 'work_order_updated', updated.rows[0]);
@@ -387,6 +399,16 @@ export async function dispatchFulfillment(
     // Update fulfillment status
     await client.query(
       `UPDATE booth_fulfillments SET status = 'dispatched' WHERE id = $1 AND org_id = $2`,
+      [fulfillmentId, orgId]
+    );
+
+    // [BOOTH-PK-02] 契约推进: 工单创建(派工) → Planning(里程碑自动写入)
+    await client.query(
+      `UPDATE booth_fulfillments
+       SET contract_status = 'Planning',
+           milestones = COALESCE(milestones, '{}'::jsonb)
+             || jsonb_build_object('planned_at', to_jsonb(NOW()))
+       WHERE id = $1 AND org_id = $2 AND contract_status = 'Confirmed'`,
       [fulfillmentId, orgId]
     );
 

@@ -20,6 +20,7 @@ import dexxModulesRoutes from './routes/dexx-modules.js';
 import emRoutes from './routes/em.js';
 import marketRoutes from './routes/market.js';
 import jobRoutes from './routes/job.js';
+import { supplyOrdersRouter, deliveriesRouter } from './routes/supply-order.js'; // BOOTH-PK-02 SupplyOrder 显式契约
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +72,9 @@ app.use('/api/booth/dexx', dexxRoutes);
 app.use('/api/booth/em', emRoutes);
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
 app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型)
+// BOOTH-PK-02: SupplyOrder 显式契约 (shop 下单→报价→追踪→签收闭环, 契约载体=booth_fulfillments 方案A)
+app.use('/api/booth/supply-orders', requireAuth, supplyOrdersRouter);
+app.use('/api/booth/deliveries', requireAuth, deliveriesRouter);
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

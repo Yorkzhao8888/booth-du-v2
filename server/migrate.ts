@@ -945,6 +945,22 @@ CREATE INDEX IF NOT EXISTS idx_trace_links_wo ON booth_trace_links(org_id, work_
 CREATE INDEX IF NOT EXISTS idx_trace_links_batch ON booth_trace_links(org_id, batch_id);
 CREATE INDEX IF NOT EXISTS idx_trace_links_type ON booth_trace_links(org_id, relation_type);
 CREATE INDEX IF NOT EXISTS idx_qc_check_type ON booth_quality_checks(org_id, check_type, checked_at);
+
+-- [BOOTH-PK-02] SupplyOrder 显式契约: 扩展 booth_fulfillments 为契约载体(方案A, 不新建表)
+ALTER TABLE booth_fulfillments ADD COLUMN IF NOT EXISTS quote_snapshot JSONB;
+ALTER TABLE booth_fulfillments ADD COLUMN IF NOT EXISTS milestones JSONB;
+ALTER TABLE booth_fulfillments ADD COLUMN IF NOT EXISTS contract_status VARCHAR(20);
+CREATE INDEX IF NOT EXISTS idx_fulfillments_contract ON booth_fulfillments(org_id, contract_status);
+
+-- 存量单契约化回填(不改原 status 字段, 保证无孤儿订单):
+UPDATE booth_fulfillments SET contract_status = 'Cancelled', milestones = COALESCE(milestones, '{}'::jsonb)
+WHERE contract_status IS NULL AND status = 'cancelled';
+UPDATE booth_fulfillments SET contract_status = 'Settled', milestones = COALESCE(milestones, '{}'::jsonb)
+WHERE contract_status IS NULL AND status = 'completed';
+UPDATE booth_fulfillments SET contract_status = 'Executing', milestones = COALESCE(milestones, '{}'::jsonb)
+WHERE contract_status IS NULL AND status = 'dispatched';
+UPDATE booth_fulfillments SET contract_status = 'Created', milestones = COALESCE(milestones, '{}'::jsonb)
+WHERE contract_status IS NULL;
 `;
 
 // In-memory store for org modes

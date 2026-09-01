@@ -23,6 +23,7 @@ import DuSupplierManagement from './pages/du/SupplierManagement';
 import DuExpiryControl from './pages/du/ExpiryControl';
 import DuInventoryAlerts from './pages/du/InventoryAlerts';
 import DuFulfillmentTrack from './pages/du/FulfillmentTrack';
+import DuSupplyOrders from './pages/du/SupplyOrders';
 import DuInventoryTransfer from './pages/du/InventoryTransfer';
 import DuRealtimeDashboard from './pages/du/RealtimeDashboard';
 // DEX pages
@@ -168,6 +169,8 @@ const App: React.FC = () => {
           <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
           <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
           <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
+          {/* BOOTH-PK-02: SupplyOrder 显式契约 (M 层 du/dx) */}
+          <Route path="supply-orders" element={<ErrorBoundary><DuSupplyOrders /></ErrorBoundary>} />
           <Route path="inventory-transfer" element={<ErrorBoundary><DuInventoryTransfer /></ErrorBoundary>} />
           <Route path="realtime-dashboard" element={<ErrorBoundary><DuRealtimeDashboard /></ErrorBoundary>} />
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
