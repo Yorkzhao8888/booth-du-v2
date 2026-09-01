@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Row, Col, Card, Tag, Progress, Button, Input, Select, Space, Empty, Spin, Tooltip, Badge, Statistic, message } from 'antd';
+import { Row, Col, Card, Tag, Progress, Button, Input, Select, Space, Empty, Spin, Tooltip, Badge, Statistic, message, Dropdown } from 'antd';
 import {
   ReloadOutlined,
   ClusterOutlined,
@@ -13,6 +13,8 @@ import {
   SyncOutlined,
   ClockCircleOutlined,
   MinusCircleOutlined,
+  SendOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 
 const MONO = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
@@ -48,6 +50,16 @@ const STATE_CONFIG: Record<string, { label: string; color: string; icon: JSX.Ele
 
 const ZONE_COLORS: Record<string, string> = { FAB: 'geekblue', WH: 'cyan', SVC: 'purple', DL: 'orange' };
 const TYPE_LABELS: Record<string, string> = { line: '产线', device: '设备站', manual: '人工站', hybrid: '混合站' };
+
+// 后端 report-status 可上报枚举: run/idle/paused/down/maintenance（provisioning/decommissioned 不可上报）
+const REPORTABLE_STATES: { uiState: string; apiState: string; label: string }[] = [
+  { uiState: 'idle', apiState: 'idle', label: '空闲' },
+  { uiState: 'busy', apiState: 'run', label: '作业中' },
+  { uiState: 'paused', apiState: 'paused', label: '已暂停' },
+  { uiState: 'down', apiState: 'down', label: '宕机' },
+  { uiState: 'maintenance', apiState: 'maintenance', label: '维护中' },
+];
+
 const FAULT_LABELS: Record<string, string> = { stop_all: '全停', bypass: '旁路', continue: '继续' };
 
 function loadColor(pct: number): string {
@@ -82,16 +94,25 @@ export default function FabStations() {
     fetchStations();
   }, [fetchStations]);
 
+  // UI 状态 → 后端 report-status 枚举映射（busy→run，其余直传）
+  const REPORT_STATE_MAP: Record<string, string> = {
+    busy: 'run',
+    idle: 'idle',
+    paused: 'paused',
+    down: 'down',
+    maintenance: 'maintenance',
+  };
+
   const reportStatus = async (station: Station, newState: string) => {
     try {
       await api.post(`/dexx/fab/station/${station.id}/report-status`, {
-        status: newState,
+        state: REPORT_STATE_MAP[newState] || newState,
         reason: `Manual switch to ${newState}`,
       });
       message.success(`Station ${station.code} -> ${newState}`);
       fetchStations();
     } catch (e: any) {
-      message.error(e?.message || 'Status update failed');
+      message.error(e?.response?.data?.error || e?.message || 'Status update failed');
     }
   };
 
@@ -209,9 +230,25 @@ export default function FabStations() {
                           </Tooltip>
                         )}
                       </Space>
-                      <Tooltip title={`故障策略: ${FAULT_LABELS[s.fault_strategy] || s.fault_strategy || 'bypass'}`}>
-                        <Tag style={{ fontSize: 10, marginInlineEnd: 0 }}>{FAULT_LABELS[s.fault_strategy] || s.fault_strategy || 'bypass'}</Tag>
-                      </Tooltip>
+                      <Space size={4} onClick={(e) => e.stopPropagation()}>
+                        <Dropdown
+                          menu={{
+                            items: REPORTABLE_STATES.map((st) => ({
+                              key: st.value,
+                              label: st.label,
+                              disabled: s.state === st.value,
+                            })),
+                            onClick: ({ key }) => reportStatus(s, key),
+                          }}
+                        >
+                          <Button size="small" type="text" style={{ fontSize: 11, padding: '0 4px', color: '#2F6BFF' }}>
+                            上报状态
+                          </Button>
+                        </Dropdown>
+                        <Tooltip title={`故障策略: ${FAULT_LABELS[s.fault_strategy] || s.fault_strategy || 'bypass'}`}>
+                          <Tag style={{ fontSize: 10, marginInlineEnd: 0 }}>{FAULT_LABELS[s.fault_strategy] || s.fault_strategy || 'bypass'}</Tag>
+                        </Tooltip>
+                      </Space>
                     </div>
                   </Card>
                 </Col>

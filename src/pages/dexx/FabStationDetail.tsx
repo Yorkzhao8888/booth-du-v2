@@ -95,11 +95,15 @@ export default function FabStationDetail() {
     fetchStation();
   }, [fetchStation]);
 
+  // 后端 report-status 合法枚举: run/idle/paused/down/maintenance (run→busy 映射)
+  // 页面状态机值 busy → 提交 run; provisioning/decommissioned 不可上报
+  const toApiState = (s: string): string => (s === 'busy' ? 'run' : s);
+
   const submitStatus = async () => {
     if (!newStatus || !id) return;
     try {
-      await api.post(`/dexx/fab/station/${id}/report-status`, { status: newStatus, reason: 'Manual report from detail page' });
-      message.success(`状态已上报: ${newStatus}`);
+      await api.post(`/dexx/fab/station/${id}/report-status`, { state: toApiState(newStatus), reason: 'Manual report from detail page' });
+      message.success(`状态已上报: ${STATUS_LABELS[newStatus] || newStatus}`);
       setStatusModal(false);
       fetchStation();
     } catch (e: any) {

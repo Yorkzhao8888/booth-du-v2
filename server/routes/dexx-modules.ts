@@ -1155,9 +1155,8 @@ router.get('/fab/stations/:id', requireHat('FAB'), async (req, res, next) => {
     // 当前作业队列
     const queue = await pool.query(
       `SELECT wo.id, wo.job_id, wo.status, wo.priority, wo.qty, wo.accepted_at, wo.completed_at,
-              b.name as product_name
+              wo.product_name
        FROM booth_work_orders wo
-       LEFT JOIN booth_boms b ON b.id = wo.bom_id
        WHERE wo.station_id = $1 AND wo.status NOT IN ('completed','cancelled','archived')
        ORDER BY wo.priority DESC, wo.accepted_at ASC`,
       [id]
