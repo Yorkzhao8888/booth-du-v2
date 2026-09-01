@@ -284,34 +284,54 @@ const AppLayout: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={220} theme="light">
-        <div style={{ padding: '16px', textAlign: 'center', fontWeight: 'bold', fontSize: '16px', borderBottom: '1px solid #f0f0f0' }}>
-          Booth-DU v2
+      <Sider width={220} style={{ background: '#1F3A5F' }}>
+        <div style={{ 
+          padding: '16px', 
+          textAlign: 'center', 
+          fontWeight: 'bold', 
+          fontSize: '16px', 
+          color: '#FFFFFF',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          letterSpacing: '0.05em'
+        }}>
+          Booth 供给系统
         </div>
         <Menu
           mode="inline"
+          theme="dark"
           selectedKeys={[selectedKey]}
           defaultOpenKeys={openKeys}
           items={menuItems}
           onClick={(e) => navigate(e.key)}
-          style={{ borderRight: 0 }}
+          style={{ 
+            background: '#1F3A5F',
+            borderRight: 0,
+          }}
         />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f0f0f0' }}>
-          <div style={{ fontSize: '14px', color: '#666' }}>
-            供给履约系统
+        <Header style={{ 
+          background: '#FFFFFF', 
+          padding: '0 24px', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          borderBottom: '1px solid #E5E9F0',
+          boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)'
+        }}>
+          <div style={{ fontSize: '14px', color: '#1F3A5F', fontWeight: 500 }}>
+            Booth 供给履约系统
           </div>
           <Space>
-            <span style={{ color: '#999' }}>{roleLabels[user?.role || 'du']}</span>
+            <span style={{ color: '#6B7280', fontSize: '13px' }}>{roleLabels[user?.role || 'du']}</span>
             <Dropdown menu={userMenu}>
-              <Button type="text" icon={<UserOutlined />}>
+              <Button type="text" icon={<UserOutlined />} style={{ color: '#1F3A5F' }}>
                 {user?.name || '用户'}
               </Button>
             </Dropdown>
           </Space>
         </Header>
-        <Content style={{ margin: '24px', padding: '24px', background: '#fff', borderRadius: '8px', minHeight: 'auto' }}>
+        <Content style={{ margin: '24px', padding: '24px', background: '#FFFFFF', borderRadius: '8px', minHeight: 'auto', boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)' }}>
           <Outlet />
         </Content>
       </Layout>
