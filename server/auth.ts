@@ -4,6 +4,12 @@ import { verifyOASToken, oasPayloadToBoothUser, isOASEnabled, type BoothUserFrom
 
 const JWT_SECRET = process.env.JWT_SECRET || 'booth-dev-secret';
 
+// ---------------------------------------------------------------------------
+// [DEPRECATED - 兼容层] Legacy JWT 载荷与本地签发（OAS 为主认证路径）
+// 兼容截止日: 2026-12-31。届时评估移除需主 Agent 另行裁定。
+// 约定: 认证主路径 = OAS（signTokenFromOAS 签发 / verifyOASToken 校验）；
+// legacy 本地 JWT 仅作为 fallback 保留（本地测试账号/EM 登录），冻结不扩展。
+// ---------------------------------------------------------------------------
 // Legacy JWT payload (for backward compatibility during transition)
 export interface JwtPayload {
   userId: number;
@@ -20,6 +26,10 @@ export interface JwtPayload {
   source?: 'oas' | 'legacy';
 }
 
+/**
+ * [DEPRECATED - legacy fallback] 本地账号签发（测试账号/EM 本地登录用）。
+ * 主认证签发路径请使用 signTokenFromOAS。兼容截止日: 2026-12-31。
+ */
 export function signToken(user: {
   id: number;
   org_id: number;
@@ -41,7 +51,7 @@ export function signToken(user: {
 }
 
 /**
- * Sign a token from OAS user info
+ * [主认证路径] Sign a token from OAS user info
  */
 export function signTokenFromOAS(user: BoothUserFromOAS): string {
   const payload: JwtPayload = {
@@ -91,7 +101,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'Missing or invalid token' });
   }
 
-  // Try OAS JWT verification first if OAS is enabled
+  // ---- [主认证路径] OAS JWT verification first if OAS is enabled ----
   if (isOASEnabled()) {
     const oasPayload = verifyOASToken(token);
     if (oasPayload) {
@@ -118,7 +128,12 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     // This allows for graceful migration
   }
 
-  // Legacy JWT verification
+  // ---------------------------------------------------------------------------
+  // [DEPRECATED - fallback] Legacy JWT verification
+  // 仅当 OAS 关闭或 OAS 校验失败时进入（graceful migration）。
+  // 兼容截止日: 2026-12-31。行为冻结：不新增字段、不放宽校验。
+  // Fail-closed: OAS 与 legacy 均失败时拒绝访问（401），保持现状。
+  // ---------------------------------------------------------------------------
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     // @ts-ignore

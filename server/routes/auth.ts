@@ -28,7 +28,7 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    // If OAS is enabled, try OAS authentication first
+    // [主认证路径] OAS authentication first
     if (isOASEnabled()) {
       const oasResponse = await oasLogin(loginId, password);
       
@@ -70,7 +70,8 @@ router.post('/login', async (req, res, next) => {
       console.log('[auth] OAS login failed for %s, falling back to local auth', loginId);
     }
 
-    // Local authentication (fallback or when OAS is not enabled)
+    // [DEPRECATED - fallback] Local authentication (legacy 本地账号: 测试账号/EM)
+    // 兼容截止日: 2026-12-31, 见 server/auth.ts 兼容层标注。行为冻结不扩展。
     const userRes = await pool.query(
       `SELECT u.*, o.mode as org_mode
        FROM booth_users u
