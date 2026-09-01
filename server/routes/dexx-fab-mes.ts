@@ -621,6 +621,16 @@ router.get('/fab/equipment/oee/dashboard', requireFabRead, async (req, res, next
        GROUP BY 1 ORDER BY cnt DESC LIMIT 10`,
       [user.orgId, from, to]
     );
+    // [BOOTH-PK-03] 遥测联动(plant 级): 近 24h 自动采集总览(含模拟通道打标计数), 无数据如实 N/A
+    const tele = await pool.query(
+      `SELECT COUNT(*)::int AS auto_points_24h,
+              COUNT(DISTINCT equipment_id)::int AS equipments_with_auto,
+              COUNT(*) FILTER (WHERE demo_source)::int AS demo_points_24h
+       FROM equipment_telemetry WHERE org_id = $1 AND source = 'auto' AND received_at >= NOW() - INTERVAL '24 hours'`,
+      [user.orgId]
+    );
+    const tr = tele.rows[0] || {};
+    const plantAutoPoints = tr.auto_points_24h ?? 0;
     res.json({
       success: true,
       data: {
@@ -628,6 +638,13 @@ router.get('/fab/equipment/oee/dashboard', requireFabRead, async (req, res, next
         plant: { availability: plantAvailability, performance: plantPerformance, quality: plantQuality, oee: plantOee },
         equipment: items,
         downtime_top: downRes.rows,
+        telemetry_link: {
+          available: plantAutoPoints > 0,
+          auto_points_24h: plantAutoPoints,
+          equipments_with_auto: tr.equipments_with_auto ?? 0,
+          demo_points_24h: tr.demo_points_24h ?? 0,
+          note: plantAutoPoints > 0 ? '近 24h 自动采集数据总览(source=auto; demo_source=true 为模拟通道)' : 'N/A: 近 24h 无自动采集数据',
+        },
       },
     });
   } catch (err) { next(err); }
@@ -663,7 +680,27 @@ router.get('/fab/equipment/:id/oee', requireFabRead, async (req, res, next) => {
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(to.getTime() - 7 * 24 * 3600 * 1000);
     const oee = await computeOee(user.orgId, req.params.id, from, to);
-    res.json({ success: true, data: { equipment_id: req.params.id, window: { from, to }, ...oee } });
+    // [BOOTH-PK-03] 遥测联动: source=auto 自动采集数据流入 OEE(近 24h), 无数据如实 N/A
+    const tele = await pool.query(
+      `SELECT COUNT(*)::int AS auto_points_24h,
+              COUNT(*) FILTER (WHERE demo_source)::int AS demo_points_24h,
+              (SELECT value FROM equipment_telemetry WHERE org_id = $1 AND equipment_id = $2 AND metric = 'status' AND source = 'auto' ORDER BY collected_at DESC LIMIT 1) AS latest_status,
+              (SELECT collected_at FROM equipment_telemetry WHERE org_id = $1 AND equipment_id = $2 AND metric = 'status' AND source = 'auto' ORDER BY collected_at DESC LIMIT 1) AS latest_status_at,
+              (SELECT SUM(value) FROM equipment_telemetry WHERE org_id = $1 AND equipment_id = $2 AND metric = 'output' AND source = 'auto' AND received_at >= NOW() - INTERVAL '24 hours') AS auto_output_24h
+       FROM equipment_telemetry WHERE org_id = $1 AND equipment_id = $2 AND source = 'auto' AND received_at >= NOW() - INTERVAL '24 hours'`,
+      [user.orgId, req.params.id]
+    );
+    const t = tele.rows[0] || {};
+    const autoPoints = t.auto_points_24h ?? 0;
+    const telemetryLink = {
+      available: autoPoints > 0,
+      auto_points_24h: autoPoints,
+      demo_points_24h: t.demo_points_24h ?? 0,
+      latest_status: t.latest_status !== null && t.latest_status !== undefined ? { value: Number(t.latest_status), at: t.latest_status_at } : null,
+      auto_output_24h: t.auto_output_24h !== null && t.auto_output_24h !== undefined ? Number(t.auto_output_24h) : null,
+      note: autoPoints > 0 ? '近 24h 自动采集数据已联动(source=auto, 未经人工报工)' : 'N/A: 该设备近 24h 无自动采集数据',
+    };
+    res.json({ success: true, data: { equipment_id: req.params.id, window: { from, to }, ...oee, telemetry_link: telemetryLink } });
   } catch (err) { next(err); }
 });
 

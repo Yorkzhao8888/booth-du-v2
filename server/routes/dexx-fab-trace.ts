@@ -33,7 +33,7 @@ async function buildWorkOrderChain(orgId: number, woIds: number[]): Promise<any[
     [orgId, woIds]
   );
   const ops = await pool.query(
-    `SELECT fo.work_order_id, fo.seq, fo.name, fo.status, fo.reported_qty, fo.completed_at,
+    `SELECT fo.work_order_id, fo.seq, fo.name, fo.status, fo.reported_qty, fo.completed_at, fo.equipment_id,
             u.name AS operator_name, e.code AS equipment_code, e.name AS equipment_name
      FROM booth_fab_operations fo
      LEFT JOIN booth_users u ON u.id = fo.operator_id
@@ -56,6 +56,20 @@ async function buildWorkOrderChain(orgId: number, woIds: number[]): Promise<any[
     [orgId, woIds]
   );
 
+  // [BOOTH-PK-03] 遥测联动: 工单涉及设备近 24h 自动采集摘要(source=auto; 无数据如实 N/A)
+  const chainEqIds = Array.from(new Set(ops.rows.map((o: any) => o.equipment_id).filter((v: any) => v !== null)));
+  const teleByEq = new Map<number, any>();
+  if (chainEqIds.length) {
+    const tele = await pool.query(
+      `SELECT equipment_id, COUNT(*)::int AS auto_points_24h, MAX(received_at) AS last_received_at
+       FROM equipment_telemetry
+       WHERE org_id = $1 AND equipment_id = ANY($2) AND source = 'auto' AND received_at >= NOW() - INTERVAL '24 hours'
+       GROUP BY equipment_id`,
+      [orgId, chainEqIds]
+    );
+    for (const r of tele.rows) teleByEq.set(Number(r.equipment_id), r);
+  }
+
   return wos.rows.map((wo: any) => {
     const consumedRows = consumed.rows.filter((c: any) => c.work_order_id === wo.id);
     const opRows = ops.rows.filter((o: any) => o.work_order_id === wo.id);
@@ -67,7 +81,29 @@ async function buildWorkOrderChain(orgId: number, woIds: number[]): Promise<any[
     if (!opRows.length) gaps.push('无报工记录');
     if (!qcRows.length) gaps.push('无质检记录');
     if (!outRows.length) gaps.push('无产出批次(工单未完工)');
-    return { work_order: wo, consumed: consumedRows, operations: opRows, qc: qcRows, output_batches: outRows, gaps };
+    // 遥测联动(按工单涉及设备聚合)
+    const woEqIds = Array.from(new Set(opRows.map((o: any) => o.equipment_id).filter((v: any) => v !== null)));
+    const woTele = woEqIds.map((id: number) => ({
+      equipment_id: id,
+      auto_points_24h: teleByEq.get(id)?.auto_points_24h ?? 0,
+      last_received_at: teleByEq.get(id)?.last_received_at ?? null,
+    }));
+    const woAutoPoints = woTele.reduce((a: number, r: any) => a + r.auto_points_24h, 0);
+    return {
+      work_order: wo,
+      consumed: consumedRows,
+      operations: opRows,
+      qc: qcRows,
+      output_batches: outRows,
+      gaps,
+      telemetry_link: {
+        equipment_ids: woEqIds,
+        equipments: woTele,
+        auto_points_24h: woAutoPoints,
+        available: woAutoPoints > 0,
+        note: woAutoPoints > 0 ? '设备自动采集数据已联动追溯链(source=auto, 未经人工报工)' : 'N/A: 工单涉及设备近 24h 无自动采集数据',
+      },
+    };
   });
 }
 

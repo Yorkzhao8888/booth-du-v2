@@ -61,7 +61,7 @@ export default function FabPlugins() {
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (keyword.trim()) params.set('q', keyword.trim());
       const res = await api.get(`/dexx/fab/plugins/catalog${params.toString() ? `?${params}` : ''}`);
-      setItems(res?.data?.items || []);
+      setItems(res?.items || []);
     } catch (e: any) {
       message.error(e?.message || '目录加载失败');
     } finally {
@@ -72,7 +72,7 @@ export default function FabPlugins() {
   useEffect(() => {
     fetchCatalog();
     api.get('/dexx/fab/stations').then((res) => {
-      setStations((res?.data?.stations || res?.data || []).map((s: any) => ({ id: s.id, code: s.code, name: s.name })));
+      setStations((res?.stations || []).map((s: any) => ({ id: s.id, code: s.code, name: s.name })));
     }).catch(() => undefined);
   }, [fetchCatalog]);
 
@@ -124,7 +124,7 @@ export default function FabPlugins() {
     setMatchLoading(true);
     try {
       const res = await api.get(`/dexx/fab/orders/${oid}/capability-match`);
-      setMatchResult(res?.data || null);
+      setMatchResult(res || null);
     } catch (e: any) {
       message.error(e?.message || '匹配查询失败');
     } finally {

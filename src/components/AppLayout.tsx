@@ -124,6 +124,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: `${fabBase}/stations`, label: 'Station 作业站' },
       { key: `${fabBase}/equipment`, label: '设备台账' },
       { key: `${fabBase}/equipment/oee`, label: 'OEE 稼动率' },
+      { key: `${fabBase}/telemetry`, label: '采集看板' },
       { key: `${fabBase}/maintenance`, label: '保养日历' },
       { key: `${fabBase}/andon`, label: '安灯异常中心' },
       ...(role === 'dexx'

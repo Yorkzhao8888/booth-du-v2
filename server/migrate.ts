@@ -992,6 +992,40 @@ CREATE TABLE IF NOT EXISTS station_capability_mounts (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_station_cap_mount ON station_capability_mounts(org_id, station_id, capability_id);
 CREATE INDEX IF NOT EXISTS idx_station_cap_mount_station ON station_capability_mounts(org_id, station_id);
+
+-- [BOOTH-PK-03] IoT/边缘自动采集(通道契约先行):
+-- 采集通道契约化: ingest 幂等(org+设备+metric+collected_at 唯一) + source=auto 打标 + 内置模拟通道(demo_source=true, 与生产隔离)。
+-- 红线: 只登记真实采集数据; 无硬件时以占位接入点存在; 设备为弱关联(不加外键), 不阻塞设备生命周期与 DATA-CLEAN 清理。
+CREATE TABLE IF NOT EXISTS equipment_telemetry (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  equipment_id INTEGER NOT NULL,
+  metric TEXT NOT NULL,
+  value NUMERIC(18,4) NOT NULL,
+  collected_at TIMESTAMPTZ NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('auto','manual')),
+  demo_source BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_telemetry_point ON equipment_telemetry(org_id, equipment_id, metric, collected_at);
+CREATE INDEX IF NOT EXISTS idx_telemetry_eq_time ON equipment_telemetry(equipment_id, collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_org_recv ON equipment_telemetry(org_id, received_at DESC);
+
+CREATE TABLE IF NOT EXISTS equipment_telemetry_configs (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  station_id INTEGER,
+  equipment_id INTEGER NOT NULL,
+  metric TEXT NOT NULL,
+  interval_sec INTEGER NOT NULL DEFAULT 60 CHECK (interval_sec >= 1),
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  demo_source BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_telemetry_cfg ON equipment_telemetry_configs(org_id, equipment_id, metric);
+CREATE INDEX IF NOT EXISTS idx_telemetry_cfg_org ON equipment_telemetry_configs(org_id, enabled);
 `;
 
 // In-memory store for org modes

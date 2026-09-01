@@ -97,6 +97,21 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     console.warn('[auth] No token found. headers.authorization:', !!authHeader, 'query:', JSON.stringify(req.query), 'url:', req.url);
   }
 
+  // [BOOTH-PK-03] 边缘设备遥测上报密钥通道: 无 JWT 时允许 X-Telemetry-Key 匹配 env.TELEMETRY_INGEST_KEY 放行。
+  // org 归属校验在业务 handler 内完成; env 未配置时该通道永不可用(fail-closed), 不留假 token。
+  const telemetryKey = req.headers['x-telemetry-key'];
+  if (
+    !token &&
+    typeof telemetryKey === 'string' &&
+    telemetryKey.length > 0 &&
+    process.env.TELEMETRY_INGEST_KEY &&
+    telemetryKey === process.env.TELEMETRY_INGEST_KEY
+  ) {
+    // @ts-ignore mark key-channel auth for telemetry ingest handler
+    req.telemetryKeyAuth = true;
+    return next();
+  }
+
   if (!token) {
     return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'Missing or invalid token' });
   }
