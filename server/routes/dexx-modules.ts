@@ -3,6 +3,7 @@ import { pool } from '../db.js';
 import { requireAuth, requireRole, requireHat } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { createProfitSnapshot } from '../services/profit-service.js';
+import { broadcast } from '../sse.js';
 
 const router = Router();
 
@@ -1108,6 +1109,377 @@ router.get('/wh/plaza-bookings', requireHat('WH'), async (req, res, next) => {
       [user.orgId]
     );
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
+  } catch (err) { next(err); }
+});
+
+// ====== FAB-MES-05: Station-OS 产线/作业站融合 ======
+
+// 7. GET /dexx/fab/stations: Station 列表
+router.get('/fab/stations', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { zone_type, station_type, state } = req.query;
+    let sql = `SELECT s.* FROM booth_stations s WHERE s.org_id = $1`;
+    const params: any[] = [user.orgId];
+    if (zone_type) { params.push(zone_type); sql += ` AND s.zone_type = $${params.length}`; }
+    if (station_type) { params.push(station_type); sql += ` AND s.station_type = $${params.length}`; }
+    if (state) { params.push(state); sql += ` AND s.state = $${params.length}`; }
+    sql += ` ORDER BY s.code ASC`;
+    const r = await pool.query(sql, params);
+    // 附加当前作业数
+    const stations = [];
+    for (const st of r.rows) {
+      const wos = await pool.query(
+        `SELECT COUNT(*) as cnt FROM booth_work_orders WHERE station_id = $1 AND status IN ('accepted','preparing')`,
+        [st.id]
+      );
+      stations.push({ ...st, active_orders: parseInt(wos.rows[0]?.cnt || '0') });
+    }
+    res.json({ success: true, data: { items: stations, total: stations.length } });
+  } catch (err) { next(err); }
+});
+
+// 8. GET /dexx/fab/stations/:id: 单站详情
+router.get('/fab/stations/:id', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const station = st.rows[0];
+    // 当前作业队列
+    const queue = await pool.query(
+      `SELECT wo.id, wo.job_id, wo.status, wo.priority, wo.qty, wo.accepted_at, wo.completed_at,
+              b.name as product_name
+       FROM booth_work_orders wo
+       LEFT JOIN booth_boms b ON b.id = wo.bom_id
+       WHERE wo.station_id = $1 AND wo.status NOT IN ('completed','cancelled','archived')
+       ORDER BY wo.priority DESC, wo.accepted_at ASC`,
+      [id]
+    );
+    // Agent 部署位 (从 metadata.agent_ids 读取)
+    const metadata = station.metadata || {};
+    const agentIds = metadata.agent_ids || [];
+    const agents = [];
+    for (const aid of agentIds) {
+      agents.push({ agent_id: aid, status: 'registered', deployed_at: null });
+    }
+    // 设备挂载 (FAB-MES-01 预留): booth_devices 中 station_id 关联
+    let devices: any[] = [];
+    try {
+      const dev = await pool.query(
+        `SELECT id, device_name, serial_no, status FROM booth_devices WHERE station_id = $1`,
+        [id]
+      );
+      devices = dev.rows;
+    } catch { /* table may not exist yet */ }
+    res.json({
+      success: true,
+      data: {
+        ...station,
+        queue: queue.rows,
+        agents,
+        devices,
+        andon_events: [], // FAB-MES-03 预留
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// 1. POST /dexx/fab/station/:id/assign-order: Station 接单
+router.post('/fab/station/:id/assign-order', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { work_order_id } = req.body || {};
+    if (!work_order_id) {
+      return res.status(400).json({ success: false, message: 'work_order_id is required' });
+    }
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const station = st.rows[0];
+    // 离线模式: 不授予新权限(不可接收新作业)
+    if (station.offline_mode) {
+      return res.status(423).json({ success: false, message: 'Station is in offline mode - no new assignments (door authority stays with LoRA)' });
+    }
+    // 状态检查: provisioning/paused/down/maintenance/decommissioned 不可接单
+    const blockedStates = ['provisioning', 'paused', 'down', 'maintenance', 'decommissioned'];
+    if (blockedStates.includes(station.state)) {
+      return res.status(409).json({ success: false, message: `Station state '${station.state}' cannot accept orders` });
+    }
+    // traffic_cap 容量检查
+    const activeCount = await pool.query(
+      `SELECT COUNT(*) as cnt FROM booth_work_orders WHERE station_id = $1 AND status IN ('accepted','preparing')`,
+      [id]
+    );
+    const active = parseInt(activeCount.rows[0]?.cnt || '0');
+    const cap = Number(station.traffic_cap || station.capacity || 0);
+    if (cap > 0 && active >= cap) {
+      return res.status(409).json({
+        success: false,
+        message: 'Station at capacity',
+        data: { capacity: cap, current: active },
+      });
+    }
+    // 派单
+    const wo = await pool.query(
+      `UPDATE booth_work_orders SET station_id = $1, status = 'accepted', accepted_at = NOW()
+       WHERE id = $2 AND org_id = $3 AND status IN ('pending') RETURNING *`,
+      [id, work_order_id, user.orgId]
+    );
+    if (wo.rows.length === 0) {
+      return res.status(409).json({ success: false, message: 'Work order not available for assignment' });
+    }
+    // 更新站状态为 busy + current_load
+    await pool.query(
+      `UPDATE booth_stations SET state = 'busy', current_load = current_load + 1, updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+    // SSE 通知
+    broadcast(user.orgId, 'station.assigned', { station_id: Number(id), work_order_id, active: active + 1, cap });
+    res.json({ success: true, data: { station_id: Number(id), work_order_id, active: active + 1, cap } });
+  } catch (err) { next(err); }
+});
+
+// 2. POST /dexx/fab/station/:id/report-status: 站状态上报
+router.post('/fab/station/:id/report-status', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { state, reason, traffic_cap } = req.body || {};
+    const validStates = ['run', 'idle', 'paused', 'down', 'maintenance'];
+    if (!validStates.includes(state)) {
+      return res.status(400).json({ success: false, message: `Invalid state, must be one of: ${validStates.join('/')}` });
+    }
+    // run → busy 映射 (A1.35 report_status 用 run, 内部 state 机用 busy)
+    const internalState = state === 'run' ? 'busy' : state;
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const oldState = st.rows[0].state;
+    const newCap = traffic_cap !== undefined ? Number(traffic_cap) : Number(st.rows[0].traffic_cap || st.rows[0].capacity || 0);
+    await pool.query(
+      `UPDATE booth_stations SET state = $1, traffic_cap = $2, metadata = metadata || $3::jsonb, updated_at = NOW() WHERE id = $4`,
+      [internalState, newCap, JSON.stringify({ last_status_reason: reason || '', last_status_at: new Date().toISOString() }), id]
+    );
+    // 状态变更记录到 metadata
+    const prevMeta = (st.rows[0].metadata || {}) as any;
+    const stateHistory = [...(prevMeta.state_history || []).slice(-49), { from: oldState, to: internalState, reason: reason || '', at: new Date().toISOString() }];
+    await pool.query(
+      `UPDATE booth_stations SET metadata = metadata || $1::jsonb WHERE id = $2`,
+      [JSON.stringify({ state_history: stateHistory }), id]
+    );
+    broadcast(user.orgId, 'station.status', { station_id: Number(id), from: oldState, to: internalState, traffic_cap: newCap });
+    res.json({ success: true, data: { station_id: Number(id), from: oldState, to: internalState, traffic_cap: newCap } });
+  } catch (err) { next(err); }
+});
+
+// 3. POST /dexx/fab/station/:id/deploy-agent: 部署 Agent (占位待 LoRA, 仅登记)
+router.post('/fab/station/:id/deploy-agent', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { agent_id } = req.body || {};
+    if (!agent_id) {
+      return res.status(400).json({ success: false, message: 'agent_id is required' });
+    }
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const metadata = st.rows[0].metadata || {};
+    const agentIds: string[] = metadata.agent_ids || [];
+    if (!agentIds.includes(agent_id)) {
+      agentIds.push(agent_id);
+    }
+    await pool.query(
+      `UPDATE booth_stations SET metadata = metadata || $1::jsonb, updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify({ agent_ids: agentIds }), id]
+    );
+    broadcast(user.orgId, 'station.agent_deployed', { station_id: Number(id), agent_id, status: 'registered' });
+    res.json({ success: true, data: { station_id: Number(id), agent_id, status: 'registered', note: 'LoRA gateway not connected - registration only (door authority stays with LoRA)' } });
+  } catch (err) { next(err); }
+});
+
+// 4. POST /dexx/fab/station/:id/invoke-agent: 调用 Agent (占位待 LoRA, 必须过 access_token 鉴权)
+router.post('/fab/station/:id/invoke-agent', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { agent_id, access_token } = req.body || {};
+    if (!agent_id) {
+      return res.status(400).json({ success: false, message: 'agent_id is required' });
+    }
+    // 铁律: 不越过 LoRA 的「门」— invoke 必须过 access_token 鉴权
+    if (!access_token) {
+      return res.status(401).json({ success: false, message: 'access_token required - LoRA gateway authentication (door authority stays with LoRA)' });
+    }
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const agentIds: string[] = ((st.rows[0].metadata || {}).agent_ids) || [];
+    if (!agentIds.includes(agent_id)) {
+      return res.status(404).json({ success: false, message: 'Agent not deployed on this station' });
+    }
+    // 本期 LoRA 未接入: 返回占位响应, 不直连
+    res.status(501).json({
+      success: false,
+      message: 'LoRA gateway not connected - invoke is a placeholder. Direct connection to Agent bypassing LoRA gateway is forbidden.',
+      data: { station_id: Number(id), agent_id, status: 'not_implemented' },
+    });
+  } catch (err) { next(err); }
+});
+
+// 5. POST /dexx/fab/station/:id/report-agent-status: Agent 状态上报
+router.post('/fab/station/:id/report-agent-status', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { agent_id, status } = req.body || {};
+    if (!agent_id || !status) {
+      return res.status(400).json({ success: false, message: 'agent_id and status are required' });
+    }
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const metadata = st.rows[0].metadata || {};
+    const agentIds: string[] = metadata.agent_ids || [];
+    if (!agentIds.includes(agent_id)) {
+      return res.status(404).json({ success: false, message: 'Agent not deployed on this station' });
+    }
+    const agentStatuses = metadata.agent_statuses || {};
+    agentStatuses[agent_id] = { status, reported_at: new Date().toISOString() };
+    await pool.query(
+      `UPDATE booth_stations SET metadata = metadata || $1::jsonb WHERE id = $2`,
+      [JSON.stringify({ agent_statuses: agentStatuses }), id]
+    );
+    broadcast(user.orgId, 'station.agent_status', { station_id: Number(id), agent_id, status });
+    res.json({ success: true, data: { station_id: Number(id), agent_id, status } });
+  } catch (err) { next(err); }
+});
+
+// 6. POST /dexx/fab/station/:id/fault: 故障上报 → 按 fault_strategy 传播
+router.post('/fab/station/:id/fault', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { reason, strategy } = req.body || {};
+    if (!reason) {
+      return res.status(400).json({ success: false, message: 'reason is required' });
+    }
+    const st = await pool.query(
+      `SELECT * FROM booth_stations WHERE id = $1 AND org_id = $2`,
+      [id, user.orgId]
+    );
+    if (st.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+    const station = st.rows[0];
+    const fs = strategy || station.fault_strategy || 'bypass';
+    if (!['stop_all', 'bypass', 'continue'].includes(fs)) {
+      return res.status(400).json({ success: false, message: 'Invalid fault_strategy' });
+    }
+    let affectedOrders = 0;
+    let newCap = Number(station.traffic_cap || station.capacity || 0);
+    let newState = station.state;
+    if (fs === 'stop_all') {
+      // 停该站全部作业
+      const r = await pool.query(
+        `UPDATE booth_work_orders SET status = 'paused' WHERE station_id = $1 AND status IN ('accepted','preparing') RETURNING id`,
+        [id]
+      );
+      affectedOrders = r.rowCount || 0;
+      newState = 'down';
+      newCap = 0;
+    } else if (fs === 'bypass') {
+      // 停受影响作业 + 下调 traffic_cap (防止按原产能派单)
+      const r = await pool.query(
+        `UPDATE booth_work_orders SET status = 'paused' WHERE station_id = $1 AND status IN ('accepted','preparing') RETURNING id`,
+        [id]
+      );
+      affectedOrders = r.rowCount || 0;
+      // 下调: 受影响作业占用产能减去
+      newCap = Math.max(0, newCap - affectedOrders);
+      newState = 'paused';
+    } else {
+      // continue: 继续运行, 不阻断
+      newState = 'busy';
+    }
+    await pool.query(
+      `UPDATE booth_stations SET state = $1, traffic_cap = $2, metadata = metadata || $3::jsonb, updated_at = NOW() WHERE id = $4`,
+      [newState, newCap, JSON.stringify({
+        last_fault: { reason, strategy: fs, affected_orders: affectedOrders, at: new Date().toISOString() },
+        fault_history: [...(((station.metadata || {}) as any).fault_history || []).slice(-49), { reason, strategy: fs, affected_orders: affectedOrders, at: new Date().toISOString() }],
+      }), id]
+    );
+    broadcast(user.orgId, 'station.fault', { station_id: Number(id), strategy: fs, affected_orders: affectedOrders, traffic_cap: newCap, state: newState });
+    res.json({
+      success: true,
+      data: {
+        station_id: Number(id),
+        strategy: fs,
+        affected_orders: affectedOrders,
+        new_state: newState,
+        new_traffic_cap: newCap,
+        message: fs === 'stop_all' ? 'All operations stopped (stop_all)' : fs === 'bypass' ? `Affected operations stopped + traffic_cap reduced to ${newCap} (bypass)` : 'Operations continue (continue)',
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// 9. GET /dexx/fab/zone/:stage: 产线视角按阶段查询（前置/制作/包装/分拣）
+router.get('/fab/zone/:stage', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { stage } = req.params;
+    const validStages = ['preprocessing', 'production', 'packaging', 'sorting'];
+    if (!validStages.includes(stage)) {
+      return res.status(400).json({ success: false, message: 'Invalid stage. Must be one of: preprocessing, production, packaging, sorting' });
+    }
+    // 该阶段的产线/工位
+    const stations = await pool.query(
+      `SELECT s.* FROM booth_stations s WHERE s.org_id = $1 AND s.zone_type = $2 AND (s.station_type = 'line' OR s.metadata->>'stage' = $3) ORDER BY s.code ASC`,
+      [user.orgId, 'FAB', stage]
+    );
+    // 该阶段的当前工单
+    const orders = await pool.query(
+      `SELECT wo.*, s.code AS station_code FROM booth_work_orders wo LEFT JOIN booth_stations s ON s.id = wo.station_id WHERE wo.org_id = $1 AND wo.production_stage = $2 ORDER BY wo.priority DESC, wo.id ASC LIMIT 100`,
+      [user.orgId, stage]
+    );
+    res.json({
+      success: true,
+      data: {
+        stage,
+        stations: stations.rows.map((s) => ({ ...s, active_orders: 0 })),
+        orders: orders.rows,
+        total: orders.rows.length,
+      },
+    });
   } catch (err) { next(err); }
 });
 

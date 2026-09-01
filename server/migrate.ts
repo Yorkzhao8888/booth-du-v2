@@ -964,6 +964,44 @@ export async function migrate() {
         console.log('[migrate] Added em user: 供给运营长 / 13800000006.');
       }
 
+      // FAB-MES-05: Station-OS 产线/作业站融合 - booth_stations 升级为 Station 实体
+      await client.query(
+        `ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS code TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS station_type TEXT DEFAULT 'manual';
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS state TEXT DEFAULT 'provisioning';
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS fault_strategy TEXT DEFAULT 'bypass';
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS traffic_cap NUMERIC DEFAULT 0;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS bottleneck_rate NUMERIC DEFAULT 0;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS offline_mode BOOLEAN DEFAULT FALSE;`
+      );
+      // 兼容映射: 旧 status → 新 state (online→idle, offline→down, busy→busy)
+      await client.query(
+        `UPDATE booth_stations SET state = 'idle' WHERE status = 'online' AND (state IS NULL OR state = 'provisioning');
+         UPDATE booth_stations SET state = 'down' WHERE status = 'offline' AND (state IS NULL OR state = 'provisioning');
+         UPDATE booth_stations SET state = 'busy' WHERE status = 'busy' AND (state IS NULL OR state = 'provisioning');
+         UPDATE booth_stations SET zone_type = type WHERE zone_type IS NULL;
+         UPDATE booth_stations SET traffic_cap = capacity WHERE traffic_cap = 0;`
+      );
+      // 生成规范编码: {org_id}.{ZONE}.{STATION_TYPE}-{seq}
+      const stationRows = await client.query(
+        `SELECT id, org_id, type, station_type FROM booth_stations WHERE code IS NULL OR code = '' ORDER BY id`
+      );
+      const typeSeqCount: Record<string, number> = {};
+      for (const st of stationRows.rows) {
+        const zoneUpper = String(st.type || 'FAB').toUpperCase();
+        const stType = String(st.station_type || 'manual').toUpperCase();
+        const seqKey = `${st.org_id}.${zoneUpper}.${stType}`;
+        typeSeqCount[seqKey] = (typeSeqCount[seqKey] || 0) + 1;
+        const code = `${st.org_id}.${zoneUpper}.${stType}-${String(typeSeqCount[seqKey]).padStart(3, '0')}`;
+        await client.query(`UPDATE booth_stations SET code = $1 WHERE id = $2`, [code, st.id]);
+      }
+      if (stationRows.rows.length > 0) {
+        console.log(`[migrate] Generated codes for ${stationRows.rows.length} stations.`);
+      }
+      await client.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_org_code ON booth_stations(org_id, code);`
+      );
+
       // Seed sku_cost for all existing SKUs if not exists
       const skuCostCheck = await client.query('SELECT COUNT(*) as cnt FROM booth_sku_cost WHERE org_id = 1');
       if (parseInt(skuCostCheck.rows[0].cnt) === 0) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Tabs, Segmented, Space, Button } from 'antd';
+import { Layout, Tabs, Segmented, Button } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ClockCircleOutlined,
@@ -33,6 +33,7 @@ const fabTabs = [
   { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
   { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
   { key: '/dexx/fab/operations', label: '报工', icon: <ToolOutlined /> },
+  { key: '/dexx/fab/stations', label: '产线', icon: <ApartmentOutlined /> },
   { key: '/dexx/fab/dashboard', label: '看板', icon: <DashboardOutlined /> },
   { key: '/dexx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
@@ -156,28 +157,26 @@ const MobileLayout: React.FC = () => {
           padding: '0 8px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          gap: 6,
           borderBottom: '1px solid #f0f0f0',
           height: 48,
           lineHeight: '48px',
-          overflow: 'hidden',
         }}
       >
-        <span style={{ fontSize: 15, fontWeight: 600, flexShrink: 0 }}>Booth</span>
-        <Space size={4} style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
-          {showSwitch && (
-            <div style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 100px)' }}>
-              <Segmented
-                size="small"
-                value={module}
-                onChange={(v) => handleModuleChange(v as ModuleType)}
-                options={segmentedOptions}
-                style={{ whiteSpace: 'nowrap' }}
-              />
-            </div>
-          )}
-          <Button type="text" size="small" icon={<LogoutOutlined />} onClick={handleLogout} style={{ flexShrink: 0 }} />
-        </Space>
+        <span style={{ fontSize: 14, fontWeight: 600, flexShrink: 0, width: 42, overflow: 'hidden' }}>Booth</span>
+        {showSwitch && (
+          <div style={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+            <Segmented
+              size="small"
+              value={module}
+              onChange={(v) => handleModuleChange(v as ModuleType)}
+              options={segmentedOptions}
+              style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}
+              block={false}
+            />
+          </div>
+        )}
+        <Button type="text" size="small" icon={<LogoutOutlined />} onClick={handleLogout} style={{ flexShrink: 0 }} />
       </Header>
       <Content style={{ paddingBottom: 60, overflow: 'auto' }}>
         <Outlet />

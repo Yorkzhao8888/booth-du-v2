@@ -52,6 +52,8 @@ import DexxSvcExec from './pages/dexx/SvcExec';
 import DexxProductionDashboard from './pages/dexx/ProductionDashboard';
 import DexxYieldTracking from './pages/dexx/YieldTracking';
 import DexxFabZoneView from './pages/dexx/FabZoneView';
+import DexxFabStations from './pages/dexx/FabStations';
+import DexxFabStationDetail from './pages/dexx/FabStationDetail';
 import DexxSupplyOrders from './pages/dexx/SupplyOrders';
 import DexxSupplyLineFeed from './pages/dexx/SupplyLineFeed';
 import DexxDeviceSupply from './pages/dexx/DeviceSupply';
@@ -246,6 +248,8 @@ const App: React.FC = () => {
           <Route path="fab/operations" element={<ErrorBoundary><DexxFabOperations /></ErrorBoundary>} />
           <Route path="fab/dashboard" element={<ErrorBoundary><DexxProductionDashboard /></ErrorBoundary>} />
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/yield" element={<ErrorBoundary><DexxYieldTracking /></ErrorBoundary>} />
           <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
           <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />

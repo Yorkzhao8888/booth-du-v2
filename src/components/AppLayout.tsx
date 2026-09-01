@@ -88,17 +88,17 @@ const getMenuItemsByRole = (role: string) => {
     ],
   };
 
-  // FAB 制造铺 - 产线视角（四大生产区只读看板）
+  // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（不只 dexx）
   const fabZoneItems = {
     key: 'fab-zones',
     icon: <ApartmentOutlined />,
     label: 'FAB 产线视角',
-    children: role === 'dexx' ? [
+    children: [
       { key: '/dexx/fab/zone/preprocessing', label: '前置工序' },
       { key: '/dexx/fab/zone/production', label: '制作' },
       { key: '/dexx/fab/zone/packaging', label: '包装' },
       { key: '/dexx/fab/zone/sorting', label: '分拣' },
-    ] : [],
+    ],
   };
 
   // FAB 制造铺（合并）
@@ -110,6 +110,8 @@ const getMenuItemsByRole = (role: string) => {
       ...fabOrderItems.children,
       { type: 'divider' },
       { key: 'fab-zone-group', label: '产线视角', type: 'group', children: fabZoneItems.children },
+      { type: 'divider' },
+      { key: '/dexx/fab/stations', label: 'Station 作业站' },
     ],
   };
 
