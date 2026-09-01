@@ -832,4 +832,51 @@ router.get('/fab/andon/history', requireFabRead, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ====== FAB-MES-DATA-CLEAN: 测试数据清理接口（幂等 / org 隔离 / 可追溯）======
+
+// DELETE /dexx/fab/equipment/:id — 删除设备并级联清理状态流水与保养计划
+router.delete('/fab/equipment/:id', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const id = Number(req.params.id);
+    const orgId = user.orgId as number;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const eq = await client.query('SELECT id, code, name FROM booth_equipment WHERE id=$1 AND org_id=$2', [id, orgId]);
+      if (eq.rowCount === 0) {
+        await client.query('COMMIT');
+        return res.json({ success: true, data: { deleted: false, id, message: 'already absent (idempotent)' } });
+      }
+      const logs = await client.query('DELETE FROM booth_equipment_status_log WHERE equipment_id=$1 AND org_id=$2 RETURNING id', [id, orgId]);
+      const plans = await client.query('DELETE FROM booth_maintenance_plans WHERE equipment_id=$1 AND org_id=$2 RETURNING id', [id, orgId]);
+      await client.query('DELETE FROM booth_equipment WHERE id=$1 AND org_id=$2', [id, orgId]);
+      await client.query('COMMIT');
+      res.json({ success: true, data: { deleted: true, id, code: eq.rows[0].code, name: eq.rows[0].name, cascaded: { status_logs: logs.rowCount, maintenance_plans: plans.rowCount } } });
+    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+  } catch (err) { next(err); }
+});
+
+// DELETE /dexx/fab/maintenance/plans/:id — 删除保养计划（不影响设备）
+router.delete('/fab/maintenance/plans/:id', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const id = Number(req.params.id);
+    const del = await pool.query('DELETE FROM booth_maintenance_plans WHERE id=$1 AND org_id=$2 RETURNING id', [id, user.orgId as number]);
+    res.json({ success: true, data: { deleted: (del.rowCount ?? 0) > 0, id } });
+  } catch (err) { next(err); }
+});
+
+// POST /dexx/fab/operations/cleanup — 按 id 数组清理报工记录 { ids: number[] }
+router.post('/fab/operations/cleanup', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const raw = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const ids = raw.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0);
+    if (ids.length === 0) return res.status(400).json({ success: false, error: 'ids (positive integer array) required' });
+    const del = await pool.query('DELETE FROM booth_fab_operations WHERE id = ANY($1::int[]) AND org_id=$2 RETURNING id', [ids, user.orgId as number]);
+    res.json({ success: true, data: { requested: ids, deleted_ids: del.rows.map((r: any) => r.id) } });
+  } catch (err) { next(err); }
+});
+
 export default router;
