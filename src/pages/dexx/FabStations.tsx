@@ -17,6 +17,8 @@ import {
   DownOutlined,
 } from '@ant-design/icons';
 
+import { useAuthStore } from '../../store';
+
 const MONO = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
 const NAVY = '#1F3A5F';
 const INDIGO = '#2F6BFF';
@@ -69,6 +71,8 @@ function loadColor(pct: number): string {
 }
 
 export default function FabStations() {
+  const { user } = useAuthStore();
+  const isReadOnly = user?.role !== 'dexx';
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [stations, setStations] = useState<Station[]>([]);
@@ -231,7 +235,7 @@ export default function FabStations() {
                         )}
                       </Space>
                       <Space size={4} onClick={(e) => e.stopPropagation()}>
-                        <Dropdown
+                        <Dropdown disabled={isReadOnly}
                           menu={{
                             items: REPORTABLE_STATES.map((st) => ({
                               key: st.value,

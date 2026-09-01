@@ -10,13 +10,31 @@ import { requireHat } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { broadcast } from '../sse.js';
 import { createAndonEvent, andonStats } from '../services/andon-service.js';
+import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
+
+// ====== FAB-MES-03-FIX3: 管理角色产线只读放行 ======
+// requireFabRead: FAB 帽全权; du/dx/dex/dm 管理角色仅放行只读(GET/HEAD), 写操作回落 requireHat('FAB')
+const FAB_READ_MANAGER_ROLES = ['du', 'dx', 'dex', 'dm'];
+const requireFabRead: any = (req: any, res: any, next: any) => {
+  const user = (req as any).user as JwtPayload | undefined;
+  const method = (req.method || '').toUpperCase();
+  if (user && FAB_READ_MANAGER_ROLES.includes(user.role) && (method === 'GET' || method === 'HEAD')) {
+    return next();
+  }
+  return requireHat('FAB')(req, res, next);
+};
+// X 层(dex/dexx)只读时剥离价格字段; du/dx/dm 可看全量 (价格边界红线)
+const stripFabReadFor = (user: JwtPayload, data: unknown): unknown => {
+  if (user && ['dex', 'dexx'].includes(user.role)) return stripPriceFields(data as any);
+  return data;
+};
 
 // ====== FAB-MES-05: Station-OS 产线/作业站融合 ======
 
 // 7. GET /dexx/fab/stations: Station 列表
-router.get('/fab/stations', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/stations', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { zone_type, station_type, state } = req.query;
@@ -41,7 +59,7 @@ router.get('/fab/stations', requireHat('FAB'), async (req, res, next) => {
 });
 
 // 8. GET /dexx/fab/stations/:id: 单站详情
-router.get('/fab/stations/:id', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/stations/:id', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { id } = req.params;
@@ -353,7 +371,7 @@ router.post('/fab/station/:id/fault', requireHat('FAB'), async (req, res, next) 
 });
 
 // 9. GET /dexx/fab/zone/:stage: 产线视角按阶段查询（前置/制作/包装/分拣）
-router.get('/fab/zone/:stage', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/zone/:stage', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { stage } = req.params;
@@ -376,7 +394,7 @@ router.get('/fab/zone/:stage', requireHat('FAB'), async (req, res, next) => {
       data: {
         stage,
         stations: stations.rows.map((s) => ({ ...s, active_orders: 0 })),
-        orders: orders.rows,
+        orders: stripFabReadFor(user, orders.rows),
         total: orders.rows.length,
       },
     });
@@ -386,7 +404,7 @@ router.get('/fab/zone/:stage', requireHat('FAB'), async (req, res, next) => {
 /* ============ FAB-MES-01 设备台账 + OEE 稼动率 ============ */
 
 // GET /dexx/fab/equipment 设备台账列表（含当前状态/OEE/上次保养）
-router.get('/fab/equipment', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/equipment', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const { stationId } = req.query;
@@ -565,7 +583,7 @@ async function computeOee(orgId: number | string, equipmentId: string, from: Dat
 }
 
 // GET /dexx/fab/equipment/oee/dashboard 全厂 OEE 汇总（先注册，避免与 :id 冲突）
-router.get('/fab/equipment/oee/dashboard', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/equipment/oee/dashboard', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
@@ -615,7 +633,7 @@ router.get('/fab/equipment/oee/dashboard', requireHat('FAB'), async (req, res, n
 });
 
 // GET /dexx/fab/equipment/:id 单设备详情（含最近状态流水 + 挂载工位）
-router.get('/fab/equipment/:id', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/equipment/:id', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const q = await pool.query(
@@ -636,7 +654,7 @@ router.get('/fab/equipment/:id', requireHat('FAB'), async (req, res, next) => {
 });
 
 // GET /dexx/fab/equipment/:id/oee 单设备 OEE
-router.get('/fab/equipment/:id/oee', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/equipment/:id/oee', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const ex = await pool.query('SELECT id FROM booth_equipment WHERE id = $1 AND org_id = $2', [req.params.id, user.orgId]);
@@ -649,7 +667,7 @@ router.get('/fab/equipment/:id/oee', requireHat('FAB'), async (req, res, next) =
 });
 
 // GET /dexx/fab/maintenance/plans 保养计划列表（含 overdue 预警）
-router.get('/fab/maintenance/plans', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/maintenance/plans', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     // 先刷新 overdue 标记
@@ -726,7 +744,7 @@ router.post('/fab/andon', requireHat('FAB'), async (req, res, next) => {
 });
 
 // 异常中心看板: open/processing 事件、severity 排序、响应/解决时效
-router.get('/fab/andon/board', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/andon/board', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const evs = await pool.query(
@@ -795,7 +813,7 @@ router.post('/fab/andon/:id/resolve', requireHat('FAB'), async (req, res, next) 
 });
 
 // 历史事件 + 响应/解决时效统计
-router.get('/fab/andon/history', requireHat('FAB'), async (req, res, next) => {
+router.get('/fab/andon/history', requireFabRead, async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 7 * 86400000);

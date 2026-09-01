@@ -7,9 +7,12 @@ import { Alert, Button, Card, Col, Empty, Modal, Row, Segmented, Space, Statisti
 import { CheckCircleOutlined, ClockCircleOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../api';
+import { useAuthStore } from '../../store';
 import { BOOTH, MonoNum } from '../../styles/booth';
 
 export default function FabMaintenance() {
+  const { user } = useAuthStore();
+  const isReadOnly = user?.role !== 'dexx';
   const [loading, setLoading] = useState(false);
   const [plans, setPlans] = useState<any[]>([]);
   const [filter, setFilter] = useState('all');
@@ -144,7 +147,7 @@ export default function FabMaintenance() {
                     type={p.isOverdue ? 'primary' : 'default'}
                     danger={p.isOverdue}
                     icon={<CheckCircleOutlined />}
-                    onClick={() => setDoneTarget(p)}
+                    disabled={isReadOnly} onClick={() => setDoneTarget(p)}
                     block
                   >
                     完成保养

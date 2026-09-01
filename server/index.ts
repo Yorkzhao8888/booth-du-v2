@@ -62,10 +62,12 @@ app.use('/api/booth/internal', internalRoutes);
 // (TECH-DEBT-4: 原 5 个分散挂载点收敛进 routes/du/index.ts, 挂载顺序不变)
 app.use('/api/booth/du', duRoutes);
 app.use('/api/booth/dex', dexRoutes);
-app.use('/api/booth/dexx', dexxRoutes);
+// FIX3: modules 前置(带独立 requireAuth) — dexx.ts 的 router.use(requireRole('dexx'))
+// 会全局拦截同前缀请求, du/dx/dex 的产线只读 GET 需先经 dexx-modules 的 requireFabRead 放行
+app.use('/api/booth/dexx', requireAuth, dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
 // New module routes
 app.use('/api/booth/dex', dexModulesRoutes);  // /api/booth/dex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
-app.use('/api/booth/dexx', dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
+app.use('/api/booth/dexx', dexxRoutes);
 app.use('/api/booth/em', emRoutes);
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
 app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型)

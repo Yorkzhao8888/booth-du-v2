@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Card, Col, Empty, Form, Input, Modal, Row, Segmented, Select, Statistic, Tag, message } from 'antd';
 import { BellOutlined, CheckCircleOutlined, ClockCircleOutlined, FireOutlined, SoundOutlined } from '@ant-design/icons';
 import { api } from '../../api';
+import { useAuthStore } from '../../store';
 const MONO = { fontFamily: "SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace", fontVariantNumeric: 'tabular-nums' as const };
 
 const SEVERITY: Record<string, { label: string; color: string; bg: string }> = {
@@ -34,6 +35,8 @@ const fmtMin = (sec?: number | null) => {
 const fmtTime = (t?: string | null) => (t ? new Date(t).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
 const AndonBoard = () => {
+  const { user } = useAuthStore();
+  const isReadOnly = user?.role !== 'dexx';
   const [tab, setTab] = useState<string>('open');
   const [items, setItems] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
@@ -143,8 +146,8 @@ const AndonBoard = () => {
                     </div>
                   )}
                   <div style={{ textAlign: 'right' }}>
-                    {ev.status === 'open' && <Button size="small" type="primary" icon={<SoundOutlined />} onClick={() => doAssign(ev)}>响应处理</Button>}
-                    {ev.status === 'processing' && <Button size="small" icon={<CheckCircleOutlined />} onClick={() => setResolveModal(ev)}>标记解决</Button>}
+                    {ev.status === 'open' && <Button size="small" type="primary" icon={<SoundOutlined />} disabled={isReadOnly} onClick={() => doAssign(ev)}>响应处理</Button>}
+                    {ev.status === 'processing' && <Button size="small" icon={<CheckCircleOutlined />} disabled={isReadOnly} onClick={() => setResolveModal(ev)}>标记解决</Button>}
                   </div>
                 </Card>
               </Col>

@@ -171,6 +171,15 @@ const App: React.FC = () => {
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 dexx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
         </Route>
 
         {/* DM routes (read-only access to all) */}
@@ -235,6 +244,15 @@ const App: React.FC = () => {
           <Route path="stocktakes" element={<ErrorBoundary><DexStocktakeApproval /></ErrorBoundary>} />
           <Route path="capacity" element={<ErrorBoundary><DexCapacityQuery /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><DexSupplyQuotes /></ErrorBoundary>} />
+          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 dexx 组件 */}
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
         </Route>
 
         {/* DEXX routes */}

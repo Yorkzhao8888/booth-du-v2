@@ -14,6 +14,8 @@ import {
   RobotOutlined,
 } from '@ant-design/icons';
 
+import { useAuthStore } from '../../store';
+
 const MONO = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
 const NAVY = '#1F3A5F';
 const AMBER = '#C9A227';
@@ -67,6 +69,8 @@ function loadColor(pct: number): string {
 }
 
 export default function FabStationDetail() {
+  const { user } = useAuthStore();
+  const isReadOnly = user?.role !== 'dexx';
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -188,9 +192,9 @@ export default function FabStationDetail() {
         }
         extra={
           <Space>
-            <Button size="small" icon={<PlayCircleOutlined />} onClick={() => { setNewStatus(station.state === 'busy' ? 'idle' : 'busy'); setStatusModal(true); }}>上报状态</Button>
-            <Button size="small" danger icon={<WarningOutlined />} onClick={() => setFaultModal(true)}>发起故障</Button>
-            <Button size="small" icon={<ApiOutlined />} onClick={deployAgent}>部署 Agent</Button>
+            <Button size="small" icon={<PlayCircleOutlined />} disabled={isReadOnly} onClick={() => { setNewStatus(station.state === 'busy' ? 'idle' : 'busy'); setStatusModal(true); }}>上报状态</Button>
+            <Button size="small" danger icon={<WarningOutlined />} disabled={isReadOnly} onClick={() => setFaultModal(true)}>发起故障</Button>
+            <Button size="small" icon={<ApiOutlined />} disabled={isReadOnly} onClick={deployAgent}>部署 Agent</Button>
           </Space>
         }
         style={{ marginBottom: 16 }}

@@ -8,6 +8,7 @@ import { Button, Card, Col, DatePicker, Drawer, Empty, Form, Input, InputNumber,
 import { PlusOutlined, ReloadOutlined, ToolOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../api';
+import { useAuthStore } from '../../store';
 import { BOOTH, MonoNum } from '../../styles/booth';
 
 const EQ_STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -46,6 +47,8 @@ function OeeBar({ oee }: { oee: number | null }) {
 }
 
 export default function FabEquipment() {
+  const { user } = useAuthStore();
+  const isReadOnly = user?.role !== 'dexx';
   const nav = useNavigate();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<any[]>([]);
@@ -134,7 +137,7 @@ export default function FabEquipment() {
         </div>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>新建设备</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={isReadOnly} onClick={() => setCreateOpen(true)}>新建设备</Button>
         </Space>
       </div>
 
@@ -165,7 +168,7 @@ export default function FabEquipment() {
       {/* 设备列表 */}
       {filtered.length === 0 && !loading ? (
         <Empty description={<span>暂无设备档案。产线已建档（Station）后即可挂载设备，设备数据是 OEE 稼动率的数据基础。</span>} style={{ padding: 60 }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>+ 新建设备</Button>
+          <Button type="primary" icon={<PlusOutlined />} disabled={isReadOnly} onClick={() => setCreateOpen(true)}>+ 新建设备</Button>
         </Empty>
       ) : (
         <Row gutter={[12, 12]}>

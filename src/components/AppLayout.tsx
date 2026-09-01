@@ -94,16 +94,18 @@ const getMenuItemsByRole = (role: string) => {
     ],
   };
 
-  // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（不只 dexx）
+  // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（FAB-MES-03-FIX3: 保留可见+可进入+只读）
+  // key 前缀按角色: du/dx/dm→/du/fab, dex→/dex/fab, dexx→/dexx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
+  const fabBase = role === 'dexx' ? '/dexx/fab' : role === 'dex' ? '/dex/fab' : '/du/fab';
   const fabZoneItems = {
     key: 'fab-zones',
     icon: <ApartmentOutlined />,
     label: 'FAB 产线视角',
     children: [
-      { key: '/dexx/fab/zone/preprocessing', label: '前置工序' },
-      { key: '/dexx/fab/zone/production', label: '制作' },
-      { key: '/dexx/fab/zone/packaging', label: '包装' },
-      { key: '/dexx/fab/zone/sorting', label: '分拣' },
+      { key: `${fabBase}/zone/preprocessing`, label: '前置工序' },
+      { key: `${fabBase}/zone/production`, label: '制作' },
+      { key: `${fabBase}/zone/packaging`, label: '包装' },
+      { key: `${fabBase}/zone/sorting`, label: '分拣' },
     ],
   };
 
@@ -114,17 +116,14 @@ const getMenuItemsByRole = (role: string) => {
     label: 'FAB 制造铺',
     children: [
       ...fabOrderItems.children,
-      // 执行层专属入口仅 dexx 展示：du/dx/dex 守卫不放行 /dexx/*，展示必被弹回首页（回归根因 A）
-      ...(role === 'dexx' ? [
-        { type: 'divider' as const },
-        { key: 'fab-zone-group', label: '产线视角', type: 'group' as const, children: fabZoneItems.children },
-        { type: 'divider' as const },
-        { key: '/dexx/fab/stations', label: 'Station 作业站' },
-        { key: '/dexx/fab/equipment', label: '设备台账' },
-        { key: '/dexx/fab/equipment/oee', label: 'OEE 稼动率' },
-        { key: '/dexx/fab/maintenance', label: '保养日历' },
-        { key: '/dexx/fab/andon', label: '安灯异常中心' },
-      ] : []),
+      { type: 'divider' as const },
+      { key: 'fab-zone-group', label: '产线视角', type: 'group' as const, children: fabZoneItems.children },
+      { type: 'divider' as const },
+      { key: `${fabBase}/stations`, label: 'Station 作业站' },
+      { key: `${fabBase}/equipment`, label: '设备台账' },
+      { key: `${fabBase}/equipment/oee`, label: 'OEE 稼动率' },
+      { key: `${fabBase}/maintenance`, label: '保养日历' },
+      { key: `${fabBase}/andon`, label: '安灯异常中心' },
     ],
   };
 
