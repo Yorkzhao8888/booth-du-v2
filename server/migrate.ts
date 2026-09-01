@@ -1,7 +1,48 @@
 import bcrypt from 'bcryptjs';
 import { pool, query } from './db.js';
 
+// ===========================================================================
+// Booth-DU 数据库迁移基线（TECH-DEBT-5 版本化整理）
+// ---------------------------------------------------------------------------
+// 本文件是全量 schema 的版本化基线：所有扩表/加列在此追加幂等语句，
+// 服务启动时由 migrate() 在单事务内整体执行（事务保证原子性）。
+//
+// 幂等约定（新增语句必须遵守）:
+//   1. 建表一律 CREATE TABLE IF NOT EXISTS
+//   2. 加列一律 ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+//   3. 索引一律 CREATE INDEX IF NOT EXISTS
+//   4. 数据级迁移先查后写（存在即跳过），或用 WHERE 守卫保证可重复执行
+//   5. 禁止 DROP / TRUNCATE / 破坏性类型变更
+//
+// 版本区块索引（自上而下追加，禁止在历史区块内改写语义）:
+//   [V1]   DDL 头部    核心域: orgs/users/skus/fulfillments/work_orders/
+//                      boms/inventory/出入库/事件与Outbox
+//   [V2]   DDL 中部    模块域: sku_cost/purchase_orders/profit_snapshots/
+//                      batches/stocktakes/工序/质检/DL/SVC
+//   [E0]   ALTERS 头部 早期增量补列: safety_stock_num/priority/paused/
+//                      DL+SVC任务列/warehouse_type
+//   [D]    ALTERS      工单 D: 供应商管理+结算（含 FAB 产线阶段补丁/
+//                      良品率/库存调拨）
+//   [C2]   ALTERS      工单 C2: 本店供应商层（档案扩展/准入/合同）
+//   [C1]   ALTERS      工单 C1: EM 全局供应链（生态准入/供给策略/产能）
+//   [C3]   ALTERS      工单 C3: 采购系统增强 + Market 通货售卖
+//   [J]    ALTERS      工单 FAB-OPT-01: Job 模型（stations/8态状态机）
+//   [WS1]  ALTERS      工单 WH-SUPPLY-01: 供给单/设备档案/维保/场地
+//   [O1]   ALTERS      工单 BOOTH-OPT-01: ATP 产能/负荷/可承诺量
+//   [O2]   ALTERS      工单 BOOTH-OPT-02: SGU 目录/挂牌/订阅
+//   [O3]   ALTERS      工单 BOOTH-OPT-03: 供给报价三层价格
+//   [M1]   migrate()   工单 FAB-MES-01: booth_equipment/状态流水/保养计划
+//   [M3]   migrate()   工单 FAB-MES-03: 安灯 events/escalation/知识库候选
+//   [SEED] migrate()   种子数据 + 角色迁移(eu→du等) + 账号补种(dx/dm/dxx/em)
+//                      + Station 编码回填 + sku_cost 播种
+//
+// 新增迁移操作规程: schema 变更追加到 ALTERS 尾部（新表也可入 DDL 尾部），
+// 用「-- ====== <工单号>：<一句话说明> ======」作区块头；migrate() 内的
+// 数据级迁移同样按区块注释追加。改完必须在本地跑一次 build + 启动验证幂等。
+// ===========================================================================
+
 const DDL = `
+-- ====== [V1] CORE TABLES 核心域 ======
 CREATE TABLE IF NOT EXISTS booth_orgs (
   id SERIAL PRIMARY KEY, shop_id INTEGER NOT NULL, name VARCHAR(100) NOT NULL,
   mode VARCHAR(10) NOT NULL DEFAULT 'du', is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -210,6 +251,7 @@ CREATE INDEX IF NOT EXISTS idx_st_org_status ON booth_stocktake_orders(org_id, s
 `;
 
 const ALTERS = `
+-- ====== [E0] EARLY INCREMENTAL ALTERS 早期增量补列 ======
 ALTER TABLE booth_skus ADD COLUMN IF NOT EXISTS safety_stock_num NUMERIC(12,3) DEFAULT 0;
 ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
 ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS paused BOOLEAN DEFAULT false;
@@ -750,6 +792,7 @@ CREATE TABLE IF NOT EXISTS booth_atp_commitments (
 CREATE INDEX IF NOT EXISTS idx_atp_org_status ON booth_atp_commitments(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_atp_source ON booth_atp_commitments(source_type, source_id);
 
+-- ====== [O2] BOOTH-OPT-02: SGU 供给目录（目录/挂牌/Shop新品订阅） ======
 -- SGU Catalog (供给目录)
 CREATE TABLE IF NOT EXISTS booth_sgu_catalog (
   id SERIAL PRIMARY KEY, org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
@@ -799,6 +842,7 @@ CREATE INDEX IF NOT EXISTS idx_sgu_listings_org ON booth_sgu_listings(org_id);
 CREATE INDEX IF NOT EXISTS idx_sgu_listings_status ON booth_sgu_listings(status);
 CREATE INDEX IF NOT EXISTS idx_sgu_pending_org ON booth_sgu_pending(org_id, status);
 
+-- ====== [O3] BOOTH-OPT-03: 供给报价（三层价格体系/版本/审计） ======
 -- Supply Quotes (供给报价单 - 三层价格体系)
 CREATE TABLE IF NOT EXISTS booth_supply_quotes (
   id SERIAL PRIMARY KEY,
@@ -871,6 +915,15 @@ CREATE INDEX IF NOT EXISTS idx_supply_quote_audit_quote ON booth_supply_quote_au
 // In-memory store for org modes
 export const orgModes = new Map<number, string>();
 
+// ---------------------------------------------------------------------------
+// migrate() 执行流程（单事务，幂等）:
+//   1. 执行三大 schema 基线: DDL([V1][V2]) → INDEXES → ALTERS([E0]~[O3])
+//   2. 库非空(已有组织)路径: 加载 orgModes → Outbox 死信清理 → 角色迁移
+//      → 账号补种(dx/dm/dxx/em) → Station-OS 升级与编码回填
+//      → [M1]设备台账 → [M3]安灯三表 → 工序.equipment_id → sku_cost 播种
+//   3. 库空路径(首次): 全量种子(组织/用户/SKU/BOM/库存)并回拨序列
+//   任何一步失败整体 ROLLBACK，下次启动重放（幂等约定见文件头）。
+// ---------------------------------------------------------------------------
 export async function migrate() {
   const client = await pool.connect();
   try {
