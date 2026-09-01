@@ -110,15 +110,28 @@ router.post('/fab/complete', requireHat('FAB'), async (req, res, next) => {
       [workOrderId]
     );
 
-    // Auto-create QC task
+    // [FAB-MES-02] 完工自动生成产出批次 + produce 追溯链 (产出批次初始 hold, 质检后定状态)
+    const outputBatchNo = `OUT-WO${workOrderId}-${Date.now().toString(36).toUpperCase()}`;
     await client.query(
-      `INSERT INTO booth_quality_checks (org_id, work_order_id)
-       VALUES ($1, $2)`,
+      `INSERT INTO booth_output_batches (org_id, work_order_id, batch_no, qty, quality_status)
+       VALUES ($1, $2, $3, $4, 'hold')`,
+      [user.orgId, workOrderId, outputBatchNo, woRes.rows[0].qty || 0]
+    );
+    await client.query(
+      `INSERT INTO booth_trace_links (org_id, work_order_id, batch_id, direction, relation_type, qty, operator_id)
+       VALUES ($1, $2, NULL, 'out', 'produce', $3, $4)`,
+      [user.orgId, workOrderId, woRes.rows[0].qty || 0, user.userId]
+    );
+
+    // Auto-create QC task (fqc 成品检, 显式 pending 待检)
+    await client.query(
+      `INSERT INTO booth_quality_checks (org_id, work_order_id, check_type, result)
+       VALUES ($1, $2, 'fqc', 'pending')`,
       [user.orgId, workOrderId]
     );
 
     await client.query('COMMIT');
-    res.json({ success: true, data: { workOrderId, message: 'Work order completed, QC task created' } });
+    res.json({ success: true, data: { workOrderId, outputBatchNo, message: 'Work order completed, QC task created' } });
   } catch (err) { await client.query('ROLLBACK'); next(err); }
   finally { client.release(); }
 });
@@ -377,40 +390,93 @@ router.post('/fab/qc/execute', requireHat('FAB'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     const user = (req as any).user as JwtPayload;
-    const { qcId, passed, passedQty, failedQty, remark, detail } = req.body;
+    const { qcId, workOrderId, checkType, stage, result, passed, passedQty, failedQty, remark, detail } = req.body;
 
     await client.query('BEGIN');
 
-    const qcRes = await client.query(
-      'SELECT * FROM booth_quality_checks WHERE id = $1 AND org_id = $2 FOR UPDATE',
-      [qcId, user.orgId]
-    );
-    if (!qcRes.rows.length || qcRes.rows[0].result !== 'pass') {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, error: 'QC not pending', code: 'INVALID_STATE' });
+    let targetQcId = qcId;
+    let qcRow: any;
+
+    if (targetQcId) {
+      const qcRes = await client.query(
+        'SELECT * FROM booth_quality_checks WHERE id = $1 AND org_id = $2 FOR UPDATE',
+        [targetQcId, user.orgId]
+      );
+      if (!qcRes.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: 'QC not found', code: 'NOT_FOUND' });
+      }
+      qcRow = qcRes.rows[0];
+      if (!['pending', 'fail', 'hold'].includes(qcRow.result)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'QC already passed', code: 'INVALID_STATE' });
+      }
+    } else {
+      // [FAB-MES-02] 多关卡: ipqc 过程检可对执行中工单按工序现场建任务并执行
+      const ct = checkType || 'fqc';
+      if (!['iqc', 'ipqc', 'fqc', 'oqc'].includes(ct)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Invalid checkType', code: 'INVALID_PARAM' });
+      }
+      if (!workOrderId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'workOrderId required to create QC task', code: 'INVALID_PARAM' });
+      }
+      const woChk = await client.query(
+        'SELECT id FROM booth_work_orders WHERE id = $1 AND org_id = $2',
+        [workOrderId, user.orgId]
+      );
+      if (!woChk.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: 'Work order not found', code: 'NOT_FOUND' });
+      }
+      const ins = await client.query(
+        `INSERT INTO booth_quality_checks (org_id, work_order_id, check_type, stage, result)
+         VALUES ($1, $2, $3, $4, 'pending') RETURNING *`,
+        [user.orgId, workOrderId, ct, stage || null]
+      );
+      qcRow = ins.rows[0];
+      targetQcId = qcRow.id;
     }
 
-    const newResult = passed ? 'pass' : 'fail';
+    // [FAB-MES-02] 多关卡结果: pass/reject/hold; 兼容旧 passed(bool) 参数
+    const newResult = result || (passed === true ? 'pass' : passed === false ? 'reject' : undefined);
+    if (!newResult || !['pass', 'reject', 'hold'].includes(newResult)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'result (pass/reject/hold) required', code: 'INVALID_PARAM' });
+    }
+
     await client.query(
       `UPDATE booth_quality_checks SET result = $1, qty_pass = $2, qty_reject = $3, reject_reason = $4, inspector_id = $5, checked_at = NOW()
        WHERE id = $6`,
-      [newResult, passedQty || 0, failedQty || 0, remark, user.userId!, qcId]
+      [newResult, passedQty || 0, failedQty || 0, remark || null, user.userId!, targetQcId]
     );
 
-    // If QC passed, create profit snapshot
-    if (passed) {
-      const wo = qcRes.rows[0];
-      const fulRes = await client.query(
-        'SELECT id FROM booth_fulfillments WHERE work_order_id = $1 AND org_id = $2',
-        [wo.work_order_id, user.orgId]
+    const effectiveType = qcRow.check_type || 'fqc';
+
+    // [FAB-MES-02] 成品关卡(fqc/oqc)质检结果回写产出批次质量状态
+    if (['fqc', 'oqc'].includes(effectiveType)) {
+      const mapped = newResult === 'pass' ? 'pass' : newResult === 'reject' ? 'reject' : 'hold';
+      await client.query(
+        `UPDATE booth_output_batches SET quality_status = $1 WHERE org_id = $2 AND work_order_id = $3`,
+        [mapped, user.orgId, qcRow.work_order_id]
       );
-      if (fulRes.rows.length > 0) {
-        await createProfitSnapshot(user.orgId, fulRes.rows[0].id, wo.work_order_id);
+    }
+
+    // If QC passed, create profit snapshot (仅 fqc 成品检触发, ipqc 过程检不触发)
+    if (effectiveType === 'fqc' && newResult === 'pass') {
+      const woRes = await client.query(
+        'SELECT fulfillment_id FROM booth_work_orders WHERE id = $1 AND org_id = $2',
+        [qcRow.work_order_id, user.orgId]
+      );
+      const fulId = woRes.rows[0]?.fulfillment_id;
+      if (fulId) {
+        await createProfitSnapshot(user.orgId, fulId, qcRow.work_order_id);
       }
     }
 
     await client.query('COMMIT');
-    const updated = await pool.query('SELECT * FROM booth_quality_checks WHERE id = $1', [qcId]);
+    const updated = await pool.query('SELECT * FROM booth_quality_checks WHERE id = $1', [targetQcId]);
     res.json({ success: true, data: updated.rows[0] });
   } catch (err) { await client.query('ROLLBACK'); next(err); }
   finally { client.release(); }

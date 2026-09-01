@@ -910,6 +910,41 @@ CREATE INDEX IF NOT EXISTS idx_supply_quotes_sgu ON booth_supply_quotes(sgu_id);
 CREATE INDEX IF NOT EXISTS idx_supply_quotes_status ON booth_supply_quotes(status);
 CREATE INDEX IF NOT EXISTS idx_supply_quote_versions_quote ON booth_supply_quote_versions(quote_id, version);
 CREATE INDEX IF NOT EXISTS idx_supply_quote_audit_quote ON booth_supply_quote_audit(quote_id);
+
+-- [FAB-MES-02] 质量追溯链: 质检关卡扩展 + 产出批次 + 追溯关系
+ALTER TABLE booth_quality_checks ADD COLUMN IF NOT EXISTS check_type TEXT NOT NULL DEFAULT 'fqc';
+ALTER TABLE booth_quality_checks ADD COLUMN IF NOT EXISTS stage TEXT;
+
+CREATE TABLE IF NOT EXISTS booth_output_batches (
+  id SERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  work_order_id BIGINT NOT NULL,
+  batch_no TEXT NOT NULL,
+  sku_id BIGINT,
+  qty NUMERIC(12,2) NOT NULL DEFAULT 0,
+  quality_status TEXT NOT NULL DEFAULT 'hold',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS booth_trace_links (
+  id SERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  work_order_id BIGINT NOT NULL,
+  batch_id BIGINT,
+  direction TEXT NOT NULL,
+  relation_type TEXT NOT NULL,
+  qty NUMERIC(12,2) NOT NULL DEFAULT 0,
+  operator_id BIGINT,
+  equipment_id BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_output_batches_org_no ON booth_output_batches(org_id, batch_no);
+CREATE INDEX IF NOT EXISTS idx_output_batches_wo ON booth_output_batches(org_id, work_order_id);
+CREATE INDEX IF NOT EXISTS idx_trace_links_wo ON booth_trace_links(org_id, work_order_id);
+CREATE INDEX IF NOT EXISTS idx_trace_links_batch ON booth_trace_links(org_id, batch_id);
+CREATE INDEX IF NOT EXISTS idx_trace_links_type ON booth_trace_links(org_id, relation_type);
+CREATE INDEX IF NOT EXISTS idx_qc_check_type ON booth_quality_checks(org_id, check_type, checked_at);
 `;
 
 // In-memory store for org modes

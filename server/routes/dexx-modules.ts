@@ -18,11 +18,13 @@ import dexxFabRoutes from './dexx-fab.js';
 import dexxWhRoutes from './dexx-wh.js';
 import dexxDlRoutes from './dexx-dl.js';
 import dexxSvcRoutes from './dexx-svc.js';
+import dexxFabTraceRoutes from './dexx-fab-trace.js';
 import dexxFabMesRoutes from './dexx-fab-mes.js';
 
 const router = Router();
 
 router.use(dexxFabRoutes);
+router.use(dexxFabTraceRoutes);
 router.use(dexxWhRoutes);
 router.use(dexxDlRoutes);
 router.use(dexxSvcRoutes);

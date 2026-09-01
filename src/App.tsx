@@ -47,6 +47,8 @@ import DexxWhTxns from './pages/dexx/WhTxns';
 import DexxFabOperations from './pages/dexx/FabOperations';
 import DexxFabAndon from './pages/dexx/FabAndon';
 import DexxQcExecute from './pages/dexx/QcExecute';
+import DexxFabTrace from './pages/dexx/FabTrace';
+import DexxFabDefects from './pages/dexx/FabDefects';
 import DexxStocktakeExec from './pages/dexx/StocktakeExec';
 import DexxDlExec from './pages/dexx/DlExec';
 import DexxSvcExec from './pages/dexx/SvcExec';
@@ -280,6 +282,8 @@ const App: React.FC = () => {
           <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
           <Route path="fab/yield" element={<ErrorBoundary><DexxYieldTracking /></ErrorBoundary>} />
           <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
+          <Route path="fab/trace" element={<ErrorBoundary><DexxFabTrace /></ErrorBoundary>} />
+          <Route path="fab/defects" element={<ErrorBoundary><DexxFabDefects /></ErrorBoundary>} />
           <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />
           <Route path="wh/inbound" element={<ErrorBoundary><DexxWhInbound /></ErrorBoundary>} />
           <Route path="wh/outbound" element={<ErrorBoundary><DexxWhOutbound /></ErrorBoundary>} />

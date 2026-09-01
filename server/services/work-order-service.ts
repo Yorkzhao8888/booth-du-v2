@@ -170,6 +170,12 @@ export async function startWorkOrder(id: number, userId: number) {
           `UPDATE booth_stock_batches SET qty = qty - $1 WHERE id = $2`,
           [deduct, batch.id]
         );
+        // [FAB-MES-02] 领料扣减自动写入追溯链: 原料批次 -> 工单 (consume)
+        await client.query(
+          `INSERT INTO booth_trace_links (org_id, work_order_id, batch_id, direction, relation_type, qty, operator_id)
+           VALUES ($1, $2, $3, 'in', 'consume', $4, $5)`,
+          [wo.org_id, id, batch.id, deduct, userId]
+        );
         remaining -= deduct;
       }
 

@@ -85,7 +85,9 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/dexx/fab/operations', label: '工序报工' },
         { key: '/dexx/fab/dashboard', label: '产线看板' },
         { key: '/dexx/fab/yield', label: '良品率追踪' },
-        { key: '/dexx/qc', label: '质检执行' },
+        { key: '/dexx/qc', label: '质检任务' },
+        { key: '/dexx/fab/trace', label: '追溯查询' },
+        { key: '/dexx/fab/defects', label: '不良分析' },
         { key: '/dexx/fab/history', label: '历史工单' },
       ] : []),
       ...(['du', 'dx', 'dm'].includes(role) ? [
