@@ -247,6 +247,22 @@ html, body {
 .font-mono { font-family: var(--booth-mono); }
 .font-number { font-family: var(--booth-mono); font-variant-numeric: tabular-nums; }
 
+/* ===== Mobile Bottom TabBar (BOOTH-UI-06) ===== */
+/* 窄屏 tab 栏：横向可滚动兜底 + 隐藏滚动条 + 禁用回弹，tab 项不收缩不截断 */
+.booth-tabbar-scroll {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/legacy Edge */
+}
+
+.booth-tabbar-scroll::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
+
 /* ===== Responsive Adjustments ===== */
 @media (max-width: 768px) {
   :root {

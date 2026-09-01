@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Tabs, Segmented, Button } from 'antd';
+import { Layout, Segmented, Button } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ClockCircleOutlined,
@@ -204,28 +204,40 @@ const MobileLayout: React.FC = () => {
           width: '100%',
           maxWidth: 480,
           zIndex: 100,
+          background: '#fff',
+          borderTop: '1px solid #f0f0f0',
         }}
       >
-        <Tabs
-          activeKey={activeKey}
-          onChange={(key) => navigate(key)}
-          tabBarStyle={{
-            margin: 0,
-            background: '#fff',
-            borderTop: '1px solid #f0f0f0',
-            overflowX: 'auto',
-          }}
-          size="small"
-          items={currentTabs.map((t) => ({
-            key: t.key,
-            label: (
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 10, padding: '0 2px' }}>
-                {t.icon}
-                <span style={{ marginTop: 1, whiteSpace: 'nowrap', fontSize: 9 }}>{t.label}</span>
-              </span>
-            ),
-          }))}
-        />
+        {/* BOOTH-UI-06: 自定义底部 tab 栏（替代 antd Tabs）
+            flex:1 0 auto — 容器内均分铺满但不收缩挤压，tab 多时容器横向滚动兜底，
+            彻底移除 antd 溢出时自动出现的「…」more 按钮，杜绝 375px 下截断/溢出 */}
+        <div className="booth-tabbar-scroll">
+          {currentTabs.map((t) => {
+            const active = t.key === activeKey;
+            return (
+              <div
+                key={t.key}
+                onClick={() => navigate(t.key)}
+                style={{
+                  flex: '1 0 auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px 3px 5px',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                  color: active ? 'var(--booth-action)' : 'var(--booth-text-tertiary)',
+                  borderBottom: `2px solid ${active ? 'var(--booth-action)' : 'transparent'}`,
+                }}
+              >
+                <span style={{ fontSize: 15, lineHeight: '16px', display: 'flex' }}>{t.icon}</span>
+                <span style={{ fontSize: 9, lineHeight: '12px', marginTop: 2, whiteSpace: 'nowrap' }}>{t.label}</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </Layout>
   );
