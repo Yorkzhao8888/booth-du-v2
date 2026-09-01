@@ -14,11 +14,15 @@ import duPurchaseRoutes from '../du-purchase.js';
 import duModulesRoutes from '../du-modules.js';
 import duSupplyRoutes from '../du-supply.js';
 import duSuppliersRoutes from '../du-suppliers.js';
+import quoteEngineRoutes from '../quote-engine.js';
+import financeRouter, { financeReadonlyRouter } from '../finance.js';
 
 const router = Router();
 
 // 挂载顺序与原 index.ts 逐条对应，保持匹配优先级不变
 router.use('/suppliers', duSuppliersRoutes);  // C2 本店供应商层 (must be before /)
+router.use('/quote-engine', quoteEngineRoutes); // [PK-05] 报价引擎 (M 层知价, dex/dexx/dxx 403)
+router.use('/finance', financeRouter);        // [PK-05] 业财闭环 xcase/vcase/reconcile (M 层)
 router.use('/', duCoreRoutes);                // 核心经营看板
 router.use('/', duPurchaseRoutes);            // /purchase-orders/*
 router.use('/', duModulesRoutes);             // /dl/*, /svc/*, /profit/*, /wh/*, /fab/qc

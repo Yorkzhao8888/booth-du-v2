@@ -1064,6 +1064,56 @@ CREATE TABLE IF NOT EXISTS supplier_score_configs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_score_cfg ON supplier_score_configs(org_id);
+
+-- [BOOTH-PK-05] 业财闭环: XCase 专案 / VCase 总账 / 对账
+-- 红线: 只基于真实履约业务数据; vcase 凭 source_voucher 幂等去重(重复投递不重复入账); 不破坏 outbox 机制
+CREATE TABLE IF NOT EXISTS booth_xcases (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  xcase_no VARCHAR(40) NOT NULL,
+  business_type VARCHAR(40) NOT NULL DEFAULT 'booth_fulfillment',
+  title VARCHAR(120),
+  parties JSONB NOT NULL DEFAULT '[]'::jsonb,
+  fulfillment_id BIGINT,
+  status VARCHAR(20) NOT NULL DEFAULT 'open',
+  closed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_xcase_no ON booth_xcases(org_id, xcase_no);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_xcase_fulfillment ON booth_xcases(org_id, fulfillment_id) WHERE fulfillment_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_xcases_status ON booth_xcases(org_id, status);
+
+CREATE TABLE IF NOT EXISTS booth_vouchers (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  xcase_id BIGINT NOT NULL REFERENCES booth_xcases(id) ON DELETE CASCADE,
+  voucher_no VARCHAR(40) NOT NULL,
+  direction VARCHAR(10) NOT NULL CHECK (direction IN ('income','expense')),
+  category VARCHAR(20) NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,
+  summary VARCHAR(200),
+  source_voucher VARCHAR(80) NOT NULL,
+  created_by BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_source ON booth_vouchers(org_id, source_voucher);
+CREATE INDEX IF NOT EXISTS idx_vouchers_case ON booth_vouchers(xcase_id);
+
+CREATE TABLE IF NOT EXISTS booth_vcase_entries (
+  id BIGSERIAL PRIMARY KEY,
+  org_id BIGINT NOT NULL,
+  vcase_no VARCHAR(40) NOT NULL,
+  xcase_id BIGINT NOT NULL,
+  xcase_no VARCHAR(40) NOT NULL,
+  direction VARCHAR(10) NOT NULL,
+  category VARCHAR(20) NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,
+  source_voucher VARCHAR(80) NOT NULL,
+  entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vcase_source ON booth_vcase_entries(org_id, source_voucher);
+CREATE INDEX IF NOT EXISTS idx_vcase_no ON booth_vcase_entries(org_id, vcase_no);
 `;
 
 // In-memory store for org modes

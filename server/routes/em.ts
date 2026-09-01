@@ -15,6 +15,10 @@ function requireEM(req: any, res: any, next: any) {
 
 router.use(requireAuth, requireEM);
 
+// [BOOTH-PK-05] 业财闭环 em 只读接入: reconcile 对账 / xcase / vcase 总账(只读, 不挂 close/补录)
+import { financeReadonlyRouter } from './finance.js';
+router.use('/finance', financeReadonlyRouter);
+
 // Helper to get user from request
 function getUser(req: any): JwtPayload {
   // @ts-ignore

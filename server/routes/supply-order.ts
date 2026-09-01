@@ -15,6 +15,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { pool } from '../db.js';
 import { requireRole, type JwtPayload } from '../auth.js';
+import { openXCaseForFulfillment } from '../services/finance-service.js';
 
 const M_ROLES = ['du', 'dx', 'em'];
 const PRICE_ROLES = ['du', 'dx'];
@@ -324,6 +325,23 @@ async function deliveryConfirmHandler(req: Request, res: Response, next: NextFun
       delivered_at: data.milestones?.delivered_at ?? null,
       settled_at: data.milestones?.settled_at ?? null,
     });
+
+    // [BOOTH-PK-05] 业财闭环: Settled 自动立 xcase(幂等, uq fulfillment_id) + 收入凭证(真实报价快照) + outbox 事件
+    // 失败不阻断签收主流程(履约状态已落库); 幂等键防重复立案
+    try {
+      const fin = await openXCaseForFulfillment(user.orgId, upd.rows[0]);
+      if (fin) {
+        await emitOutbox(user.orgId, 'Finance.XCaseOpened', {
+          xcase_no: fin.xcaseNo,
+          fulfillment_id: id,
+          income: fin.income,
+          vouchers: fin.voucherNos,
+        });
+      }
+    } catch (finErr: any) {
+      console.error('[PK-05] openXCaseForFulfillment failed (confirm flow 不回滚):', finErr?.message);
+    }
+
     return res.json({ success: true, data });
   } catch (err) {
     next(err);
