@@ -853,7 +853,15 @@ router.delete('/fab/equipment/:id', requireHat('FAB'), async (req, res, next) =>
       await client.query('DELETE FROM booth_equipment WHERE id=$1 AND org_id=$2', [id, orgId]);
       await client.query('COMMIT');
       res.json({ success: true, data: { deleted: true, id, code: eq.rows[0].code, name: eq.rows[0].name, cascaded: { status_logs: logs.rowCount, maintenance_plans: plans.rowCount } } });
-    } catch (e) { await client.query('ROLLBACK'); throw e; } finally { client.release(); }
+    } catch (e: any) {
+      await client.query('ROLLBACK');
+      // 23503: 报工记录仍引用该设备 —— 不自动级联删报工(追溯数据), 返回可操作指引
+      if (e?.code === '23503') {
+        const refs = await pool.query('SELECT count(*)::int c FROM booth_fab_operations WHERE equipment_id=$1 AND org_id=$2', [id, orgId]);
+        return res.status(409).json({ success: false, error: 'equipment still referenced by fab operations', code: '23503', data: { id, operation_refs: refs.rows[0].c, hint: 'POST /api/booth/dexx/fab/operations/cleanup-by-equipment {"equipment_id":' + id + '} 先清理该设备报工引用' } });
+      }
+      throw e;
+    } finally { client.release(); }
   } catch (err) { next(err); }
 });
 
@@ -876,6 +884,17 @@ router.post('/fab/operations/cleanup', requireHat('FAB'), async (req, res, next)
     if (ids.length === 0) return res.status(400).json({ success: false, error: 'ids (positive integer array) required' });
     const del = await pool.query('DELETE FROM booth_fab_operations WHERE id = ANY($1::int[]) AND org_id=$2 RETURNING id', [ids, user.orgId as number]);
     res.json({ success: true, data: { requested: ids, deleted_ids: del.rows.map((r: any) => r.id) } });
+  } catch (err) { next(err); }
+});
+
+// POST /dexx/fab/operations/cleanup-by-equipment — 清理指定设备的全部报工引用 { equipment_id: number }
+router.post('/fab/operations/cleanup-by-equipment', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const eqId = Number(req.body?.equipment_id);
+    if (!Number.isInteger(eqId) || eqId <= 0) return res.status(400).json({ success: false, error: 'equipment_id (positive integer) required' });
+    const del = await pool.query('DELETE FROM booth_fab_operations WHERE equipment_id=$1 AND org_id=$2 RETURNING id', [eqId, user.orgId as number]);
+    res.json({ success: true, data: { equipment_id: eqId, deleted_ids: del.rows.map((r: any) => r.id), deleted_count: del.rowCount ?? 0 } });
   } catch (err) { next(err); }
 });
 
