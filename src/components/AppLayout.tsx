@@ -96,7 +96,7 @@ const getMenuItemsByRole = (role: string) => {
 
   // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（FAB-MES-03-FIX3: 保留可见+可进入+只读）
   // key 前缀按角色: du/dx/dm→/du/fab, dex→/dex/fab, dexx→/dexx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
-  const fabBase = role === 'dexx' ? '/dexx/fab' : role === 'dex' ? '/dex/fab' : '/du/fab';
+  const fabBase = role === 'dexx' ? '/dexx/fab' : role === 'dex' ? '/dex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
   const fabZoneItems = {
     key: 'fab-zones',
     icon: <ApartmentOutlined />,
@@ -215,9 +215,9 @@ const getMenuItemsByRole = (role: string) => {
   // 按角色过滤菜单
   const items = [];
 
-  // EM 角色：EM 供应链 + Market
+  // EM 角色：EM 供应链 + 产线只读监控 (FAB-MES-04-FIX4) + Market
   if (role === 'em') {
-    items.push(emItems, marketItems);
+    items.push(emItems, fabItems, marketItems);
   }
   // DM/DU/DX 可以看到所有五个域 + Market
   else if (['dm', 'du', 'dx'].includes(role)) {

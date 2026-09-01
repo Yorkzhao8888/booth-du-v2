@@ -312,6 +312,15 @@ const App: React.FC = () => {
           <Route path="sgu-listings" element={<ErrorBoundary><EmSguListings /></ErrorBoundary>} />
           <Route path="sgu-pending" element={<ErrorBoundary><EmSguPending /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><EmSupplyQuotes /></ErrorBoundary>} />
+          {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 dexx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
         </Route>
 
         {/* Market routes (em/du/dx/dm can access) */}
