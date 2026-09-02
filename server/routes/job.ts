@@ -169,7 +169,7 @@ router.post('/jobs', async (req, res, next) => {
 });
 
 // ============ DispatchJob ============
-// POST /jobs/:job_id/dispatch - 派单到 Station [DEPRECATED: 建议改走 dexx-fab-mes assign-order 新链路; 本接口保留兼容, 已切换 station 新状态机]
+// POST /jobs/:job_id/dispatch - 派单到 Station [DEPRECATED: 建议改走 exx-fab-mes assign-order 新链路; 本接口保留兼容, 已切换 station 新状态机]
 // POST /jobs/:job_id/dispatch - 派单到 Station
 router.post('/jobs/:job_id/dispatch', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   const client = await pool.connect();

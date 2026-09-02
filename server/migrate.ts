@@ -1155,10 +1155,10 @@ export async function migrate() {
         console.log(`[migrate] Marked ${staleResult.rowCount} stale outbox events as dead.`);
       }
 
-      // Role migration: dex→ex (BOOTH-ROLE-CLEAN-01 C1 裁定 DEX 废弃，铺长线统一 EX)；exx→dexx 铺员线另单处理 (idempotent)
+      // Role migration: dex→ex (BOOTH-ROLE-CLEAN-01 C1 裁定 DEX 废弃，铺长线统一 EX)；exx→exx 铺员线另单处理 (idempotent)
       const roleUpdates = [
         { from: 'dex', to: 'ex' },
-        { from: 'exx', to: 'dexx' },
+        { from: 'dexx', to: 'exx' },
       ];
       for (const { from, to } of roleUpdates) {
         const r = await client.query(`UPDATE booth_users SET role = $1 WHERE role = $2`, [to, from]);
@@ -1179,9 +1179,9 @@ export async function migrate() {
         console.log('[migrate] Added dx user: 店长 / 13800000004.');
       }
 
-      // Update dexx hats to include all modules
+      // Update exx hats to include all modules
       await client.query(
-        `UPDATE booth_users SET hats = '{FAB,WH,DL,SVC}' WHERE role = 'dexx' AND org_id = 1`
+        `UPDATE booth_users SET hats = '{FAB,WH,DL,SVC}' WHERE role = 'exx' AND org_id = 1`
       );
 
       // Add DM (运营) user if not exists
@@ -1426,7 +1426,7 @@ export async function migrate() {
     );
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (4, 1, '铺员', '13800000003', $1, 'dexx', '{FAB,WH,DL,SVC}')`,
+       VALUES (4, 1, '铺员', '13800000003', $1, 'exx', '{FAB,WH,DL,SVC}')`,
       [passwordHash]
     );
 

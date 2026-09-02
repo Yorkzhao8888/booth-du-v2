@@ -174,7 +174,7 @@ export function stripPriceFields<T = any>(obj: T): T {
 }
 
 /**
- * Sanitize fulfillment for dex/dexx roles: recursively remove all price fields.
+ * Sanitize fulfillment for dex/exx roles: recursively remove all price fields.
  * du/dx roles see full data including prices.
  */
 export function sanitizeFulfillment(fulfillment: any, user: JwtPayload) {

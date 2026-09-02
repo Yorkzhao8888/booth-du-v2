@@ -39,22 +39,22 @@ export default function RealtimeDashboard() {
   const fetchData = async () => {
     try {
       // Fetch orders stats
-      const ordersRes = await api.get('/du/dashboard');
-      if (ordersRes?.success) {
+      const ordersRes = await api.get<any>('/du/dashboard');
+      if (ordersRes) {
         setData((prev) => ({
           ...prev,
           orders: {
-            today: ordersRes.todayOrderCount || 0,
-            pending: ordersRes.pendingOrderCount || 0,
-            completed: ordersRes.todayFulfilledCount || 0,
+            today: ordersRes?.todayOrderCount || 0,
+            pending: ordersRes?.pendingOrderCount || 0,
+            completed: ordersRes?.todayFulfilledCount || 0,
           },
         }));
       }
 
       // Fetch inventory stats
-      const inventoryRes = await api.get('/du/inventory/alerts');
-      if (inventoryRes?.success) {
-        const items = inventoryRes.items || [];
+      const inventoryRes = await api.get<any>('/du/inventory/alerts');
+      if (inventoryRes) {
+        const items = inventoryRes?.items || [];
         const lowCount = items.filter((i: any) => i.alert_type === 'low').length;
         const expiringCount = items.filter((i: any) => i.alert_type === 'expiring').length;
         setData((prev) => ({
@@ -68,8 +68,8 @@ export default function RealtimeDashboard() {
       }
 
       // Fetch production stats
-      const productionRes = await api.get('/dexx/fab/dashboard');
-      if (productionRes?.success) {
+      const productionRes = await api.get<any>('/exx/fab/dashboard');
+      if (productionRes) {
         const orders = productionRes.orders || [];
         const inProgress = orders.filter((o: any) => o.status === 'in_progress').length;
         const completed = orders.filter((o: any) => o.status === 'completed').length;
@@ -84,9 +84,9 @@ export default function RealtimeDashboard() {
       }
 
       // Fetch delivery stats
-      const deliveryRes = await api.get('/du/dl/tasks?pageSize=100');
-      if (deliveryRes?.success) {
-        const tasks = deliveryRes.items || [];
+      const deliveryRes = await api.get<any>('/du/dl/tasks?pageSize=100');
+      if (deliveryRes) {
+        const tasks = deliveryRes?.items || [];
         const pending = tasks.filter((t: any) => t.status === 'assigned' || t.status === 'accepted').length;
         const inTransit = tasks.filter((t: any) => t.status === 'delivering').length;
         const completed = tasks.filter((t: any) => t.status === 'delivered').length;

@@ -121,7 +121,7 @@ export async function outbound(orgId: number, items: InventoryItem[], userId: nu
 }
 
 /**
- * Get inventory list. dex/dexx roles do not see cost_price.
+ * Get inventory list. dex/exx roles do not see cost_price.
  * du/dx roles see full data including cost_price.
  */
 export async function getInventory(orgId: number, role: string) {

@@ -10,7 +10,7 @@ const router = Router();
 // 中间件：允许 du/dx/dm/dxx 访问 /du/* 端点
 // - dm: 只读（GET 放行，POST/PUT/DELETE 403）
 // - dxx: 放行但返回时 stripCostFields（隐藏采购价/毛利）
-// - dexx: 只允许 GET /dashboard，其他接口 403
+// - exx: 只允许 GET /dashboard，其他接口 403
 // - dex: 拒绝 403（零价隔离）
 router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
@@ -18,22 +18,22 @@ router.use(requireAuth, (req, res, next) => {
   
   console.log(`[du.ts guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}`);
   
-  // DEXX 特殊处理：只允许 GET /dashboard，其他 du.ts 处理的接口 403
+  // EXX 特殊处理：只允许 GET /dashboard，其他 du.ts 处理的接口 403
   // 注意：/transfers 由 du-modules.ts 处理，这里不拦截
-  if (user.role === 'dexx') {
+  if (user.role === 'exx') {
     // du.ts 处理的路径列表
     const duPaths = ['/dashboard', '/orders', '/fulfillments', '/work-orders', '/inventory', '/boms', '/skus', '/inbound', '/outbound'];
     const isDuPath = duPaths.some(p => req.path === p || req.path.startsWith(p + '/'));
     
     if (isDuPath) {
       const isDashboardRead = req.path === '/dashboard' && req.method === 'GET';
-      console.log(`[du.ts guard] dexx branch: path=${req.path}, method=${req.method}, isDashboardRead=${isDashboardRead}`);
+      console.log(`[du.ts guard] exx branch: path=${req.path}, method=${req.method}, isDashboardRead=${isDashboardRead}`);
       if (!isDashboardRead) {
-        console.log(`[du.ts guard] dexx REJECT: not dashboard read`);
-        return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
+        console.log(`[du.ts guard] exx REJECT: not dashboard read`);
+        return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员只能查看调拨列表' });
       }
-      // dexx 可以 GET /dashboard，strip cost fields
-      console.log(`[du.ts guard] dexx ALLOW: dashboard read`);
+      // exx 可以 GET /dashboard，strip cost fields
+      console.log(`[du.ts guard] exx ALLOW: dashboard read`);
       const originalJson = res.json.bind(res);
       res.json = (body: unknown) => {
         return originalJson(stripCostFields(body));
@@ -41,7 +41,7 @@ router.use(requireAuth, (req, res, next) => {
       return next();
     }
     // 非 du.ts 处理的路径（如 /transfers），交给其他路由器处理
-    console.log(`[du.ts guard] dexx: path ${req.path} not handled by du.ts, passing to next router`);
+    console.log(`[du.ts guard] exx: path ${req.path} not handled by du.ts, passing to next router`);
     return next();
   }
   
@@ -187,8 +187,8 @@ router.get('/dashboard', async (req, res, next) => {
       data: {
         todayOrders,
         // dxx 仅售价可见，不展示毛利字段
-        ...(orgMode === 'du' && user.role !== 'dxx' && user.role !== 'dexx' ? { todayRevenue, todayGrossProfit, grossMargin } : {}),
-        ...(user.role === 'dxx' || user.role === 'dexx' ? { todayRevenue } : {}),
+        ...(orgMode === 'du' && user.role !== 'dxx' && user.role !== 'exx' ? { todayRevenue, todayGrossProfit, grossMargin } : {}),
+        ...(user.role === 'dxx' || user.role === 'exx' ? { todayRevenue } : {}),
         pendingWorkOrders: workOrderStats['pending'] || 0,
         preparingWorkOrders: workOrderStats['preparing'] || 0,
         lowStockCount,

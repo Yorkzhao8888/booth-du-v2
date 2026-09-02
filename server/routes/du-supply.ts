@@ -5,15 +5,15 @@ import type { JwtPayload } from '../auth.js';
 
 const router = Router();
 
-// ====== DU/DX/DM/DXX: 按角色权限访问（dexx 不允许访问供给域） ======
+// ====== DU/DX/DM/DXX: 按角色权限访问（exx 不允许访问供给域） ======
 const supplyRouter = Router();
 supplyRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
-  // DEXX 不允许访问供给域（价格敏感）
-  if (user.role === 'dexx') {
-    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员无权访问供给域' });
+  // EXX 不允许访问供给域（价格敏感）
+  if (user.role === 'exx') {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员无权访问供给域' });
   }
   
   const allowedRoles = ['du', 'dx', 'dm', 'dxx'];

@@ -19,7 +19,7 @@ const roleHierarchy: RoleInfo[] = [
   { key: 'dx', title: 'DX 店长', description: '全价管理层，日常运营', icon: <TeamOutlined />, color: '#13c2c2' },
   { key: 'dxx', title: 'DXX 店员', description: '一线经营，售价可见', icon: <UserOutlined />, color: '#52c41a' },
   { key: 'ex', title: 'EX 铺长', description: 'MKT-DU 操作者，零价', icon: <ToolOutlined />, color: '#fa8c16' },
-  { key: 'dexx', title: 'DEXX 铺员', description: 'WH/FAB/DL/SVC 执行，零价', icon: <CarryOutOutlined />, color: '#eb2f96' },
+  { key: 'exx', title: 'EXX 铺员', description: 'WH/FAB/DL/SVC 执行，零价', icon: <CarryOutOutlined />, color: '#eb2f96' },
 ];
 
 const OrgChart: React.FC = () => {
@@ -32,7 +32,7 @@ const OrgChart: React.FC = () => {
     <div>
       <Title level={4}>组织架构</Title>
       <Paragraph type="secondary">
-        六层组织链：DM 运营 → DU 店主 → DX 店长 → DXX 店员 → EX 铺长 → DEXX 铺员
+        六层组织链：DM 运营 → DU 店主 → DX 店长 → DXX 店员 → EX 铺长 → EXX 铺员
       </Paragraph>
 
       <Card style={{ marginBottom: 24 }}>

@@ -5,7 +5,7 @@
 // 鉴权: 查询 requireFabRead 只读; 口径配置/手动重算 requireRole('em','du'/'dx'); org 限定。
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { requireFabRead } from './dexx-fab-mes.js';
+import { requireFabRead } from './exx-fab-mes.js';
 import { requireRole, type JwtPayload } from '../auth.js';
 
 const router = Router();
@@ -176,7 +176,7 @@ function metricView(agg: MetricAgg, cfg: Awaited<ReturnType<typeof getConfig>>, 
   };
 }
 
-// GET /dexx/fab/score/dashboard —— 本 Booth 信用看板(指标 + 趋势 + 样本量 + 口径)
+// GET /exx/fab/score/dashboard —— 本 Booth 信用看板(指标 + 趋势 + 样本量 + 口径)
 router.get('/fab/score/dashboard', requireFabRead, async (req: any, res, next) => {
   try {
     const orgId = req.user.orgId as number;
@@ -213,7 +213,7 @@ router.get('/fab/score/dashboard', requireFabRead, async (req: any, res, next) =
   } catch (err) { next(err); }
 });
 
-// GET /dexx/fab/score/:boothId —— 对外可检索(Market 只读, 口径透明, 不含价格)
+// GET /exx/fab/score/:boothId —— 对外可检索(Market 只读, 口径透明, 不含价格)
 router.get('/fab/score/:boothId', requireFabRead, async (req: any, res, next) => {
   try {
     const orgId = req.user.orgId as number;
@@ -249,7 +249,7 @@ router.get('/fab/score/:boothId', requireFabRead, async (req: any, res, next) =>
   } catch (err) { next(err); }
 });
 
-// POST /dexx/fab/score/config —— 评分口径配置(EM/EU; du 兜底)
+// POST /exx/fab/score/config —— 评分口径配置(EM/EU; du 兜底)
 router.post('/fab/score/config', requireRole('em', 'du'), async (req: any, res, next) => {
   try {
     const user = req.user as JwtPayload;
@@ -295,7 +295,7 @@ router.post('/fab/score/config', requireRole('em', 'du'), async (req: any, res, 
   } catch (err) { next(err); }
 });
 
-// POST /dexx/fab/score/refresh —— 手动触发重算(M 层 du/dx/em)
+// POST /exx/fab/score/refresh —— 手动触发重算(M 层 du/dx/em)
 router.post('/fab/score/refresh', requireRole('em', 'du', 'dx'), async (req: any, res, next) => {
   try {
     const orgId = req.user.orgId as number;

@@ -51,14 +51,14 @@ const OAS_ROLE_TO_BOOTH: Record<string, string> = {
   'dx': 'dx',        // 店长
   'dxx': 'dxx',      // 店员
   'ex': 'ex',        // EX 铺长
-  'dexx': 'dexx',    // 铺员
+  'exx': 'exx',    // 铺员
   'em': 'em',        // 供给运营长（生态级）
   // Additional OAS roles that might exist
   'admin': 'dm',
   'operator': 'dm',
   'manager': 'dx',
   'staff': 'dxx',
-  'worker': 'dexx',
+  'worker': 'exx',
   // OAS super user role
   'su': 'dm',        // Super User -> 运营 (highest privilege)
 };

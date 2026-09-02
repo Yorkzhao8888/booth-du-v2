@@ -36,39 +36,39 @@ import ExDlDispatch from './pages/ex/DlDispatch';
 import ExSvcDispatch from './pages/ex/SvcDispatch';
 import ExStocktakeApproval from './pages/ex/StocktakeApproval';
 import ExCapacityQuery from './pages/ex/CapacityQuery';
-// DEXX pages
-import DexxModuleEntry from './pages/dexx/ModuleEntry';
-import DexxFabQueue from './pages/dexx/FabQueue';
-import DexxFabActive from './pages/dexx/FabActive';
-import DexxFabHistory from './pages/dexx/FabHistory';
-import DexxWhInventory from './pages/dexx/WhInventory';
-import DexxWhInbound from './pages/dexx/WhInbound';
-import DexxWhOutbound from './pages/dexx/WhOutbound';
-import DexxWhTxns from './pages/dexx/WhTxns';
-import DexxFabOperations from './pages/dexx/FabOperations';
-import DexxFabAndon from './pages/dexx/FabAndon';
-import DexxQcExecute from './pages/dexx/QcExecute';
-import DexxFabTrace from './pages/dexx/FabTrace';
-import DexxFabPlugins from './pages/dexx/FabPlugins';
-import DexxFabTelemetry from './pages/dexx/FabTelemetry';
-import DexxFabSupplierScore from './pages/dexx/FabSupplierScore';
-import DexxFabDefects from './pages/dexx/FabDefects';
-import DexxStocktakeExec from './pages/dexx/StocktakeExec';
-import DexxDlExec from './pages/dexx/DlExec';
-import DexxSvcExec from './pages/dexx/SvcExec';
-import DexxProductionDashboard from './pages/dexx/ProductionDashboard';
-import DexxYieldTracking from './pages/dexx/YieldTracking';
-import DexxFabZoneView from './pages/dexx/FabZoneView';
-import DexxFabStations from './pages/dexx/FabStations';
-import DexxFabStationDetail from './pages/dexx/FabStationDetail';
-import DexxFabEquipment from './pages/dexx/FabEquipment';
-import DexxFabEquipmentOee from './pages/dexx/FabEquipmentOee';
-import DexxFabOeeDashboard from './pages/dexx/FabOeeDashboard';
-import DexxFabMaintenance from './pages/dexx/FabMaintenance';
-import DexxSupplyOrders from './pages/dexx/SupplyOrders';
-import DexxSupplyLineFeed from './pages/dexx/SupplyLineFeed';
-import DexxDeviceSupply from './pages/dexx/DeviceSupply';
-import DexxPlazaSupply from './pages/dexx/PlazaSupply';
+// EXX pages
+import ExxModuleEntry from './pages/exx/ModuleEntry';
+import ExxFabQueue from './pages/exx/FabQueue';
+import ExxFabActive from './pages/exx/FabActive';
+import ExxFabHistory from './pages/exx/FabHistory';
+import ExxWhInventory from './pages/exx/WhInventory';
+import ExxWhInbound from './pages/exx/WhInbound';
+import ExxWhOutbound from './pages/exx/WhOutbound';
+import ExxWhTxns from './pages/exx/WhTxns';
+import ExxFabOperations from './pages/exx/FabOperations';
+import ExxFabAndon from './pages/exx/FabAndon';
+import ExxQcExecute from './pages/exx/QcExecute';
+import ExxFabTrace from './pages/exx/FabTrace';
+import ExxFabPlugins from './pages/exx/FabPlugins';
+import ExxFabTelemetry from './pages/exx/FabTelemetry';
+import ExxFabSupplierScore from './pages/exx/FabSupplierScore';
+import ExxFabDefects from './pages/exx/FabDefects';
+import ExxStocktakeExec from './pages/exx/StocktakeExec';
+import ExxDlExec from './pages/exx/DlExec';
+import ExxSvcExec from './pages/exx/SvcExec';
+import ExxProductionDashboard from './pages/exx/ProductionDashboard';
+import ExxYieldTracking from './pages/exx/YieldTracking';
+import ExxFabZoneView from './pages/exx/FabZoneView';
+import ExxFabStations from './pages/exx/FabStations';
+import ExxFabStationDetail from './pages/exx/FabStationDetail';
+import ExxFabEquipment from './pages/exx/FabEquipment';
+import ExxFabEquipmentOee from './pages/exx/FabEquipmentOee';
+import ExxFabOeeDashboard from './pages/exx/FabOeeDashboard';
+import ExxFabMaintenance from './pages/exx/FabMaintenance';
+import ExxSupplyOrders from './pages/exx/SupplyOrders';
+import ExxSupplyLineFeed from './pages/exx/SupplyLineFeed';
+import ExxDeviceSupply from './pages/exx/DeviceSupply';
+import ExxPlazaSupply from './pages/exx/PlazaSupply';
 // DM pages
 import DmDashboard from './pages/dm/Dashboard';
 // DXX pages
@@ -117,15 +117,15 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     else if ((role === 'du' || role === 'dx') && !path.startsWith('/du') && !path.startsWith('/market')) {
       return <Navigate to="/du" replace />;
     }
-    // dxx shares /dxx routes with dexx
-    else if (role === 'dxx' && !path.startsWith('/dxx') && !path.startsWith('/dexx')) {
+    // dxx shares /dxx routes with exx
+    else if (role === 'dxx' && !path.startsWith('/dxx') && !path.startsWith('/exx')) {
       return <Navigate to="/dxx" replace />;
     }
     else if (role === 'ex' && !path.startsWith('/ex')) {
       return <Navigate to="/ex" replace />;
     }
-    else if (role === 'dexx' && !path.startsWith('/dexx')) {
-      return <Navigate to="/dexx" replace />;
+    else if (role === 'exx' && !path.startsWith('/exx')) {
+      return <Navigate to="/exx" replace />;
     }
   }
 
@@ -135,7 +135,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const RoleRedirect: React.FC = () => {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
-  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', dex: '/dex', dexx: '/dexx', em: '/em' };
+  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', ex: '/ex', exx: '/exx', em: '/em' };
   return <Navigate to={home[user.role] || '/login'} replace />;
 };
 
@@ -185,19 +185,19 @@ const App: React.FC = () => {
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
-          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 dexx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 exx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
-          <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
-          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
-          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
         </Route>
 
         {/* DM routes (read-only access to all) */}
@@ -238,9 +238,9 @@ const App: React.FC = () => {
         >
           <Route index element={<ErrorBoundary><DxxDashboard /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
-          {/* DXX can access DEXX execution routes */}
-          <Route path="dl" element={<ErrorBoundary><DexxDlExec /></ErrorBoundary>} />
-          <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
+          {/* DXX can access EXX execution routes */}
+          <Route path="dl" element={<ErrorBoundary><ExxDlExec /></ErrorBoundary>} />
+          <Route path="svc" element={<ErrorBoundary><ExxSvcExec /></ErrorBoundary>} />
         </Route>
 
         {/* EX routes */}
@@ -262,64 +262,64 @@ const App: React.FC = () => {
           <Route path="stocktakes" element={<ErrorBoundary><ExStocktakeApproval /></ErrorBoundary>} />
           <Route path="capacity" element={<ErrorBoundary><ExCapacityQuery /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><ExSupplyQuotes /></ErrorBoundary>} />
-          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 dexx 组件 */}
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 exx 组件 */}
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
-          <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
-          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
-          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
         </Route>
 
-        {/* DEXX routes */}
+        {/* EXX routes */}
         <Route
-          path="/dexx"
+          path="/exx"
           element={
             <RequireAuth>
               <MobileLayout />
             </RequireAuth>
           }
         >
-          <Route index element={<ErrorBoundary><DexxModuleEntry /></ErrorBoundary>} />
-          <Route path="fab/queue" element={<ErrorBoundary><DexxFabQueue /></ErrorBoundary>} />
-          <Route path="fab/active" element={<ErrorBoundary><DexxFabActive /></ErrorBoundary>} />
-          <Route path="fab/history" element={<ErrorBoundary><DexxFabHistory /></ErrorBoundary>} />
-          <Route path="fab/operations" element={<ErrorBoundary><DexxFabOperations /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
-          <Route path="fab/dashboard" element={<ErrorBoundary><DexxProductionDashboard /></ErrorBoundary>} />
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route index element={<ErrorBoundary><ExxModuleEntry /></ErrorBoundary>} />
+          <Route path="fab/queue" element={<ErrorBoundary><ExxFabQueue /></ErrorBoundary>} />
+          <Route path="fab/active" element={<ErrorBoundary><ExxFabActive /></ErrorBoundary>} />
+          <Route path="fab/history" element={<ErrorBoundary><ExxFabHistory /></ErrorBoundary>} />
+          <Route path="fab/operations" element={<ErrorBoundary><ExxFabOperations /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/dashboard" element={<ErrorBoundary><ExxProductionDashboard /></ErrorBoundary>} />
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
-          <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
-          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
-          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/yield" element={<ErrorBoundary><DexxYieldTracking /></ErrorBoundary>} />
-          <Route path="qc" element={<ErrorBoundary><DexxQcExecute /></ErrorBoundary>} />
-          <Route path="fab/trace" element={<ErrorBoundary><DexxFabTrace /></ErrorBoundary>} />
-          <Route path="fab/defects" element={<ErrorBoundary><DexxFabDefects /></ErrorBoundary>} />
-          <Route path="fab/plugins" element={<ErrorBoundary><DexxFabPlugins /></ErrorBoundary>} />
-          <Route path="wh/inventory" element={<ErrorBoundary><DexxWhInventory /></ErrorBoundary>} />
-          <Route path="wh/inbound" element={<ErrorBoundary><DexxWhInbound /></ErrorBoundary>} />
-          <Route path="wh/outbound" element={<ErrorBoundary><DexxWhOutbound /></ErrorBoundary>} />
-          <Route path="wh/txns" element={<ErrorBoundary><DexxWhTxns /></ErrorBoundary>} />
-          <Route path="stocktake" element={<ErrorBoundary><DexxStocktakeExec /></ErrorBoundary>} />
-          <Route path="wh/supply-orders" element={<ErrorBoundary><DexxSupplyOrders /></ErrorBoundary>} />
-          <Route path="wh/supply-line-feed" element={<ErrorBoundary><DexxSupplyLineFeed /></ErrorBoundary>} />
-          <Route path="wh/device-supply" element={<ErrorBoundary><DexxDeviceSupply /></ErrorBoundary>} />
-          <Route path="wh/plaza-supply" element={<ErrorBoundary><DexxPlazaSupply /></ErrorBoundary>} />
-          <Route path="dl" element={<ErrorBoundary><DexxDlExec /></ErrorBoundary>} />
-          <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/yield" element={<ErrorBoundary><ExxYieldTracking /></ErrorBoundary>} />
+          <Route path="qc" element={<ErrorBoundary><ExxQcExecute /></ErrorBoundary>} />
+          <Route path="fab/trace" element={<ErrorBoundary><ExxFabTrace /></ErrorBoundary>} />
+          <Route path="fab/defects" element={<ErrorBoundary><ExxFabDefects /></ErrorBoundary>} />
+          <Route path="fab/plugins" element={<ErrorBoundary><ExxFabPlugins /></ErrorBoundary>} />
+          <Route path="wh/inventory" element={<ErrorBoundary><ExxWhInventory /></ErrorBoundary>} />
+          <Route path="wh/inbound" element={<ErrorBoundary><ExxWhInbound /></ErrorBoundary>} />
+          <Route path="wh/outbound" element={<ErrorBoundary><ExxWhOutbound /></ErrorBoundary>} />
+          <Route path="wh/txns" element={<ErrorBoundary><ExxWhTxns /></ErrorBoundary>} />
+          <Route path="stocktake" element={<ErrorBoundary><ExxStocktakeExec /></ErrorBoundary>} />
+          <Route path="wh/supply-orders" element={<ErrorBoundary><ExxSupplyOrders /></ErrorBoundary>} />
+          <Route path="wh/supply-line-feed" element={<ErrorBoundary><ExxSupplyLineFeed /></ErrorBoundary>} />
+          <Route path="wh/device-supply" element={<ErrorBoundary><ExxDeviceSupply /></ErrorBoundary>} />
+          <Route path="wh/plaza-supply" element={<ErrorBoundary><ExxPlazaSupply /></ErrorBoundary>} />
+          <Route path="dl" element={<ErrorBoundary><ExxDlExec /></ErrorBoundary>} />
+          <Route path="svc" element={<ErrorBoundary><ExxSvcExec /></ErrorBoundary>} />
         </Route>
 
         {/* EM routes (供给运营长) */}
@@ -341,19 +341,19 @@ const App: React.FC = () => {
           <Route path="sgu-listings" element={<ErrorBoundary><EmSguListings /></ErrorBoundary>} />
           <Route path="sgu-pending" element={<ErrorBoundary><EmSguPending /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><EmSupplyQuotes /></ErrorBoundary>} />
-          {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 dexx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 exx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
+          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
-          <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
-          <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><DexxFabOeeDashboard /></ErrorBoundary>} />
-          <Route path="fab/equipment/:id" element={<ErrorBoundary><DexxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><DexxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
+          <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
         </Route>
 
         {/* Market routes (em/du/dx/dm can access) */}

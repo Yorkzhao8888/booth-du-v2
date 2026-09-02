@@ -14,9 +14,9 @@ import authRoutes from './routes/auth.js';
 import internalRoutes from './routes/internal.js';
 import duRoutes from './routes/du/index.js';   // /api/booth/du 聚合入口 (TECH-DEBT-4)
 import exRoutes from './routes/ex.js';
-import dexxRoutes from './routes/dexx.js';
+import exxRoutes from './routes/exx.js';
 import exModulesRoutes from './routes/ex-modules.js';
-import dexxModulesRoutes from './routes/dexx-modules.js';
+import exxModulesRoutes from './routes/exx-modules.js';
 import emRoutes from './routes/em.js';
 import marketRoutes from './routes/market.js';
 import jobRoutes from './routes/job.js';
@@ -63,12 +63,12 @@ app.use('/api/booth/internal', internalRoutes);
 // (TECH-DEBT-4: 原 5 个分散挂载点收敛进 routes/du/index.ts, 挂载顺序不变)
 app.use('/api/booth/du', duRoutes);
 app.use('/api/booth/ex', exRoutes);
-// FIX3: modules 前置(带独立 requireAuth) — dexx.ts 的 router.use(requireRole('dexx'))
-// 会全局拦截同前缀请求, du/dx/dex 的产线只读 GET 需先经 dexx-modules 的 requireFabRead 放行
-app.use('/api/booth/dexx', requireAuth, dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
+// FIX3: modules 前置(带独立 requireAuth) — exx.ts 的 router.use(requireRole('exx'))
+// 会全局拦截同前缀请求, du/dx/dex 的产线只读 GET 需先经 exx-modules 的 requireFabRead 放行
+app.use('/api/booth/exx', requireAuth, exxModulesRoutes); // /api/booth/exx/fab/*, /wh/*, /dl/*, /svc/*
 // New module routes
 app.use('/api/booth/ex', exModulesRoutes);  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
-app.use('/api/booth/dexx', dexxRoutes);
+app.use('/api/booth/exx', exxRoutes);
 app.use('/api/booth/em', emRoutes);
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
 app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型)

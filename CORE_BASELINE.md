@@ -18,7 +18,7 @@
 ### 2. 认证中间件骨架
 | 文件 | 说明 |
 |------|------|
-| `server/auth.ts` | `signToken` / `requireAuth` / `requireRole` / `requireHat` 中间件骨架；JWT payload 结构、token 解析逻辑属内核；具体角色值（du/dex/dexx）为变体配置 |
+| `server/auth.ts` | `signToken` / `requireAuth` / `requireRole` / `requireHat` 中间件骨架；JWT payload 结构、token 解析逻辑属内核；具体角色值（du/dex/exx）为变体配置 |
 
 ### 3. 工单状态机
 | 文件 | 说明 |
@@ -74,16 +74,16 @@
 ## 二、DU 专有文件清单（Booth-DU 经营版）
 
 ### 1. 角色 RBAC 配置
-- 角色定义：`du`（店主）、`dx`（店长）、`dex`（交付长）、`dexx`（铺员）
-- 价格可见性：du/dx 全可见；dex/dexx 零价格
-- 路由权限：du+dx → `/du/*`；dex → `/dex/*`；dexx → `/dexx/*`
+- 角色定义：`du`（店主）、`dx`（店长）、`dex`（交付长）、`exx`（铺员）
+- 价格可见性：du/dx 全可见；dex/exx 零价格
+- 路由权限：du+dx → `/du/*`；dex → `/dex/*`；exx → `/exx/*`
 
 ### 2. 后端路由（角色专属）
 | 文件 | 说明 |
 |------|------|
 | `server/routes/du.ts` | 经营看板、订单、工单、库存（含成本价）、BOM（含售价/毛利） |
 | `server/routes/dex.ts` | 交付工作台、拆单调度、BOM/SKU 管理（无价格） |
-| `server/routes/dexx.ts` | FAB 制作队列/领料/完工 + WH 入库/出库/流水 |
+| `server/routes/exx.ts` | FAB 制作队列/领料/完工 + WH 入库/出库/流水 |
 | `server/routes/auth.ts` | 登录接口（DU 变体的用户种子数据） |
 
 ### 3. 前端页面（角色专属）
@@ -91,10 +91,10 @@
 |------|------|
 | `src/pages/du/` | Dashboard、Orders、WorkOrders、Inventory、Boms（含价格视图） |
 | `src/pages/dex/` | Dashboard、WorkOrders、Boms、Skus、Inventory（无价格） |
-| `src/pages/dexx/` | ModuleEntry、FabQueue、FabActive、FabHistory、WhInventory、WhInbound、WhOutbound、WhTxns |
+| `src/pages/exx/` | ModuleEntry、FabQueue、FabActive、FabHistory、WhInventory、WhInbound、WhOutbound、WhTxns |
 | `src/pages/Login.tsx` | 登录页（DU 变体角色跳转映射） |
 | `src/components/AppLayout.tsx` | 桌面端布局（du/dex 菜单） |
-| `src/components/MobileLayout.tsx` | 移动端布局（dexx FAB/WH 切换） |
+| `src/components/MobileLayout.tsx` | 移动端布局（exx FAB/WH 切换） |
 
 ### 4. DU 专有业务逻辑
 - Shop 事件适配：`order-confirmed` → 创建履约单 → 拆单 → 工单

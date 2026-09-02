@@ -7,7 +7,7 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-// 中间件：允许 du/dx/dm/dxx 访问（dexx 不允许访问采购单）
+// 中间件：允许 du/dx/dm/dxx 访问（exx 不允许访问采购单）
 router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
@@ -16,10 +16,10 @@ router.use(requireAuth, (req, res, next) => {
   const purchasePaths = ['/purchase-orders'];
   const isPurchasePath = purchasePaths.some(p => req.path === p || req.path.startsWith(p + '/'));
   
-  // DEXX 不允许访问采购单（价格敏感）- 只拦截采购路径
-  if (user.role === 'dexx') {
+  // EXX 不允许访问采购单（价格敏感）- 只拦截采购路径
+  if (user.role === 'exx') {
     if (isPurchasePath) {
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员无权访问采购单' });
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员无权访问采购单' });
     }
     // 非采购路径（如 /transfers），交给其他路由器处理
     return next();

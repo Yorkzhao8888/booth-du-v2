@@ -17,7 +17,7 @@ const Login: React.FC = () => {
       await login(values.phone, values.password);
       const user = useAuthStore.getState().user;
       if (user) {
-        const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', dex: '/dex', dexx: '/dexx', em: '/em' };
+        const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', ex: '/ex', exx: '/exx', em: '/em' };
         navigate(home[user.role] || '/login', { replace: true });
       }
     } catch (err: unknown) {

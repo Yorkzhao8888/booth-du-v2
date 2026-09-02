@@ -10,16 +10,16 @@ function getUser(req: any): JwtPayload {
   return req.user as JwtPayload;
 }
 
-// 价格字段列表（dex/dexx 不可见）
+// 价格字段列表（dex/exx 不可见）
 const PRICE_FIELDS = ['unit_price', 'total_amount', 'cost_price'];
 
-// 脱敏中间件：dex/dexx 角色剔除价格相关字段
+// 脱敏中间件：dex/exx 角色剔除价格相关字段
 function stripPriceFields(req: any, res: any, next: any) {
   const user = getUser(req);
   const role = user.role;
 
-  // dex/dexx 不可见价格
-  if (role === 'dex' || role === 'dexx') {
+  // dex/exx 不可见价格
+  if (role === 'dex' || role === 'exx') {
     const originalJson = res.json.bind(res);
     res.json = (body: any) => {
       if (body && body.data) {
@@ -48,10 +48,10 @@ function stripFields(obj: any): any {
   return obj;
 }
 
-// 中间件：允许 em/dm/du/dx 访问（dex/dexx 只读且脱敏）
+// 中间件：允许 em/dm/du/dx 访问（dex/exx 只读且脱敏）
 router.use(requireAuth, stripPriceFields, (req, res, next) => {
   const user = getUser(req);
-  const allowedRoles = ['em', 'dm', 'du', 'dx', 'dex', 'dexx'];
+  const allowedRoles = ['em', 'dm', 'du', 'dx', 'dex', 'exx'];
   
   if (!allowedRoles.includes(user.role)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'MARKET_ACCESS_DENIED' });
@@ -62,8 +62,8 @@ router.use(requireAuth, stripPriceFields, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM_READ_ONLY' });
   }
   
-  // dex/dexx 只读
-  if ((user.role === 'dex' || user.role === 'dexx') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+  // dex/exx 只读
+  if ((user.role === 'dex' || user.role === 'exx') && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXECUTION_ROLE_READ_ONLY' });
   }
   

@@ -261,7 +261,7 @@ router.get('/users', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const r = await pool.query(
-      `SELECT id, name, phone, hats, role FROM booth_users WHERE org_id = $1 AND role = 'dexx' AND is_active = true ORDER BY name`,
+      `SELECT id, name, phone, hats, role FROM booth_users WHERE org_id = $1 AND role = 'exx' AND is_active = true ORDER BY name`,
       [user.orgId]
     );
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });

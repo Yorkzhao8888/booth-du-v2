@@ -10,16 +10,16 @@ function getUser(req: any): JwtPayload {
   return req.user as JwtPayload;
 }
 
-// 价格字段列表（dex/dexx 不可见）
+// 价格字段列表（dex/exx 不可见）
 const PRICE_FIELDS = ['payment_terms', 'settlement_amount', 'contract_value'];
 
-// 脱敏中间件：dex/dexx 角色剔除价格相关字段
+// 脱敏中间件：dex/exx 角色剔除价格相关字段
 function stripPriceFields(req: any, res: any, next: any) {
   const user = getUser(req);
   const role = user.role;
 
-  // dex/dexx 不可见价格
-  if (role === 'dex' || role === 'dexx') {
+  // dex/exx 不可见价格
+  if (role === 'dex' || role === 'exx') {
     // 拦截带有价格字段的请求
     const path = req.path;
     // 结算相关接口直接 403

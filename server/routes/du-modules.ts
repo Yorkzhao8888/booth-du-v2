@@ -7,7 +7,7 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-// ====== DU/DX/DM/DXX: 按角色权限访问（dexx 只允许 GET /transfers） ======
+// ====== DU/DX/DM/DXX: 按角色权限访问（exx 只允许 GET /transfers） ======
 const duRouter = Router();
 duRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
@@ -16,16 +16,16 @@ duRouter.use(requireAuth, (req, res, next) => {
   // Debug log for troubleshooting
   console.log(`[du-modules guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}, userId=${user.userId || 'N/A'}`);
   
-  // DEXX 特殊处理：只允许 GET /transfers，其他一律 403
-  if (user.role === 'dexx') {
+  // EXX 特殊处理：只允许 GET /transfers，其他一律 403
+  if (user.role === 'exx') {
     const isTransferRead = req.path === '/transfers' && req.method === 'GET';
-    console.log(`[du-modules guard] dexx branch: path=${req.path}, method=${req.method}, isTransferRead=${isTransferRead}`);
+    console.log(`[du-modules guard] exx branch: path=${req.path}, method=${req.method}, isTransferRead=${isTransferRead}`);
     if (!isTransferRead) {
-      console.log(`[du-modules guard] dexx REJECT: not transfer read`);
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DEXX 铺员只能查看调拨列表' });
+      console.log(`[du-modules guard] exx REJECT: not transfer read`);
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员只能查看调拨列表' });
     }
-    // dexx 可以 GET /transfers，strip cost fields
-    console.log(`[du-modules guard] dexx ALLOW: transfer read`);
+    // exx 可以 GET /transfers，strip cost fields
+    console.log(`[du-modules guard] exx ALLOW: transfer read`);
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));

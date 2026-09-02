@@ -35,7 +35,7 @@ const { Header, Sider, Content } = Layout;
 
 const getMenuItemsByRole = (role: string) => {
   const canSeePrice = ['du', 'dx', 'dm'].includes(role);
-  const canWrite = ['du', 'dx', 'dxx', 'dex', 'dexx'].includes(role);
+  const canWrite = ['du', 'dx', 'dxx', 'dex', 'exx'].includes(role);
   const isReadOnly = role === 'dm';
 
   // MKT 铺子管理
@@ -44,7 +44,7 @@ const getMenuItemsByRole = (role: string) => {
     icon: <ShopOutlined />,
     label: 'MKT 铺子管理',
     children: [
-      // /du/* 管理项仅对决策/管理层展示（dex 守卫仅放行 /dex，dex/dexx 点 /du/* 会被 RequireAuth 弹回）
+      // /du/* 管理项仅对决策/管理层展示（dex 守卫仅放行 /dex，dex/exx 点 /du/* 会被 RequireAuth 弹回）
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du', label: '经营看板' },
         { key: '/du/orders', label: '订单管理' },
@@ -79,16 +79,16 @@ const getMenuItemsByRole = (role: string) => {
       ...(role === 'ex' ? [
         { key: '/ex/work-orders', label: '工单调度' },
       ] : []),
-      ...(role === 'dexx' ? [
-        { key: '/dexx/fab/queue', label: '待接单' },
-        { key: '/dexx/fab/active', label: '制作中' },
-        { key: '/dexx/fab/operations', label: '工序报工' },
-        { key: '/dexx/fab/dashboard', label: '产线看板' },
-        { key: '/dexx/fab/yield', label: '良品率追踪' },
-        { key: '/dexx/qc', label: '质检任务' },
-        { key: '/dexx/fab/trace', label: '追溯查询' },
-        { key: '/dexx/fab/defects', label: '不良分析' },
-        { key: '/dexx/fab/history', label: '历史工单' },
+      ...(role === 'exx' ? [
+        { key: '/exx/fab/queue', label: '待接单' },
+        { key: '/exx/fab/active', label: '制作中' },
+        { key: '/exx/fab/operations', label: '工序报工' },
+        { key: '/exx/fab/dashboard', label: '产线看板' },
+        { key: '/exx/fab/yield', label: '良品率追踪' },
+        { key: '/exx/qc', label: '质检任务' },
+        { key: '/exx/fab/trace', label: '追溯查询' },
+        { key: '/exx/fab/defects', label: '不良分析' },
+        { key: '/exx/fab/history', label: '历史工单' },
       ] : []),
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du/work-orders', label: '工单管理' },
@@ -97,8 +97,8 @@ const getMenuItemsByRole = (role: string) => {
   };
 
   // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（FAB-MES-03-FIX3: 保留可见+可进入+只读）
-  // key 前缀按角色: du/dx/dm→/du/fab, dex→/dex/fab, dexx→/dexx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
-  const fabBase = role === 'dexx' ? '/dexx/fab' : role === 'ex' ? '/ex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
+  // key 前缀按角色: du/dx/dm→/du/fab, dex→/dex/fab, exx→/exx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
+  const fabBase = role === 'exx' ? '/exx/fab' : role === 'ex' ? '/ex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
   const fabZoneItems = {
     key: 'fab-zones',
     icon: <ApartmentOutlined />,
@@ -128,7 +128,7 @@ const getMenuItemsByRole = (role: string) => {
       { key: `${fabBase}/score`, label: '供给信用' },
       { key: `${fabBase}/maintenance`, label: '保养日历' },
       { key: `${fabBase}/andon`, label: '安灯异常中心' },
-      ...(role === 'dexx'
+      ...(role === 'exx'
         ? [
             { type: 'divider' as const },
             { key: `${fabBase}/plugins`, label: '能力市场' },
@@ -143,7 +143,7 @@ const getMenuItemsByRole = (role: string) => {
     icon: <HomeOutlined />,
     label: 'WH 供给铺',
     children: [
-      // 管理视角仅 du/dx/dm（守卫放行 /du）；dex/dexx 点 /du/* 会被 RequireAuth 弹回首页
+      // 管理视角仅 du/dx/dm（守卫放行 /du）；dex/exx 点 /du/* 会被 RequireAuth 弹回首页
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du/batches', label: '批次库存' },
         { key: '/du/inventory', label: '库存总览' },
@@ -154,16 +154,16 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/du/supply-orders', label: '供给订单' },
       ] : []),
       ...(role === 'ex' ? [{ key: '/ex/stocktakes', label: '盘点审批' }, { key: '/ex/capacity', label: '产能查询' }, { key: '/ex/supply-quotes', label: '供给报价' }] : []),
-      ...(role === 'dexx' ? [
-        { key: '/dexx/stocktake', label: '盘点执行' },
-        { key: '/dexx/wh/inbound', label: '入库' },
-        { key: '/dexx/wh/outbound', label: '出库' },
+      ...(role === 'exx' ? [
+        { key: '/exx/stocktake', label: '盘点执行' },
+        { key: '/exx/wh/inbound', label: '入库' },
+        { key: '/exx/wh/outbound', label: '出库' },
         { type: 'divider' },
         { key: 'wh-supply-group', label: '供给执行', type: 'group', children: [
-          { key: '/dexx/wh/supply-orders', label: '供给单' },
-          { key: '/dexx/wh/supply-line-feed', label: '补给产线' },
-          { key: '/dexx/wh/device-supply', label: '设备供给' },
-          { key: '/dexx/wh/plaza-supply', label: '场地供给' },
+          { key: '/exx/wh/supply-orders', label: '供给单' },
+          { key: '/exx/wh/supply-line-feed', label: '补给产线' },
+          { key: '/exx/wh/device-supply', label: '设备供给' },
+          { key: '/exx/wh/plaza-supply', label: '场地供给' },
         ]},
       ] : []),
     ],
@@ -177,7 +177,7 @@ const getMenuItemsByRole = (role: string) => {
     children: [
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/dl', label: '配送任务' }] : []),
       ...(role === 'ex' ? [{ key: '/ex/dl-dispatch', label: '配送派单' }] : []),
-      ...(role === 'dexx' ? [{ key: '/dexx/dl', label: '配送执行' }] : []),
+      ...(role === 'exx' ? [{ key: '/exx/dl', label: '配送执行' }] : []),
     ],
   };
 
@@ -190,7 +190,7 @@ const getMenuItemsByRole = (role: string) => {
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/svc', label: '服务任务' }] : []),
       ...(['du', 'dx'].includes(role) ? [{ key: '/du/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'ex' ? [{ key: '/ex/svc-dispatch', label: '服务派单' }] : []),
-      ...(role === 'dexx' ? [{ key: '/dexx/svc', label: '服务执行' }] : []),
+      ...(role === 'exx' ? [{ key: '/exx/svc', label: '服务执行' }] : []),
     ],
   };
 
@@ -237,7 +237,7 @@ const getMenuItemsByRole = (role: string) => {
   // DXX 一线经营：MKT（只读）+ WH + DL + SVC
   else if (role === 'dxx') {
     items.push(
-      // dxx 守卫仅放行 /dxx 与 /dexx；收敛后 mkt/wh/dl/svc 对 dxx 均为空组，会被末尾 filter 移除
+      // dxx 守卫仅放行 /dxx 与 /exx；收敛后 mkt/wh/dl/svc 对 dxx 均为空组，会被末尾 filter 移除
       { key: 'dxx-home', icon: <DashboardOutlined />, label: '一线经营', children: [{ key: '/dxx', label: '经营首页' }] },
       { ...mktItems, label: 'MKT 铺子（只读）' },
       { ...whItems, children: whItems.children.filter(i => !['/du/wh/warehouse-dashboard'].includes(i.key)) },
@@ -249,8 +249,8 @@ const getMenuItemsByRole = (role: string) => {
   else if (role === 'ex') {
     items.push(mktItems, fabItems, whItems, dlItems, svcItems);
   }
-  // DEXX 铺员：FAB + WH + DL + SVC（四帽）
-  else if (role === 'dexx') {
+  // EXX 铺员：FAB + WH + DL + SVC（四帽）
+  else if (role === 'exx') {
     items.push(fabItems, whItems, dlItems, svcItems);
   }
 
@@ -298,8 +298,8 @@ const AppLayout: React.FC = () => {
 
   const userMenu = {
     items: [
-      // dex/dexx 无 /{role}/org-chart 路由（点击会落 '*' 弹回首页），仅对有路由的角色展示
-      ...(user?.role !== 'dex' && user?.role !== 'dexx' ? [
+      // dex/exx 无 /{role}/org-chart 路由（点击会落 '*' 弹回首页），仅对有路由的角色展示
+      ...(user?.role !== 'dex' && user?.role !== 'exx' ? [
         { key: 'org', icon: <AppstoreOutlined />, label: '组织架构', onClick: () => navigate(`/${user?.role}/org-chart`) },
       ] : []),
       { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout },
@@ -311,8 +311,8 @@ const AppLayout: React.FC = () => {
     du: 'DU 店主',
     dx: 'DX 店长',
     dxx: 'DXX 店员',
-    dex: 'EX 铺长',
-    dexx: 'DEXX 铺员',
+    ex: 'EX 铺长',
+    exx: 'EXX 铺员',
   };
 
   return (

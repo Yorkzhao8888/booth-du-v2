@@ -1,5 +1,5 @@
 // BOOTH-PK-05 业财闭环路由: 专案(xcase)/总账(vcase)/对账(reconcile)
-// 红线: 全部 M 层(du/dx/em/dm); X 层(dex/dexx/dxx)不挂载不可达; 价格字段只在 M 层响应
+// 红线: 全部 M 层(du/dx/em/dm); X 层(dex/exx/dxx)不挂载不可达; 价格字段只在 M 层响应
 // 幂等: 凭证 uq(org, source_voucher); vcase 入账 uq(org, source_voucher); xcase uq(org, fulfillment_id)
 import { Router } from 'express';
 import { Request, Response, NextFunction } from 'express';

@@ -21,7 +21,7 @@ const roleOptions = [
   { value: 'dx', label: 'DX 店长' },
   { value: 'dxx', label: 'DXX 店员' },
   { value: 'ex', label: 'EX 铺长' },
-  { value: 'dexx', label: 'DEXX 铺员' },
+  { value: 'exx', label: 'EXX 铺员' },
 ];
 
 const hatOptions = [
@@ -155,7 +155,7 @@ const EmployeeManagement: React.FC = () => {
           <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
             <Select options={roleOptions} />
           </Form.Item>
-          <Form.Item name="hats" label="帽子（DEXX 铺员需要）">
+          <Form.Item name="hats" label="帽子（EXX 铺员需要）">
             <Select mode="multiple" options={hatOptions} placeholder="选择帽子" />
           </Form.Item>
         </Form>

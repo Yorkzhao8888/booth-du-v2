@@ -173,7 +173,7 @@ const DxxDashboard: React.FC = () => {
           />
           <Space>
             <Button type="primary" onClick={() => navigate('/du/purchase-orders')}>采购单列表</Button>
-            <Button onClick={() => navigate('/dexx/wh/inbound')}>入库登记</Button>
+            <Button onClick={() => navigate('/exx/wh/inbound')}>入库登记</Button>
           </Space>
           <Card size="small" style={{ marginTop: 16 }}>
             <Statistic title="待收货" value={stats?.pendingReceiving || 0} prefix={<InboxOutlined />} formatter={(v) => fmtNum(Number(v))} />
@@ -199,7 +199,7 @@ const DxxDashboard: React.FC = () => {
                 title="配送任务"
                 extra={<Badge count={stats?.deliveringOrders || 0} />}
                 hoverable
-                onClick={() => navigate('/dexx/dl')}
+                onClick={() => navigate('/exx/dl')}
               >
                 <Text type="secondary">查看待配送任务，执行配送</Text>
               </Card>
@@ -208,7 +208,7 @@ const DxxDashboard: React.FC = () => {
               <Card
                 title="服务任务"
                 hoverable
-                onClick={() => navigate('/dexx/svc')}
+                onClick={() => navigate('/exx/svc')}
               >
                 <Text type="secondary">查看待服务任务，执行服务</Text>
               </Card>

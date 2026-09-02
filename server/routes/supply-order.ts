@@ -9,7 +9,7 @@
  * 路径风格：{id}:quote 为对外契约动作（Google AIP 自定义方法），Express 4 以 '\\:' 匹配字面冒号；
  *         同时注册 /:id/quote 斜杠别名便于常规客户端。
  *
- * 价格边界：M 层（du/dx/em/dm）知价；X 层（dex/dexx）GET 状态仅暴露工单号与状态（剥离 quote_snapshot 与 items 价格）。
+ * 价格边界：M 层（du/dx/em/dm）知价；X 层（dex/exx）GET 状态仅暴露工单号与状态（剥离 quote_snapshot 与 items 价格）。
  * 事件：SupplyOrder.Confirmed / Delivery.Confirmed 走 booth_outbox（结算订阅可用）。
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -110,7 +110,7 @@ const M_ONLY = requireRole(...M_ROLES);
 const PRICE_ONLY = requireRole(...PRICE_ROLES);
 
 const supplyOrdersRouter = Router();
-supplyOrdersRouter.use(requireRole('du', 'dx', 'em', 'dm', 'dex', 'dexx'));
+supplyOrdersRouter.use(requireRole('du', 'dx', 'em', 'dm', 'dex', 'exx'));
 
 /**
  * shop 创建契约（M 层代录）：POST /supply-orders
@@ -273,7 +273,7 @@ supplyOrdersRouter.post('/:id/cancel', M_ONLY, cancelHandler);
 
 /**
  * 流式状态查询：GET /supply-orders/:id/status
- * M 层全量（含报价快照）；dex/dexx 仅工单号与状态（红线）。
+ * M 层全量（含报价快照）；dex/exx 仅工单号与状态（红线）。
  * 事件侧实时推送经 booth_outbox + SSE；本接口为轮询式查询（前端 10s 轮询）。
  */
 async function statusHandler(req: Request, res: Response, next: NextFunction) {
@@ -348,7 +348,7 @@ async function deliveryConfirmHandler(req: Request, res: Response, next: NextFun
   }
 }
 const deliveriesRouter = Router();
-deliveriesRouter.use(requireRole('du', 'dx', 'em', 'dm', 'dex', 'dexx'));
+deliveriesRouter.use(requireRole('du', 'dx', 'em', 'dm', 'dex', 'exx'));
 deliveriesRouter.post('/:id\\:confirm', M_ONLY, deliveryConfirmHandler);
 deliveriesRouter.post('/:id/confirm', M_ONLY, deliveryConfirmHandler);
 

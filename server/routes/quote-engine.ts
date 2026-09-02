@@ -1,5 +1,5 @@
 // BOOTH-PK-05 报价引擎路由: POST /api/booth/du/quote-engine/quote
-// 红线: 仅 du/dx 可调用(M 层知价); X 层(dex/dexx/dxx)一律 403; 价格字段不出 M 层
+// 红线: 仅 du/dx 可调用(M 层知价); X 层(dex/exx/dxx)一律 403; 价格字段不出 M 层
 // 真实数据增强(不造假): MATERIAL 用 booth_sku_cost 真实移动加权成本; EDGE 用 station_capabilities 真实能力单价; 无真实源时用内置参数候选并如实标注 origin
 import { Router } from 'express';
 import { pool } from '../db.js';

@@ -45,7 +45,7 @@ const SvcDispatch: React.FC = () => {
   const fetchUsers = async () => {
     try {
       const res = await api.get<any>('/ex/users');
-      setUsers((res.items || res || []).filter((u: any) => u.role === 'dexx'));
+      setUsers((res.items || res || []).filter((u: any) => u.role === 'exx'));
     } catch (e) { setUsers([]); }
   };
 

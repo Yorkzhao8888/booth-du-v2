@@ -95,9 +95,9 @@ const DuDashboard: React.FC = () => {
         pendingFulfillment={pendingFulfillment}
         alertCount={alertCount}
         onTimeRate={onTimeRate}
-        onCapacityClick={() => navigate('/dexx/fab/dashboard')}
-        onPendingClick={() => navigate('/dexx/fab/active')}
-        onAlertClick={() => navigate('/dexx/wh/inventory')}
+        onCapacityClick={() => navigate('/exx/fab/dashboard')}
+        onPendingClick={() => navigate('/exx/fab/active')}
+        onAlertClick={() => navigate('/exx/wh/inventory')}
       />
 
       {/* KPI 卡片 */}
@@ -226,7 +226,7 @@ const DuDashboard: React.FC = () => {
                     <Tag
                       color="#D97B1F"
                       style={{ cursor: 'pointer', padding: '4px 12px' }}
-                      onClick={() => navigate('/dexx/wh/inventory')}
+                      onClick={() => navigate('/exx/wh/inventory')}
                     >
                       查看库存 →
                     </Tag>

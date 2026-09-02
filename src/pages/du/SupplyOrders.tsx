@@ -195,7 +195,7 @@ export default function SupplyOrders() {
       >
         <Alert
           type="info" showIcon style={{ marginBottom: 12 }}
-          message="报价写入 quote_snapshot 快照，执行层（dex/dexx）不可见"
+          message="报价写入 quote_snapshot 快照，执行层（dex/exx）不可见"
         />
         <Form form={quoteForm} layout="vertical" initialValues={{ currency: 'CNY', valid_days: 7 }}>
           <Form.Item name="unit_price" label="单价" rules={[{ required: true, message: '请输入单价' }]}>
