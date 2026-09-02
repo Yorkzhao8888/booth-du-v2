@@ -15,6 +15,18 @@ import {
 } from '@ant-design/icons';
 
 import { useAuthStore } from '../../store';
+import { api } from '../../api';
+
+// STATION-07: 7 态中文映射 (上报状态提示用; 之前被引用但未定义)
+const STATUS_LABELS: Record<string, string> = {
+  provisioning: '开通中',
+  idle: '空闲',
+  busy: '忙碌',
+  paused: '已暂停',
+  down: '故障停机',
+  maintenance: '维护中',
+  decommissioned: '已退役',
+};
 
 const MONO = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
 const NAVY = '#1F3A5F';
@@ -85,7 +97,7 @@ export default function FabStationDetail() {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await api.get(`/dexx/fab/stations/${id}`);
+      const res = await api.get<any>(`/dexx/fab/stations/${id}`);
       if (res?.success) {
         setStation(res.data?.station || res.data || res.station || null);
       }
@@ -104,7 +116,7 @@ export default function FabStationDetail() {
   const fetchCaps = useCallback(async () => {
     if (!id) return;
     try {
-      const res = await api.get(`/dexx/fab/station/${id}/capabilities`);
+      const res = await api.get<any>(`/dexx/fab/station/${id}/capabilities`);
       if (res?.success) setCaps(res.data?.mounts || []);
     } catch {
       // ignore
@@ -122,7 +134,7 @@ export default function FabStationDetail() {
   const submitStatus = async () => {
     if (!newStatus || !id) return;
     try {
-      await api.post(`/dexx/fab/station/${id}/report-status`, { state: toApiState(newStatus), reason: 'Manual report from detail page' });
+      await api.post<any>(`/dexx/fab/station/${id}/report-status`, { state: toApiState(newStatus), reason: 'Manual report from detail page' });
       message.success(`状态已上报: ${STATUS_LABELS[newStatus] || newStatus}`);
       setStatusModal(false);
       fetchStation();
@@ -137,7 +149,7 @@ export default function FabStationDetail() {
       return;
     }
     try {
-      const res = await api.post(`/dexx/fab/station/${id}/fault`, { reason: faultReason, strategy: faultStrategy });
+      const res = await api.post<any>(`/dexx/fab/station/${id}/fault`, { reason: faultReason, strategy: faultStrategy });
       if (res?.success) {
         const d = res.data || {};
         message.success(`故障已传播(${d.strategy}): 影响 ${d.affected_orders || 0} 单, traffic_cap=${d.new_traffic_cap}`);
@@ -154,7 +166,7 @@ export default function FabStationDetail() {
     if (!id) return;
     try {
       const agentId = `agent-${id}-${Date.now()}`;
-      await api.post(`/dexx/fab/station/${id}/deploy-agent`, { agent_id: agentId, note: 'Placeholder registration (LoRA pending)' });
+      await api.post<any>(`/dexx/fab/station/${id}/deploy-agent`, { agent_id: agentId, note: 'Placeholder registration (LoRA pending)' });
       message.success(`Agent 已登记: ${agentId} (占位, 待 LoRA 接入)`);
       fetchStation();
     } catch (e: any) {

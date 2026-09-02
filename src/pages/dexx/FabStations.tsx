@@ -18,6 +18,7 @@ import {
 } from '@ant-design/icons';
 
 import { useAuthStore } from '../../store';
+import { api } from '../../api';
 
 const MONO = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
 const NAVY = '#1F3A5F';
@@ -86,7 +87,7 @@ export default function FabStations() {
       const params: string[] = [];
       if (zone) params.push(`zone_type=${zone}`);
       if (state) params.push(`state=${state}`);
-      const res = await api.get(`/dexx/fab/stations${params.length ? '?' + params.join('&') : ''}`);
+      const res = await api.get<any>(`/dexx/fab/stations${params.length ? '?' + params.join('&') : ''}`);
       if (res?.success) setStations(res.data?.items || res.items || []);
     } catch {
       // ignore
@@ -109,7 +110,7 @@ export default function FabStations() {
 
   const reportStatus = async (station: Station, newState: string) => {
     try {
-      await api.post(`/dexx/fab/station/${station.id}/report-status`, {
+      await api.post<any>(`/dexx/fab/station/${station.id}/report-status`, {
         state: REPORT_STATE_MAP[newState] || newState,
         reason: `Manual switch to ${newState}`,
       });
@@ -122,7 +123,7 @@ export default function FabStations() {
 
   const triggerFault = async (station: Station) => {
     try {
-      const res = await api.post(`/dexx/fab/station/${station.id}/fault`, {
+      const res = await api.post<any>(`/dexx/fab/station/${station.id}/fault`, {
         reason: `Manual fault test on ${station.code}`,
         strategy: station.fault_strategy || 'bypass',
       });
