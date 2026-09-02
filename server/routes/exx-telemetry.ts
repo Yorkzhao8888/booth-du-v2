@@ -27,7 +27,7 @@ router.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     const user = (req as any).user as JwtPayload | undefined;
     if (user) {
-      const isManager = ['du', 'dx', 'dex'].includes(user.role);
+      const isManager = ['du', 'dx', 'ex'].includes(user.role);
       const isFabHat = !!user.hats?.includes('FAB');
       if (!isManager && !isFabHat) {
         return res.status(403).json({ success: false, error: 'FORBIDDEN', message: '采集编排仅 EX/DEX 或 FAB 帽持有者可用' });

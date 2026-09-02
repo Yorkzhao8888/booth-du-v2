@@ -35,7 +35,7 @@ const { Header, Sider, Content } = Layout;
 
 const getMenuItemsByRole = (role: string) => {
   const canSeePrice = ['du', 'dx', 'dm'].includes(role);
-  const canWrite = ['du', 'dx', 'dxx', 'dex', 'exx'].includes(role);
+  const canWrite = ['du', 'dx', 'dxx', 'ex', 'exx'].includes(role);
   const isReadOnly = role === 'dm';
 
   // MKT 铺子管理
@@ -299,7 +299,7 @@ const AppLayout: React.FC = () => {
   const userMenu = {
     items: [
       // dex/exx 无 /{role}/org-chart 路由（点击会落 '*' 弹回首页），仅对有路由的角色展示
-      ...(user?.role !== 'dex' && user?.role !== 'exx' ? [
+      ...(user?.role !== 'ex' && user?.role !== 'exx' ? [
         { key: 'org', icon: <AppstoreOutlined />, label: '组织架构', onClick: () => navigate(`/${user?.role}/org-chart`) },
       ] : []),
       { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout },

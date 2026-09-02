@@ -110,7 +110,7 @@ const M_ONLY = requireRole(...M_ROLES);
 const PRICE_ONLY = requireRole(...PRICE_ROLES);
 
 const supplyOrdersRouter = Router();
-supplyOrdersRouter.use(requireRole('du', 'dx', 'em', 'dm', 'dex', 'exx'));
+supplyOrdersRouter.use(requireRole('du', 'dx', 'em', 'dm', 'ex', 'exx'));
 
 /**
  * shop 创建契约（M 层代录）：POST /supply-orders
@@ -348,7 +348,7 @@ async function deliveryConfirmHandler(req: Request, res: Response, next: NextFun
   }
 }
 const deliveriesRouter = Router();
-deliveriesRouter.use(requireRole('du', 'dx', 'em', 'dm', 'dex', 'exx'));
+deliveriesRouter.use(requireRole('du', 'dx', 'em', 'dm', 'ex', 'exx'));
 deliveriesRouter.post('/:id\\:confirm', M_ONLY, deliveryConfirmHandler);
 deliveriesRouter.post('/:id/confirm', M_ONLY, deliveryConfirmHandler);
 

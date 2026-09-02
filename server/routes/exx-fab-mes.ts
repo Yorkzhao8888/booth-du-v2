@@ -15,9 +15,9 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 const router = Router();
 
 // ====== FAB-MES-03-FIX3 / FAB-MES-04-FIX4: 管理角色产线只读放行 ======
-// requireFabRead: FAB 帽全权; du/dx/dex/dm/em 管理角色仅放行只读(GET/HEAD), 写操作回落 requireHat('FAB')
+// requireFabRead: FAB 帽全权; du/dx/ex/dm/em 管理角色仅放行只读(GET/HEAD), 写操作回落 requireHat('FAB')
 // 导出供 exx-fab-trace.ts 复用 (FAB-MES-02)
-export const FAB_READ_MANAGER_ROLES = ['du', 'dx', 'dex', 'dm', 'em'];
+export const FAB_READ_MANAGER_ROLES = ['du', 'dx', 'ex', 'dm', 'em'];
 export const requireFabRead: any = (req: any, res: any, next: any) => {
   const user = (req as any).user as JwtPayload | undefined;
   const method = (req.method || '').toUpperCase();
@@ -26,9 +26,9 @@ export const requireFabRead: any = (req: any, res: any, next: any) => {
   }
   return requireHat('FAB')(req, res, next);
 };
-// X 层(dex/exx)只读时剥离价格字段; du/dx/dm 可看全量 (价格边界红线)
+// X 层(ex/exx)只读时剥离价格字段; du/dx/dm 可看全量 (价格边界红线)
 const stripFabReadFor = (user: JwtPayload, data: unknown): unknown => {
-  if (user && ['dex', 'exx'].includes(user.role)) return stripPriceFields(data as any);
+  if (user && ['ex', 'exx'].includes(user.role)) return stripPriceFields(data as any);
   return data;
 };
 
