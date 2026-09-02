@@ -167,7 +167,7 @@ export default function FabStationDetail() {
     return (
       <div style={{ padding: 48 }}>
         <Empty description="Station 不存在">
-          <Button onClick={() => navigate('/dexx/fab/stations')}>返回 Station 列表</Button>
+          <Button onClick={() => navigate('/dexx/station')}>返回 Station 列表</Button>
         </Empty>
       </div>
     );
@@ -192,7 +192,7 @@ export default function FabStationDetail() {
   return (
     <div style={{ padding: '20px 24px', background: '#F5F7FA', minHeight: '100%' }}>
       <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/dexx/fab/stations')}>返回列表</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/dexx/station')}>返回列表</Button>
         <Button icon={<ReloadOutlined />} onClick={fetchStation}>刷新</Button>
       </Space>
 

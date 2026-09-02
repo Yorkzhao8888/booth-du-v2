@@ -23,24 +23,28 @@ import {
   SettingOutlined,
   HomeOutlined,
   AlertOutlined,
-} from '@ant-design/icons';
+  ClusterOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
 const { Header, Content } = Layout;
 
-type ModuleType = 'fab' | 'fab-zone' | 'fab-eq' | 'wh' | 'wh-supply' | 'dl' | 'svc' | 'stocktake';
+type ModuleType = 'fab' | 'station' | 'fab-zone' | 'fab-eq' | 'wh' | 'wh-supply' | 'dl' | 'svc' | 'stocktake';
 
 // 工单视角 tabs
 const fabTabs = [
   { key: '/dexx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
   { key: '/dexx/fab/active', label: '制作中', icon: <SyncOutlined /> },
   { key: '/dexx/fab/operations', label: '报工', icon: <ToolOutlined /> },
-  { key: '/dexx/fab/stations', label: '产线', icon: <ApartmentOutlined /> },
   { key: '/dexx/fab/dashboard', label: '看板', icon: <DashboardOutlined /> },
   { key: '/dexx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
   { key: '/dexx/qc', label: '质检', icon: <CheckSquareOutlined /> },
   { key: '/dexx/fab/history', label: '历史', icon: <HistoryOutlined /> },
   { key: '/dexx/fab/andon', label: '安灯', icon: <AlertOutlined /> },
+];
+
+// Station 视角 tabs（站列表为一级入口; 站详情由列表进入; 遥测/安灯归设备/产线域留原处）
+const stationTabs = [
+  { key: '/dexx/station', label: '站列表', icon: <ClusterOutlined /> },
 ];
 
 // 设备视角 tabs（设备台账 / OEE / 保养）
@@ -88,6 +92,7 @@ const stocktakeTabs = [
 
 /** 根据 pathname 推断当前所属模块 */
 const resolveModule = (pathname: string): ModuleType => {
+  if (pathname.startsWith('/dexx/station') || pathname.includes('/fab/station')) return 'station';
   if (pathname.includes('/fab/zone/')) return 'fab-zone';
   if (pathname.includes('/fab/equipment') || pathname.includes('/fab/maintenance')) return 'fab-eq';
   if (pathname.includes('/wh/supply') || pathname.includes('/wh/device') || pathname.includes('/wh/plaza')) return 'wh-supply';
@@ -118,6 +123,7 @@ const MobileLayout: React.FC = () => {
 
   const segmentedOptions = [
     showFab ? { label: '工单', value: 'fab' as ModuleType } : null,
+    showFab ? { label: 'Station', value: 'station' as ModuleType } : null,
     showFab ? { label: '产线', value: 'fab-zone' as ModuleType } : null,
     showFab ? { label: '设备', value: 'fab-eq' as ModuleType } : null,
     showWh ? { label: '仓储', value: 'wh' as ModuleType } : null,
@@ -130,6 +136,7 @@ const MobileLayout: React.FC = () => {
 
   const tabsMap: Record<ModuleType, typeof fabTabs> = {
     fab: fabTabs,
+    'station': stationTabs,
     'fab-zone': fabZoneTabs,
     'fab-eq': fabEqTabs,
     wh: whTabs,
@@ -149,6 +156,7 @@ const MobileLayout: React.FC = () => {
 
   const moduleDefaultPath: Record<ModuleType, string> = {
     fab: '/dexx/fab/queue',
+    'station': '/dexx/station',
     'fab-zone': '/dexx/fab/zone/preprocessing',
     'fab-eq': '/dexx/fab/equipment',
     wh: '/dexx/wh/inventory',

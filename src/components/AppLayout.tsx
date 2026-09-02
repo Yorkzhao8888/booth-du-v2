@@ -121,7 +121,7 @@ const getMenuItemsByRole = (role: string) => {
       { type: 'divider' as const },
       { key: 'fab-zone-group', label: '产线视角', type: 'group' as const, children: fabZoneItems.children },
       { type: 'divider' as const },
-      { key: `${fabBase}/stations`, label: 'Station 作业站' },
+      { key: `${fabBase}/station`, label: 'Station 作业站' },
       { key: `${fabBase}/equipment`, label: '设备台账' },
       { key: `${fabBase}/equipment/oee`, label: 'OEE 稼动率' },
       { key: `${fabBase}/telemetry`, label: '采集看板' },

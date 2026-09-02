@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Typography } from 'antd';
-import { ToolOutlined, InboxOutlined, CarOutlined, CustomerServiceOutlined, AuditOutlined, CheckSquareOutlined, SendOutlined } from '@ant-design/icons';
+import { ToolOutlined, InboxOutlined, CarOutlined, CustomerServiceOutlined, AuditOutlined, CheckSquareOutlined, SendOutlined, ClusterOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 
@@ -17,6 +17,12 @@ const ModuleEntry: React.FC = () => {
       icon: <ToolOutlined style={{ fontSize: 40, color: '#1890ff', marginBottom: 8 }} />,
       title: '生产 FAB',
       desc: '工单接单与制作',
+    },
+    {
+      hat: 'FAB',
+      path: '/dexx/station',
+      icon: <ClusterOutlined style={{ fontSize: 40, color: '#13c2c2', marginBottom: 8 }} />,
+      title: 'Station 作业站',
     },
     {
       hat: 'FAB',

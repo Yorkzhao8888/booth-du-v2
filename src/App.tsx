@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store';
 import SSEListener from './components/SSEListener';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -181,8 +181,10 @@ const App: React.FC = () => {
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
           {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 dexx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
@@ -256,8 +258,10 @@ const App: React.FC = () => {
           <Route path="supply-quotes" element={<ErrorBoundary><DexSupplyQuotes /></ErrorBoundary>} />
           {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 dexx 组件 */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
@@ -284,8 +288,10 @@ const App: React.FC = () => {
           <Route path="fab/andon" element={<ErrorBoundary><DexxFabAndon /></ErrorBoundary>} />
           <Route path="fab/dashboard" element={<ErrorBoundary><DexxProductionDashboard /></ErrorBoundary>} />
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
@@ -331,8 +337,10 @@ const App: React.FC = () => {
           <Route path="supply-quotes" element={<ErrorBoundary><EmSupplyQuotes /></ErrorBoundary>} />
           {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 dexx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
-          <Route path="fab/stations" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
-          <Route path="fab/station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
+          <Route path="station/:id" element={<ErrorBoundary><DexxFabStationDetail /></ErrorBoundary>} />
+          <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><DexxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><DexxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><DexxFabEquipment /></ErrorBoundary>} />
