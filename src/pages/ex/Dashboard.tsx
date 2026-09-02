@@ -26,14 +26,14 @@ interface DashboardData {
   lowStockAlerts: { sku_id: number; sku_code: string; name: string; qty_on_hand: number; safety_stock: number; unit: string }[];
 }
 
-const DexDashboard: React.FC = () => {
+const ExDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dispatching, setDispatching] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await apiGet<DashboardData>('/dex/dashboard');
+      const res = await apiGet<DashboardData>('/ex/dashboard');
       setData(res);
     } catch {
       // ignore
@@ -52,7 +52,7 @@ const DexDashboard: React.FC = () => {
   const handleDispatch = async (id: number) => {
     setDispatching(id);
     try {
-      await apiPost(`/dex/fulfillments/${id}/dispatch`);
+      await apiPost(`/ex/fulfillments/${id}/dispatch`);
       message.success('拆单成功，工单已创建');
       fetchData();
     } catch (err: unknown) {
@@ -139,4 +139,4 @@ const DexDashboard: React.FC = () => {
   );
 };
 
-export default DexDashboard;
+export default ExDashboard;

@@ -20,7 +20,7 @@ const StocktakeApproval: React.FC = () => {
   const fetchStocktakes = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/dex/wh/stocktakes');
+      const res = await api.get<any>('/ex/wh/stocktakes');
       setStocktakes(res.items || []);
     } catch (e) { /* ignore */ }
     setLoading(false);
@@ -30,7 +30,7 @@ const StocktakeApproval: React.FC = () => {
 
   const handleApprove = async (id: number) => {
     try {
-      await api.post(`/dex/wh/stocktakes/${id}/approve`);
+      await api.post(`/ex/wh/stocktakes/${id}/approve`);
       message.success('审批通过，库存已调整');
       fetchStocktakes();
     } catch (e: any) { message.error(e.message || '审批失败'); }
@@ -38,7 +38,7 @@ const StocktakeApproval: React.FC = () => {
 
   const handleReject = async (id: number) => {
     try {
-      await api.post(`/dex/wh/stocktakes/${id}/reject`);
+      await api.post(`/ex/wh/stocktakes/${id}/reject`);
       message.success('已驳回');
       fetchStocktakes();
     } catch (e: any) { message.error(e.message || '驳回失败'); }

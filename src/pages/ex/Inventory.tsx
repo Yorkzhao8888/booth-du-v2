@@ -37,7 +37,7 @@ const ExInventory: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiGet<InventoryItem[]>('/dex/inventory');
+      const res = await apiGet<InventoryItem[]>('/ex/inventory');
       setItems(res);
     } catch {
       // ignore
@@ -59,7 +59,7 @@ const ExInventory: React.FC = () => {
     setTxnLoading(true);
     try {
       const query = txnTypeFilter ? `?skuId=${record.id}&type=${txnTypeFilter}` : `?skuId=${record.id}`;
-      const res = await apiGet<Txn[]>(`/dex/inventory/txns${query}`);
+      const res = await apiGet<Txn[]>(`/ex/inventory/txns${query}`);
       setTxns(res);
     } catch {
       setTxns([]);

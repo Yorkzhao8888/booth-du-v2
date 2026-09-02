@@ -60,8 +60,8 @@ const getMenuItemsByRole = (role: string) => {
         ...(['du', 'dm'].includes(role) ? [{ key: '/du/employees', label: '员工管理' }] : []),
       ] : []),
       // dex 自有路由项（/dex/skus、/dex/boms 已在 App.tsx 注册）
-      ...(role === 'dex' ? [{ key: '/dex/skus', label: 'SKU管理' }] : []),
-      ...(role === 'dex' ? [{ key: '/dex/boms', label: 'BOM管理' }] : []),
+      ...(role === 'ex' ? [{ key: '/ex/skus', label: 'SKU管理' }] : []),
+      ...(role === 'ex' ? [{ key: '/ex/boms', label: 'BOM管理' }] : []),
     ].map(item => ({
       ...item,
       label: isReadOnly && !item.label.includes('只读') && item.key !== '/du/org-chart' && item.key !== '/du/employees'
@@ -76,8 +76,8 @@ const getMenuItemsByRole = (role: string) => {
     icon: <ExperimentOutlined />,
     label: 'FAB 工单视角',
     children: [
-      ...(role === 'dex' ? [
-        { key: '/dex/work-orders', label: '工单调度' },
+      ...(role === 'ex' ? [
+        { key: '/ex/work-orders', label: '工单调度' },
       ] : []),
       ...(role === 'dexx' ? [
         { key: '/dexx/fab/queue', label: '待接单' },
@@ -98,7 +98,7 @@ const getMenuItemsByRole = (role: string) => {
 
   // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（FAB-MES-03-FIX3: 保留可见+可进入+只读）
   // key 前缀按角色: du/dx/dm→/du/fab, dex→/dex/fab, dexx→/dexx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
-  const fabBase = role === 'dexx' ? '/dexx/fab' : role === 'dex' ? '/dex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
+  const fabBase = role === 'dexx' ? '/dexx/fab' : role === 'ex' ? '/ex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
   const fabZoneItems = {
     key: 'fab-zones',
     icon: <ApartmentOutlined />,
@@ -153,7 +153,7 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
         { key: '/du/supply-orders', label: '供给订单' },
       ] : []),
-      ...(role === 'dex' ? [{ key: '/dex/stocktakes', label: '盘点审批' }, { key: '/dex/capacity', label: '产能查询' }, { key: '/dex/supply-quotes', label: '供给报价' }] : []),
+      ...(role === 'ex' ? [{ key: '/ex/stocktakes', label: '盘点审批' }, { key: '/ex/capacity', label: '产能查询' }, { key: '/ex/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'dexx' ? [
         { key: '/dexx/stocktake', label: '盘点执行' },
         { key: '/dexx/wh/inbound', label: '入库' },
@@ -176,7 +176,7 @@ const getMenuItemsByRole = (role: string) => {
     label: 'DL 物流铺',
     children: [
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/dl', label: '配送任务' }] : []),
-      ...(role === 'dex' ? [{ key: '/dex/dl-dispatch', label: '配送派单' }] : []),
+      ...(role === 'ex' ? [{ key: '/ex/dl-dispatch', label: '配送派单' }] : []),
       ...(role === 'dexx' ? [{ key: '/dexx/dl', label: '配送执行' }] : []),
     ],
   };
@@ -189,7 +189,7 @@ const getMenuItemsByRole = (role: string) => {
     children: [
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/svc', label: '服务任务' }] : []),
       ...(['du', 'dx'].includes(role) ? [{ key: '/du/supply-quotes', label: '供给报价' }] : []),
-      ...(role === 'dex' ? [{ key: '/dex/svc-dispatch', label: '服务派单' }] : []),
+      ...(role === 'ex' ? [{ key: '/ex/svc-dispatch', label: '服务派单' }] : []),
       ...(role === 'dexx' ? [{ key: '/dexx/svc', label: '服务执行' }] : []),
     ],
   };
@@ -245,8 +245,8 @@ const getMenuItemsByRole = (role: string) => {
       svcItems,
     );
   }
-  // DEX 铺长：MKT + WH（盘点）+ DL + SVC
-  else if (role === 'dex') {
+  // EX 铺长：MKT + WH（盘点）+ DL + SVC
+  else if (role === 'ex') {
     items.push(mktItems, fabItems, whItems, dlItems, svcItems);
   }
   // DEXX 铺员：FAB + WH + DL + SVC（四帽）
@@ -311,7 +311,7 @@ const AppLayout: React.FC = () => {
     du: 'DU 店主',
     dx: 'DX 店长',
     dxx: 'DXX 店员',
-    dex: 'DEX 铺长',
+    dex: 'EX 铺长',
     dexx: 'DEXX 铺员',
   };
 

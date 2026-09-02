@@ -13,9 +13,9 @@ import type { JwtPayload } from './auth.js';
 import authRoutes from './routes/auth.js';
 import internalRoutes from './routes/internal.js';
 import duRoutes from './routes/du/index.js';   // /api/booth/du 聚合入口 (TECH-DEBT-4)
-import dexRoutes from './routes/dex.js';
+import exRoutes from './routes/ex.js';
 import dexxRoutes from './routes/dexx.js';
-import dexModulesRoutes from './routes/dex-modules.js';
+import exModulesRoutes from './routes/ex-modules.js';
 import dexxModulesRoutes from './routes/dexx-modules.js';
 import emRoutes from './routes/em.js';
 import marketRoutes from './routes/market.js';
@@ -62,12 +62,12 @@ app.use('/api/booth/internal', internalRoutes);
 // /api/booth/du 聚合挂载: suppliers(前置)/核心看板/purchase-orders/dl+svc+profit+wh+fabqc/supply
 // (TECH-DEBT-4: 原 5 个分散挂载点收敛进 routes/du/index.ts, 挂载顺序不变)
 app.use('/api/booth/du', duRoutes);
-app.use('/api/booth/dex', dexRoutes);
+app.use('/api/booth/ex', exRoutes);
 // FIX3: modules 前置(带独立 requireAuth) — dexx.ts 的 router.use(requireRole('dexx'))
 // 会全局拦截同前缀请求, du/dx/dex 的产线只读 GET 需先经 dexx-modules 的 requireFabRead 放行
 app.use('/api/booth/dexx', requireAuth, dexxModulesRoutes); // /api/booth/dexx/fab/*, /wh/*, /dl/*, /svc/*
 // New module routes
-app.use('/api/booth/dex', dexModulesRoutes);  // /api/booth/dex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
+app.use('/api/booth/ex', exModulesRoutes);  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
 app.use('/api/booth/dexx', dexxRoutes);
 app.use('/api/booth/em', emRoutes);
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)

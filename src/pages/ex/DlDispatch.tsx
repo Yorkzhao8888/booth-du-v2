@@ -24,7 +24,7 @@ const DlDispatch: React.FC = () => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/dex/dl/tasks');
+      const res = await api.get<any>('/ex/dl/tasks');
       setTasks(res.items || []);
     } catch (e) { /* ignore */ }
     setLoading(false);
@@ -32,7 +32,7 @@ const DlDispatch: React.FC = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get('/dex/users');
+      const res = await api.get<any>('/ex/users');
       setUsers((res.items || res || []).filter((u: any) => u.role === 'dexx'));
     } catch (e) { setUsers([]); }
   };
@@ -41,7 +41,7 @@ const DlDispatch: React.FC = () => {
 
   const handleCreate = async (values: any) => {
     try {
-      await api.post('/dex/dl/tasks', values);
+      await api.post('/ex/dl/tasks', values);
       message.success('配送任务创建成功');
       setCreateVisible(false);
       createForm.resetFields();
@@ -52,7 +52,7 @@ const DlDispatch: React.FC = () => {
   const handleAssign = async (values: any) => {
     if (!currentTask) return;
     try {
-      await api.post(`/dex/dl/tasks/${currentTask.id}/assign`, { assigneeId: values.assigneeId });
+      await api.post(`/ex/dl/tasks/${currentTask.id}/assign`, { assigneeId: values.assigneeId });
       message.success('派单成功');
       setAssignVisible(false);
       assignForm.resetFields();

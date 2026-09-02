@@ -55,7 +55,7 @@ const ExWorkOrders: React.FC = () => {
     setLoading(true);
     try {
       const query = statusFilter ? `?status=${statusFilter}` : '';
-      const res = await apiGet<{ items: WorkOrder[]; total: number }>(`/dex/work-orders${query}`);
+      const res = await apiGet<{ items: WorkOrder[]; total: number }>(`/ex/work-orders${query}`);
       setOrders(res.items);
     } catch {
       // ignore
@@ -73,7 +73,7 @@ const ExWorkOrders: React.FC = () => {
 
   const openCreate = async () => {
     try {
-      const res = await apiGet<BomOption[]>('/dex/boms?active=1');
+      const res = await apiGet<BomOption[]>('/ex/boms?active=1');
       setBoms(res);
     } catch {
       setBoms([]);
@@ -86,7 +86,7 @@ const ExWorkOrders: React.FC = () => {
     try {
       const values = await form.validateFields();
       setSubmitting(true);
-      await apiPost('/dex/work-orders', { bomId: values.bomId, qty: values.qty });
+      await apiPost('/ex/work-orders', { bomId: values.bomId, qty: values.qty });
       message.success('工单创建成功');
       setModalOpen(false);
       fetchData();
@@ -110,7 +110,7 @@ const ExWorkOrders: React.FC = () => {
     try {
       const values = await cancelForm.validateFields();
       setSubmitting(true);
-      await apiPost(`/dex/work-orders/${cancelTarget.id}/cancel`, { reason: values.reason });
+      await apiPost(`/ex/work-orders/${cancelTarget.id}/cancel`, { reason: values.reason });
       message.success('工单已取消');
       setCancelModalOpen(false);
       fetchData();

@@ -4,7 +4,7 @@ import { requireAuth, requireRole } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('dex'));
+router.use(requireAuth, requireRole('ex'));
 
 // ====== DL Tasks: Dispatch & view ======
 router.get('/dl/tasks', async (req, res, next) => {

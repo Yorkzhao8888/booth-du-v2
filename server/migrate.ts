@@ -1155,10 +1155,9 @@ export async function migrate() {
         console.log(`[migrate] Marked ${staleResult.rowCount} stale outbox events as dead.`);
       }
 
-      // Role migration: eu→du, ex→dex, exx→dexx (idempotent)
+      // Role migration: dex→ex (BOOTH-ROLE-CLEAN-01 C1 裁定 DEX 废弃，铺长线统一 EX)；exx→dexx 铺员线另单处理 (idempotent)
       const roleUpdates = [
-        { from: 'eu', to: 'du' },
-        { from: 'ex', to: 'dex' },
+        { from: 'dex', to: 'ex' },
         { from: 'exx', to: 'dexx' },
       ];
       for (const { from, to } of roleUpdates) {
@@ -1422,7 +1421,7 @@ export async function migrate() {
     );
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (3, 1, '交付长', '13800000002', $1, 'dex', '{}')`,
+       VALUES (3, 1, '铺长', '13800000002', $1, 'ex', '{}')`,
       [passwordHash]
     );
     await client.query(

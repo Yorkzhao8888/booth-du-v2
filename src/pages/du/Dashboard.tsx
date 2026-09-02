@@ -158,7 +158,7 @@ const DuDashboard: React.FC = () => {
               {
                 label: '查看工单',
                 icon: <InboxOutlined />,
-                onClick: () => navigate('/dex/work-orders'),
+                onClick: () => navigate('/ex/work-orders'),
               },
             ]}
           />

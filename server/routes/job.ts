@@ -171,7 +171,7 @@ router.post('/jobs', async (req, res, next) => {
 // ============ DispatchJob ============
 // POST /jobs/:job_id/dispatch - 派单到 Station [DEPRECATED: 建议改走 dexx-fab-mes assign-order 新链路; 本接口保留兼容, 已切换 station 新状态机]
 // POST /jobs/:job_id/dispatch - 派单到 Station
-router.post('/jobs/:job_id/dispatch', requireRole('dex', 'du', 'dx'), async (req, res, next) => {
+router.post('/jobs/:job_id/dispatch', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     const user = getUser(req);
@@ -380,7 +380,7 @@ router.post('/jobs/:job_id/cancel', async (req, res, next) => {
 
 // ============ BatchDispatch ============
 // POST /jobs/batch-dispatch - 批量派单
-router.post('/jobs/batch-dispatch', requireRole('dex', 'du', 'dx'), async (req, res, next) => {
+router.post('/jobs/batch-dispatch', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   const client = await pool.connect();
   try {
     const user = getUser(req);
@@ -574,7 +574,7 @@ router.get('/stations', async (req, res, next) => {
 });
 
 // POST /stations - 创建 Station
-router.post('/stations', requireRole('dex', 'du', 'dx'), async (req, res, next) => {
+router.post('/stations', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   try {
     const user = getUser(req);
     const { type, name, capacity } = req.body;
@@ -597,7 +597,7 @@ router.post('/stations', requireRole('dex', 'du', 'dx'), async (req, res, next) 
 });
 
 // PUT /stations/:id/status - 更新 Station 状态
-router.put('/stations/:id/status', requireRole('dex', 'du', 'dx'), async (req, res, next) => {
+router.put('/stations/:id/status', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   try {
     const user = getUser(req);
     const { id } = req.params;

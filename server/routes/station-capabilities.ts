@@ -28,7 +28,7 @@ const RUNTIME_META = {
 router.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     const user = (req as any).user as JwtPayload | undefined;
-    const isManager = user && ['du', 'dx', 'dex'].includes(user.role);
+    const isManager = user && ['du', 'dx', 'ex'].includes(user.role);
     const isFabHat = user?.hats?.includes('FAB');
     if (user && !isManager && !isFabHat) {
       return res.status(403).json({ success: false, error: 'FORBIDDEN', message: '能力编排仅 EX/DEX 或 FAB 帽持有者可用' });

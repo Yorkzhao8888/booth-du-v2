@@ -9,7 +9,7 @@ import { checkAndBroadcastSlaAlerts } from '../sse.js';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('dex'));
+router.use(requireAuth, requireRole('ex'));
 
 // GET /dashboard
 router.get('/dashboard', async (req, res, next) => {

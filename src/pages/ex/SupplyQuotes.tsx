@@ -37,7 +37,7 @@ const monoStyle: React.CSSProperties = {
   fontVariantNumeric: 'tabular-nums',
 };
 
-export default function DexSupplyQuotes() {
+export default function ExSupplyQuotes() {
   const [quotes, setQuotes] = useState<SupplyQuote[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -48,9 +48,9 @@ export default function DexSupplyQuotes() {
   const fetchQuotes = async () => {
     setLoading(true);
     try {
-      const res = await api(`/dex/supply-quotes?page=${page}&pageSize=20`);
-      setQuotes(res.data.items || []);
-      setTotal(res.data.total || 0);
+      const res = await api.get<any>(`/ex/supply-quotes?page=${page}&pageSize=20`);
+      setQuotes(res?.items || []); // api.ts 解包后 res 即业务数据
+      setTotal(res?.total || 0);
     } catch { message.error('获取报价单失败'); }
     setLoading(false);
   };

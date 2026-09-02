@@ -20,7 +20,7 @@ const roleOptions = [
   { value: 'du', label: 'DU 店主' },
   { value: 'dx', label: 'DX 店长' },
   { value: 'dxx', label: 'DXX 店员' },
-  { value: 'dex', label: 'DEX 铺长' },
+  { value: 'ex', label: 'EX 铺长' },
   { value: 'dexx', label: 'DEXX 铺员' },
 ];
 

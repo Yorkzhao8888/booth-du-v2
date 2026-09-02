@@ -9,14 +9,14 @@ const resourceTypeMap: Record<string, string> = {
   labor: '人力',
 };
 
-const DexCapacityQuery: React.FC = () => {
+const ExCapacityQuery: React.FC = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/dex/capacity/overview');
+      const res = await api.get<any>('/ex/capacity/overview');
       setData(res);
     } catch (e) { /* ignore */ }
     setLoading(false);
@@ -68,4 +68,4 @@ const DexCapacityQuery: React.FC = () => {
   );
 };
 
-export default DexCapacityQuery;
+export default ExCapacityQuery;

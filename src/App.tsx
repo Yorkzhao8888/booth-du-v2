@@ -27,15 +27,15 @@ import DuSupplyOrders from './pages/du/SupplyOrders';
 import DuInventoryTransfer from './pages/du/InventoryTransfer';
 import DuRealtimeDashboard from './pages/du/RealtimeDashboard';
 // DEX pages
-import DexDashboard from './pages/dex/Dashboard';
-import DexWorkOrders from './pages/dex/WorkOrders';
-import DexBoms from './pages/dex/Boms';
-import DexSkus from './pages/dex/Skus';
-import DexInventory from './pages/dex/Inventory';
-import DexDlDispatch from './pages/dex/DlDispatch';
-import DexSvcDispatch from './pages/dex/SvcDispatch';
-import DexStocktakeApproval from './pages/dex/StocktakeApproval';
-import DexCapacityQuery from './pages/dex/CapacityQuery';
+import ExDashboard from './pages/ex/Dashboard';
+import ExWorkOrders from './pages/ex/WorkOrders';
+import ExBoms from './pages/ex/Boms';
+import ExSkus from './pages/ex/Skus';
+import ExInventory from './pages/ex/Inventory';
+import ExDlDispatch from './pages/ex/DlDispatch';
+import ExSvcDispatch from './pages/ex/SvcDispatch';
+import ExStocktakeApproval from './pages/ex/StocktakeApproval';
+import ExCapacityQuery from './pages/ex/CapacityQuery';
 // DEXX pages
 import DexxModuleEntry from './pages/dexx/ModuleEntry';
 import DexxFabQueue from './pages/dexx/FabQueue';
@@ -85,7 +85,7 @@ import EmSguListings from './pages/em/SguListings';
 import EmSguPending from './pages/em/SguPending';
 import EmSupplyQuotes from './pages/em/SupplyQuotes';
 import DuSupplyQuotes from './pages/du/SupplyQuotes';
-import DexSupplyQuotes from './pages/dex/SupplyQuotes';
+import ExSupplyQuotes from './pages/ex/SupplyQuotes';
 // Market pages
 import MarketDashboard from './pages/market/Dashboard';
 // Common pages
@@ -121,8 +121,8 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     else if (role === 'dxx' && !path.startsWith('/dxx') && !path.startsWith('/dexx')) {
       return <Navigate to="/dxx" replace />;
     }
-    else if (role === 'dex' && !path.startsWith('/dex')) {
-      return <Navigate to="/dex" replace />;
+    else if (role === 'ex' && !path.startsWith('/ex')) {
+      return <Navigate to="/ex" replace />;
     }
     else if (role === 'dexx' && !path.startsWith('/dexx')) {
       return <Navigate to="/dexx" replace />;
@@ -243,25 +243,25 @@ const App: React.FC = () => {
           <Route path="svc" element={<ErrorBoundary><DexxSvcExec /></ErrorBoundary>} />
         </Route>
 
-        {/* DEX routes */}
+        {/* EX routes */}
         <Route
-          path="/dex"
+          path="/ex"
           element={
             <RequireAuth>
               <AppLayout />
             </RequireAuth>
           }
         >
-          <Route index element={<ErrorBoundary><DexDashboard /></ErrorBoundary>} />
-          <Route path="work-orders" element={<ErrorBoundary><DexWorkOrders /></ErrorBoundary>} />
-          <Route path="boms" element={<ErrorBoundary><DexBoms /></ErrorBoundary>} />
-          <Route path="skus" element={<ErrorBoundary><DexSkus /></ErrorBoundary>} />
-          <Route path="inventory" element={<ErrorBoundary><DexInventory /></ErrorBoundary>} />
-          <Route path="dl-dispatch" element={<ErrorBoundary><DexDlDispatch /></ErrorBoundary>} />
-          <Route path="svc-dispatch" element={<ErrorBoundary><DexSvcDispatch /></ErrorBoundary>} />
-          <Route path="stocktakes" element={<ErrorBoundary><DexStocktakeApproval /></ErrorBoundary>} />
-          <Route path="capacity" element={<ErrorBoundary><DexCapacityQuery /></ErrorBoundary>} />
-          <Route path="supply-quotes" element={<ErrorBoundary><DexSupplyQuotes /></ErrorBoundary>} />
+          <Route index element={<ErrorBoundary><ExDashboard /></ErrorBoundary>} />
+          <Route path="work-orders" element={<ErrorBoundary><ExWorkOrders /></ErrorBoundary>} />
+          <Route path="boms" element={<ErrorBoundary><ExBoms /></ErrorBoundary>} />
+          <Route path="skus" element={<ErrorBoundary><ExSkus /></ErrorBoundary>} />
+          <Route path="inventory" element={<ErrorBoundary><ExInventory /></ErrorBoundary>} />
+          <Route path="dl-dispatch" element={<ErrorBoundary><ExDlDispatch /></ErrorBoundary>} />
+          <Route path="svc-dispatch" element={<ErrorBoundary><ExSvcDispatch /></ErrorBoundary>} />
+          <Route path="stocktakes" element={<ErrorBoundary><ExStocktakeApproval /></ErrorBoundary>} />
+          <Route path="capacity" element={<ErrorBoundary><ExCapacityQuery /></ErrorBoundary>} />
+          <Route path="supply-quotes" element={<ErrorBoundary><ExSupplyQuotes /></ErrorBoundary>} />
           {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 dexx 组件 */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><DexxFabZoneView /></ErrorBoundary>} />
           <Route path="station" element={<ErrorBoundary><DexxFabStations /></ErrorBoundary>} />
