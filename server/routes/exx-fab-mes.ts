@@ -6,6 +6,7 @@
  */
 import { Router } from 'express';
 import { pool } from '../db.js';
+import { canStationTransition } from '../services/station-state-machine.js';
 import { requireHat } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 import { broadcast } from '../sse.js';
@@ -53,7 +54,8 @@ router.get('/fab/stations', requireFabRead, async (req, res, next) => {
         `SELECT COUNT(*) as cnt FROM booth_work_orders WHERE station_id = $1 AND status IN ('accepted','preparing')`,
         [st.id]
       );
-      stations.push({ ...st, active_orders: parseInt(wos.rows[0]?.cnt || '0') });
+      const { status: _legacyStatus, ...stationFields } = st; // [DEV-P1-02] 旧 status 下线, 响应不回传
+      stations.push({ ...stationFields, active_orders: parseInt(wos.rows[0]?.cnt || '0') });
     }
     res.json({ success: true, data: { items: stations, total: stations.length } });
   } catch (err) { next(err); }
@@ -71,7 +73,7 @@ router.get('/fab/stations/:id', requireFabRead, async (req, res, next) => {
     if (st.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Station not found' });
     }
-    const station = st.rows[0];
+    const { status: _legacyStatus, ...station } = st.rows[0]; // [DEV-P1-02] 旧 status 下线, 响应不回传
     // 当前作业队列
     const queue = await pool.query(
       `SELECT wo.id, wo.job_id, wo.status, wo.priority, wo.qty, wo.accepted_at, wo.completed_at,
@@ -176,7 +178,7 @@ router.post('/fab/station/:id/report-status', requireHat('FAB'), async (req, res
     const user = (req as any).user as JwtPayload;
     const { id } = req.params;
     const { state, reason, traffic_cap } = req.body || {};
-    const validStates = ['run', 'idle', 'paused', 'down', 'maintenance'];
+    const validStates = ['run', 'idle', 'paused', 'down', 'maintenance', 'decommissioned']; // [DEV-P1-02] decommissioned 供流转校验(报废语义), 非法流转返回 INVALID_TRANSITION
     if (!validStates.includes(state)) {
       return res.status(400).json({ success: false, message: `Invalid state, must be one of: ${validStates.join('/')}` });
     }
@@ -190,6 +192,10 @@ router.post('/fab/station/:id/report-status', requireHat('FAB'), async (req, res
       return res.status(404).json({ success: false, message: 'Station not found' });
     }
     const oldState = st.rows[0].state;
+    // [DEV-P1-02] 状态机流转合法性校验 (self 上报 no-op 放行)
+    if (!canStationTransition(oldState, internalState)) {
+      return res.status(400).json({ success: false, code: 'INVALID_TRANSITION', message: `INVALID_TRANSITION: station state '${oldState}' -> '${internalState}' not allowed` });
+    }
     const newCap = traffic_cap !== undefined ? Number(traffic_cap) : Number(st.rows[0].traffic_cap || st.rows[0].capacity || 0);
     await pool.query(
       `UPDATE booth_stations SET state = $1, traffic_cap = $2, metadata = metadata || $3::jsonb, updated_at = NOW() WHERE id = $4`,

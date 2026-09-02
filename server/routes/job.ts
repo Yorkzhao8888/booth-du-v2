@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db.js';
 import { requireAuth, requireRole, requireHat, type JwtPayload } from '../auth.js';
 import { broadcast } from '../sse.js';
+import { canStationTransition, LEGACY_STATUS_TO_STATE, STATION_EVENT_TO_STATE } from '../services/station-state-machine.js';
 
 const router = Router();
 
@@ -87,9 +88,8 @@ function normalizeStatus(status: string): string {
 // 旧 status(online/offline/busy) 已弃用, 仅作老数据兼容回退; 新站一律读 state/traffic_cap/offline_mode
 const STATION_BLOCKED_STATES = ['provisioning', 'paused', 'down', 'maintenance', 'decommissioned'];
 function stationEffectiveState(station: any): string {
-  if (station.state) return String(station.state);
-  const legacy = String(station.status || 'offline');
-  return legacy === 'online' ? 'idle' : legacy === 'busy' ? 'busy' : 'down'; // online→idle, busy→busy, offline→down
+  // [DEV-P1-02] 旧 status 兼容回退已下线: 历史行已由 dev-p1-02-migrate 按 LEGACY_STATUS_TO_STATE 回填, state 为单一来源
+  return String(station.state || 'provisioning');
 }
 // active 口径: 旧链路 Dispatched/Accepted + 新链路 accepted/preparing (双链路互见, 防超派)
 async function stationActiveCount(db: any, stationId: number): Promise<number> {
@@ -721,6 +721,28 @@ router.post('/station/callback', async (req, res, next) => {
          WHERE id = $1`,
         [station_id]
       );
+    }
+
+    // [DEV-P1-02] Station-OS 回调事件联动站点新状态机 (state 单一来源; 非法流转记 deviation 不阻断回调)
+    const evtStationState = STATION_EVENT_TO_STATE[newStatus] ?? STATION_EVENT_TO_STATE[status]; // [fix] 回调入参原始事件名与内部映射值双查
+    if (evtStationState) {
+      const stq = await client.query(`SELECT state FROM booth_stations WHERE id = $1 FOR UPDATE`, [station_id]);
+      const curSt = stq.rows[0] ? String(stq.rows[0].state || 'provisioning') : null;
+      if (curSt && evtStationState !== curSt) {
+        let finalTarget = evtStationState;
+        if (newStatus === 'Completed') {
+          const active = await stationActiveCount(client, station_id); // 减载后在途单, 仍有单保持 busy
+          if (active > 0) finalTarget = 'busy';
+        }
+        if (canStationTransition(curSt, finalTarget)) {
+          await client.query(`UPDATE booth_stations SET state = $1, updated_at = NOW() WHERE id = $2`, [finalTarget, station_id]);
+        } else {
+          await client.query(
+            `UPDATE booth_stations SET metadata = COALESCE(metadata,'{}'::jsonb) || $1::jsonb WHERE id = $2`,
+            [JSON.stringify({ last_transition_skipped: { event: newStatus, from: curSt, to: finalTarget, at: new Date().toISOString() } }), station_id]
+          );
+        }
+      }
     }
 
     await client.query('COMMIT');
