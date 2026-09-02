@@ -139,6 +139,12 @@ const RoleRedirect: React.FC = () => {
   return <Navigate to={home[user.role] || '/login'} replace />;
 };
 
+// STATION-03/06: 旧 /fab/station/:id 链接兼容跳转 (相对当前路由树前缀, 与 fab/stations -> ../station 同模式)
+function OldStationRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`../station/${id}`} replace />;
+}
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
