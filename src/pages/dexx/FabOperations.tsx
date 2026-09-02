@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Button, Modal, Form, Input, InputNumber, message, Tag, List, Space, Steps, Descriptions, Divider, Select } from 'antd';
+import { Alert, Card, Table, Button, Modal, Form, Input, InputNumber, message, Tag, List, Space, Steps, Descriptions, Divider, Select } from 'antd';
 import { AlertOutlined } from '@ant-design/icons';
 import { api } from '../../api';
 
@@ -64,7 +64,7 @@ const FabOperations = () => {
     try {
       const v = await andonForm.validateFields();
       setAndonSubmitting(true);
-      const res = await api.post('/dexx/fab/andon', {
+      const res = await api.post<any>('/dexx/fab/andon', {
         type: v.type,
         severity: v.severity,
         message: v.message,
@@ -85,7 +85,7 @@ const FabOperations = () => {
   const fetchActiveOrders = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/dex/work-orders?status=in_progress');
+      const res = await api.get<any>('/dex/work-orders?status=in_progress');
       setActiveOrders(res.items || []);
     } catch { /* ignore */ }
     setLoading(false);
@@ -93,7 +93,7 @@ const FabOperations = () => {
 
   const fetchOperations = async (workOrderId: number) => {
     try {
-      const res = await api.get(`/dexx/fab/operations?workOrderId=${workOrderId}`);
+      const res = await api.get<any>(`/dexx/fab/operations?workOrderId=${workOrderId}`);
       setOperations(res.items || []);
     } catch { /* ignore */ }
   };
@@ -130,7 +130,7 @@ const FabOperations = () => {
 
   const handleAdvanceStage = async (targetStage: string) => {
     try {
-      const res = await api.post('/dexx/fab/stage/advance', { 
+      const res = await api.post<any>('/dexx/fab/stage/advance', { 
         workOrderId: selectedWo.id, 
         targetStage 
       });
