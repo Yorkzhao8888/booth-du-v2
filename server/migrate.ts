@@ -1305,6 +1305,17 @@ export async function migrate() {
       );
       console.log('[migrate] DEV-P1-01: dimension/business_type columns + check constraint ready.');
 
+      // ===== [神域智场 DEV-P2-03] Booth 预留挂载位 (字段预埋, 可空默认 NULL, 挂接在 M3/M4 落地) =====
+      // plaz_id  -> X-Plaz 智场点位挂载位
+      // case_id  -> X-Case 神案SYS 专案工位挂载位
+      // lab      -> X-Lab 研发作业位子模块挂载位
+      await client.query(
+        `ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS plaz_id TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS case_id TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS lab TEXT;`
+      );
+      console.log('[migrate] DEV-P2-03: plaz_id/case_id/lab mount fields ready.');
+
       // ===== FAB-MES-01: 设备台账 + OEE 稼动率 =====
       await client.query(`
         CREATE TABLE IF NOT EXISTS booth_equipment (
