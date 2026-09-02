@@ -28,9 +28,9 @@ const router = Router();
 
 router.use(dexxFabRoutes);
 router.use(dexxFabTraceRoutes);
+router.use(supplierScoreRoutes);
 router.use(stationCapabilityRoutes);
 router.use(dexxTelemetryRoutes);
-router.use(supplierScoreRoutes);
 router.use(dexxWhRoutes);
 router.use(dexxDlRoutes);
 router.use(dexxSvcRoutes);

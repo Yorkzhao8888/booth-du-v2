@@ -78,8 +78,10 @@ export async function addVoucher(orgId: number, xcaseId: number, input: VoucherI
   if (!Number.isFinite(amount) || amount <= 0) throw Object.assign(new Error('凭证金额必须为正数'), { statusCode: 400 });
   if (!['income', 'expense'].includes(input.direction)) throw Object.assign(new Error('direction 必须为 income/expense'), { statusCode: 400 });
   if (!['income', 'material', 'labor', 'intel', 'edge'].includes(input.category)) throw Object.assign(new Error('category 必须为 income/material/labor/intel/edge'), { statusCode: 400 });
-  const x = await pool.query('SELECT id FROM booth_xcases WHERE id = $1 AND org_id = $2', [xcaseId, orgId]);
+  const x = await pool.query('SELECT id, status FROM booth_xcases WHERE id = $1 AND org_id = $2', [xcaseId, orgId]);
   if (!x.rows.length) throw Object.assign(new Error('专案不存在'), { statusCode: 404 });
+  // 结案后凭证不可再补录(保持 xcase_total == vcase_total 对账一致)
+  if (x.rows[0].status === 'closed') throw Object.assign(new Error('XCASE_CLOSED'), { statusCode: 409 });
   if (!input.sourceVoucher || String(input.sourceVoucher).length > 80) throw Object.assign(new Error('source_voucher 必填(<=80 字符, 真实单据号)'), { statusCode: 400 });
 
   const ins = await pool.query(
