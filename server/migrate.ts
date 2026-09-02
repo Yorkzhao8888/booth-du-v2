@@ -1273,6 +1273,35 @@ export async function migrate() {
         `CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_org_code ON booth_stations(org_id, code);`
       );
 
+      // ===== [神域智场 DEV-P1-01] dimension × business_type (M1 数据与实体基线) =====
+      // 枚举: dimension = point(智场点位)/workstation(作业位)/case_station(专案工位)
+      //       business_type = shop/booth/lab/plaz/case
+      // 约束映射: workstation<->shop/booth/lab ; point<->plaz ; case_station<->case
+      await client.query(
+        `ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS dimension TEXT DEFAULT 'workstation';
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS business_type TEXT DEFAULT 'shop';`
+      );
+      // 历史回填: 按编码域前缀推导 business_type (FAB->shop 生产作业; WH/SVC/DL->booth 生态作业), dimension 统一 workstation
+      await client.query(
+        `UPDATE booth_stations SET dimension = 'workstation' WHERE dimension IS NULL;
+         UPDATE booth_stations SET business_type = 'shop'
+           WHERE business_type IS NULL AND (code ILIKE '%.FAB.%' OR type = 'FAB' OR zone_type ILIKE 'fab%');
+         UPDATE booth_stations SET business_type = 'booth'
+           WHERE business_type IS NULL AND (code ILIKE '%.WH.%' OR code ILIKE '%.SVC.%' OR code ILIKE '%.DL.%'
+             OR type IN ('WH','SVC','DL') OR zone_type IN ('WH','SVC','DL'));
+         UPDATE booth_stations SET business_type = 'shop' WHERE business_type IS NULL;`
+      );
+      // 约束映射校验 (CHECK): 先清旧约束再建, 保证幂等可重跑
+      await client.query(`ALTER TABLE booth_stations DROP CONSTRAINT IF EXISTS chk_stations_dimension_business;`);
+      await client.query(
+        `ALTER TABLE booth_stations ADD CONSTRAINT chk_stations_dimension_business CHECK (
+           (dimension = 'workstation' AND business_type IN ('shop','booth','lab'))
+        OR (dimension = 'point' AND business_type = 'plaz')
+        OR (dimension = 'case_station' AND business_type = 'case')
+         );`
+      );
+      console.log('[migrate] DEV-P1-01: dimension/business_type columns + check constraint ready.');
+
       // ===== FAB-MES-01: 设备台账 + OEE 稼动率 =====
       await client.query(`
         CREATE TABLE IF NOT EXISTS booth_equipment (
