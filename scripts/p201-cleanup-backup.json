@@ -1,0 +1,68 @@
+{
+  "stations": [
+    {
+      "id": "35",
+      "code": "1.LAB.MANUAL-002",
+      "name": "P201验收LAB站B",
+      "type": "LAB",
+      "zone_type": "LAB",
+      "station_type": "MANUAL",
+      "state": "provisioning",
+      "traffic_cap": "0",
+      "dimension": "workstation",
+      "business_type": "lab",
+      "metadata": {}
+    },
+    {
+      "id": "36",
+      "code": "1.LAB.BENCH-001",
+      "name": "P201验收LAB站C",
+      "type": "LAB",
+      "zone_type": "LAB",
+      "station_type": "BENCH",
+      "state": "provisioning",
+      "traffic_cap": "0",
+      "dimension": "workstation",
+      "business_type": "lab",
+      "metadata": {}
+    },
+    {
+      "id": "34",
+      "code": "1.LAB.MANUAL-001",
+      "name": "P201验收LAB站A",
+      "type": "LAB",
+      "zone_type": "LAB",
+      "station_type": "MANUAL",
+      "state": "idle",
+      "traffic_cap": "1",
+      "dimension": "workstation",
+      "business_type": "lab",
+      "metadata": {
+        "state_history": [
+          {
+            "at": "2026-09-02T11:20:10.652Z",
+            "to": "idle",
+            "from": "provisioning",
+            "reason": ""
+          },
+          {
+            "at": "2026-09-02T11:20:10.799Z",
+            "to": "busy",
+            "from": "idle",
+            "reason": ""
+          },
+          {
+            "at": "2026-09-02T11:20:10.955Z",
+            "to": "idle",
+            "from": "busy",
+            "reason": ""
+          }
+        ],
+        "last_status_at": "2026-09-02T11:20:10.949Z",
+        "last_status_reason": ""
+      }
+    }
+  ],
+  "work_orders": [],
+  "at": "2026-09-02T11:24:17.989Z"
+}
