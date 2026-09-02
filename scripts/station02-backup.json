@@ -1,0 +1,172 @@
+{
+ "at": "2026-09-02T03:02:38.275Z",
+ "targets": [],
+ "full": [
+  {
+   "id": "1",
+   "org_id": "1",
+   "type": "FAB",
+   "name": "FAB产线1号",
+   "status": "busy",
+   "capacity": 5,
+   "current_load": 5,
+   "metadata": {
+    "state_history": [
+     {
+      "at": "2026-09-01T11:12:08.787Z",
+      "to": "busy",
+      "from": "busy",
+      "reason": ""
+     }
+    ],
+    "last_status_at": "2026-09-01T11:12:08.782Z",
+    "last_status_reason": ""
+   },
+   "created_at": "2026-08-31T08:35:21.194Z",
+   "updated_at": "2026-09-01T11:12:08.783Z",
+   "code": "1.FAB.MANUAL-001",
+   "zone_type": "FAB",
+   "station_type": "manual",
+   "state": "busy",
+   "fault_strategy": "bypass",
+   "traffic_cap": "5",
+   "bottleneck_rate": "0",
+   "offline_mode": false
+  },
+  {
+   "id": "2",
+   "org_id": "1",
+   "type": "FAB",
+   "name": "FAB产线2号",
+   "status": "online",
+   "capacity": 5,
+   "current_load": 1,
+   "metadata": {
+    "agent_ids": [
+     "agent-burger-line-001"
+    ],
+    "last_fault": {
+     "at": "2026-09-01T04:02:02.929Z",
+     "reason": "验收测试-故障",
+     "strategy": "bypass",
+     "affected_orders": 0
+    },
+    "fault_history": [
+     {
+      "at": "2026-09-01T04:02:02.929Z",
+      "reason": "验收测试-故障",
+      "strategy": "bypass",
+      "affected_orders": 0
+     }
+    ],
+    "state_history": [
+     {
+      "at": "2026-09-01T04:01:41.214Z",
+      "to": "busy",
+      "from": "idle",
+      "reason": "验收测试"
+     },
+     {
+      "at": "2026-09-01T04:02:14.354Z",
+      "to": "idle",
+      "from": "paused",
+      "reason": "验收后恢复"
+     }
+    ],
+    "agent_statuses": {
+     "agent-burger-line-001": {
+      "status": "running",
+      "reported_at": "2026-09-01T04:01:56.654Z"
+     }
+    },
+    "last_status_at": "2026-09-01T04:02:14.348Z",
+    "last_status_reason": "验收后恢复"
+   },
+   "created_at": "2026-08-31T09:41:29.344Z",
+   "updated_at": "2026-09-01T04:02:14.350Z",
+   "code": "1.FAB.MANUAL-002",
+   "zone_type": "FAB",
+   "station_type": "manual",
+   "state": "idle",
+   "fault_strategy": "bypass",
+   "traffic_cap": "5",
+   "bottleneck_rate": "0",
+   "offline_mode": false
+  },
+  {
+   "id": "15",
+   "org_id": "1",
+   "type": "FAB",
+   "name": "ST01 线上验收站",
+   "status": "offline",
+   "capacity": 5,
+   "current_load": 1,
+   "metadata": {
+    "last_fault": {
+     "at": "2026-09-02T02:50:17.771Z",
+     "reason": "ST01 线上验收-fault stop_all",
+     "strategy": "stop_all",
+     "affected_orders": 0
+    },
+    "fault_history": [
+     {
+      "at": "2026-09-02T02:50:17.771Z",
+      "reason": "ST01 线上验收-fault stop_all",
+      "strategy": "stop_all",
+      "affected_orders": 0
+     }
+    ],
+    "state_history": [
+     {
+      "at": "2026-09-02T02:50:16.825Z",
+      "to": "down",
+      "from": "provisioning",
+      "reason": "ST01 线上验收-置down"
+     },
+     {
+      "at": "2026-09-02T02:50:17.123Z",
+      "to": "idle",
+      "from": "down",
+      "reason": "ST01 cap=0"
+     },
+     {
+      "at": "2026-09-02T02:50:17.343Z",
+      "to": "idle",
+      "from": "idle",
+      "reason": "ST01 idle"
+     },
+     {
+      "at": "2026-09-02T02:50:17.965Z",
+      "to": "idle",
+      "from": "down",
+      "reason": "ST01 恢复idle"
+     },
+     {
+      "at": "2026-09-02T02:50:18.333Z",
+      "to": "down",
+      "from": "idle",
+      "reason": "ST01 batch测试"
+     },
+     {
+      "at": "2026-09-02T02:50:18.552Z",
+      "to": "idle",
+      "from": "down",
+      "reason": "ST01 batch后恢复"
+     }
+    ],
+    "last_status_at": "2026-09-02T02:50:18.546Z",
+    "last_status_reason": "ST01 batch后恢复"
+   },
+   "created_at": "2026-09-02T02:50:16.466Z",
+   "updated_at": "2026-09-02T02:50:18.548Z",
+   "code": null,
+   "zone_type": null,
+   "station_type": "manual",
+   "state": "idle",
+   "fault_strategy": "bypass",
+   "traffic_cap": "5",
+   "bottleneck_rate": "0",
+   "offline_mode": false
+  }
+ ]
+}
