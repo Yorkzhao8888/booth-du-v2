@@ -26,8 +26,8 @@ async function api(path, { method = 'GET', token, body } = {}) {
 }
 const login = async (phone) => (await api('/auth/login', { method: 'POST', body: { phone, password: '123456' } })).json?.data?.token;
 const du = await login('13800000001');
-const dexx = await login('13800000003');
-check('登录 du/dexx', !!du && !!dexx);
+const exx = await login('13800000003');
+check('登录 du/exx', !!du && !!exx);
 const S = JSON.parse(readFileSync(new URL('./station01-seed-ids.json', import.meta.url), 'utf8'));
 const st1 = Number(S.st1), st2 = Number(S.st2), st3 = Number(S.st3);
 const D = (j, sid = st1) => api(`/job/jobs/${S.jobs[j]}/dispatch`, { method: 'POST', token: du, body: { station_id: sid } });
@@ -61,7 +61,7 @@ r = await D('J3');
 check('S5b active>=cap 拒 409', r.status === 409 && r.json?.code === 'E_409_STATION_AT_CAP' && r.json?.data?.current === 2, `${r.status} ${r.json?.code} ${JSON.stringify(r.json?.data)}`);
 
 // S6: fault stop_all → state=down/cap=0 → 拒 (验收3)
-const f1 = await api(`/dexx/fab/station/${st1}/fault`, { method: 'POST', token: dexx, body: { reason: 'ST01 冒烟故障', strategy: 'stop_all' } });
+const f1 = await api(`/exx/fab/station/${st1}/fault`, { method: 'POST', token: exx, body: { reason: 'ST01 冒烟故障', strategy: 'stop_all' } });
 check('S6a fault(stop_all) 200', f1.status === 200, `${f1.status} ${JSON.stringify(f1.json?.message || '')}`);
 r = await D('J3');
 check('S6b fault后旧dispatch拒派 409', r.status === 409 && r.json?.code === 'E_409_STATION_BLOCKED', `${r.status} ${r.json?.code}`);
@@ -69,7 +69,7 @@ check('S6b fault后旧dispatch拒派 409', r.status === 409 && r.json?.code === 
 // S6c: fault bypass 下调 cap → 容量判断立即反映
 await setSt(st1, `state='idle', traffic_cap=3, offline_mode=false`);
 await pool.query(`UPDATE booth_work_orders SET status='accepted', station_id=$1 WHERE job_id=$2`, [st1, S.jobs.J4]); // accepted 在途1
-const f2 = await api(`/dexx/fab/station/${st1}/fault`, { method: 'POST', token: dexx, body: { reason: 'ST01 bypass', strategy: 'bypass' } });
+const f2 = await api(`/exx/fab/station/${st1}/fault`, { method: 'POST', token: exx, body: { reason: 'ST01 bypass', strategy: 'bypass' } });
 const stAfter = await pool.query(`SELECT state, traffic_cap FROM booth_stations WHERE id=$1`, [st1]);
 check('S6c bypass 下调 cap=2 (3-1)', Number(stAfter.rows[0].traffic_cap) === 2 && stAfter.rows[0].state === 'paused', JSON.stringify(stAfter.rows[0]));
 // state 回置 idle(排除 blocked 干扰), 保留 bypass 下调后的 cap=2
