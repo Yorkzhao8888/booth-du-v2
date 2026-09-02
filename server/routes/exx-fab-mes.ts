@@ -154,8 +154,9 @@ router.post('/fab/station/:id/assign-order', requireHat('FAB'), async (req, res,
     }
     // 派单
     const wo = await pool.query(
+      // [DEV-P2-02] 大小写不敏感匹配: job.ts 8 态状态机写 'Pending', FAB 历史口径为 'pending'
       `UPDATE booth_work_orders SET station_id = $1, status = 'accepted', accepted_at = NOW()
-       WHERE id = $2 AND org_id = $3 AND status IN ('pending') RETURNING *`,
+       WHERE id = $2 AND org_id = $3 AND LOWER(status) = 'pending' RETURNING *`,
       [id, work_order_id, user.orgId]
     );
     if (wo.rows.length === 0) {

@@ -1316,6 +1316,16 @@ export async function migrate() {
       );
       console.log('[migrate] DEV-P2-03: plaz_id/case_id/lab mount fields ready.');
 
+      // ===== [神域智场 DEV-P2-02] 四类站位特有可选字段 (09-02 裁定: 可选字段进 Station 实体, 不新增独立实体) =====
+      // WH 仓储站: batch 批次 | DL 配送站: route 路线 / batch 批次 | SVC 服务站: after_sales_type 售后类型 | LAB 研发站: lab_record 实验记录
+      await client.query(
+        `ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS batch TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS route TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS after_sales_type TEXT;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS lab_record TEXT;`
+      );
+      console.log('[migrate] DEV-P2-02: station type-specific optional fields ready.');
+
       // ===== FAB-MES-01: 设备台账 + OEE 稼动率 =====
       await client.query(`
         CREATE TABLE IF NOT EXISTS booth_equipment (

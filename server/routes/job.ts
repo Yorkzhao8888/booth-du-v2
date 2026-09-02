@@ -13,7 +13,7 @@ function getUser(req: any): JwtPayload {
 }
 
 // JobType 枚举
-const VALID_JOB_TYPES = ['PICK', 'PACK', 'SHIP', 'SERVE', 'PRODUCE'];
+const VALID_JOB_TYPES = ['PICK', 'PACK', 'SHIP', 'SERVE', 'PRODUCE', 'RESEARCH']; // [DEV-P2-02] +RESEARCH 研发型 Job (LAB 站配套)
 
 // 8 态状态机
 const VALID_STATUSES = ['Pending', 'Dispatched', 'Accepted', 'Running', 'Completed', 'Failed', 'Cancelled', 'Archived'];
@@ -123,8 +123,8 @@ router.post('/jobs', async (req, res, next) => {
       });
     }
 
-    // FAB 模块只允许 PRODUCE 类型
-    if (type !== 'PRODUCE') {
+    // FAB 模块允许 PRODUCE / RESEARCH 类型 ([DEV-P2-02] RESEARCH 与 LAB 研发站配套)
+    if (!['PRODUCE', 'RESEARCH'].includes(type)) {
       return res.status(400).json({
         success: false,
         error: `Job type ${type} not supported in FAB module. Use /wh, /dl, /svc endpoints.`,
@@ -600,6 +600,12 @@ router.post('/stations', requireRole('ex', 'du', 'dx'), async (req, res, next) =
 
     const dimension = dimIn || 'workstation';
     const businessType = bizIn || TYPE_TO_BUSINESS[type] || 'shop';
+
+    // [DEV-P2-02] 各站特有可选字段 (09-02 裁定: 可选字段进 Station 实体, 不新增独立实体)
+    // 白名单: WH->batch | DL->route,batch | SVC->after_sales_type | LAB->lab_record; 非本类字段忽略(置 null)
+    const EXTRA_ALLOWED: Record<string, string[]> = { WH: ['batch'], DL: ['route', 'batch'], SVC: ['after_sales_type'], LAB: ['lab_record'] };
+    const allowed = EXTRA_ALLOWED[type] || [];
+    const pickExtra = (k: string): string | null => (allowed.includes(k) && req.body?.[k] != null ? String(req.body[k]) : null);
     if (!DIMENSION_BIZ[dimension] || !DIMENSION_BIZ[dimension].includes(businessType)) {
       return res.status(400).json({ success: false, error: `Invalid dimension/business_type combo: ${dimension}/${businessType}`, code: 'INVALID_DIMENSION_COMBO' });
     }
@@ -619,10 +625,11 @@ router.post('/stations', requireRole('ex', 'du', 'dx'), async (req, res, next) =
 
     try {
       const result = await pool.query(
-        `INSERT INTO booth_stations (org_id, type, zone_type, station_type, name, capacity, code, dimension, business_type)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO booth_stations (org_id, type, zone_type, station_type, name, capacity, code, dimension, business_type, batch, route, after_sales_type, lab_record)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
-        [user.orgId, type, String(type).toUpperCase(), stType, name, capacity || 1, code, dimension, businessType]
+        [user.orgId, type, String(type).toUpperCase(), stType, name, capacity || 1, code, dimension, businessType,
+         pickExtra('batch'), pickExtra('route'), pickExtra('after_sales_type'), pickExtra('lab_record')]
       );
       res.json({ success: true, data: result.rows[0] });
     } catch (e: any) {
