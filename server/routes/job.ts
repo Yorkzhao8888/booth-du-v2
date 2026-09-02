@@ -83,6 +83,23 @@ function normalizeStatus(status: string): string {
 }
 
 // 广播 Job 状态变更
+// ===== STATION-01: Station 状态双轨消除 =====
+// 旧 status(online/offline/busy) 已弃用, 仅作老数据兼容回退; 新站一律读 state/traffic_cap/offline_mode
+const STATION_BLOCKED_STATES = ['provisioning', 'paused', 'down', 'maintenance', 'decommissioned'];
+function stationEffectiveState(station: any): string {
+  if (station.state) return String(station.state);
+  const legacy = String(station.status || 'offline');
+  return legacy === 'online' ? 'idle' : legacy === 'busy' ? 'busy' : 'down'; // online→idle, busy→busy, offline→down
+}
+// active 口径: 旧链路 Dispatched/Accepted + 新链路 accepted/preparing (双链路互见, 防超派)
+async function stationActiveCount(db: any, stationId: number): Promise<number> {
+  const r = await db.query(
+    `SELECT COUNT(*)::int AS cnt FROM booth_work_orders WHERE station_id = $1 AND status IN ('Dispatched','Accepted','accepted','preparing')`,
+    [stationId]
+  );
+  return Number(r.rows[0]?.cnt || 0);
+}
+
 function broadcastJobEvent(orgId: number, jobId: string, event: string, data: any) {
   broadcast(orgId, 'job_event', { job_id: jobId, event, ...data });
 }
@@ -152,6 +169,7 @@ router.post('/jobs', async (req, res, next) => {
 });
 
 // ============ DispatchJob ============
+// POST /jobs/:job_id/dispatch - 派单到 Station [DEPRECATED: 建议改走 dexx-fab-mes assign-order 新链路; 本接口保留兼容, 已切换 station 新状态机]
 // POST /jobs/:job_id/dispatch - 派单到 Station
 router.post('/jobs/:job_id/dispatch', requireRole('dex', 'du', 'dx'), async (req, res, next) => {
   const client = await pool.connect();
@@ -203,22 +221,34 @@ router.post('/jobs/:job_id/dispatch', requireRole('dex', 'du', 'dx'), async (req
 
     const station = stationResult.rows[0];
 
-    // 检查 Station 状态
-    if (station.status === 'offline') {
+    // STATION-01: 统一新状态机判断 (offline_mode/blockedStates/traffic_cap, 与 assign-order 语义一致)
+    if (station.offline_mode) {
       await client.query('ROLLBACK');
-      return res.status(503).json({ 
-        success: false, 
-        error: 'Station is offline',
-        code: 'E_404_STATION_DOWN'
+      return res.status(423).json({
+        success: false,
+        error: 'Station is in offline mode - no new assignments',
+        code: 'E_423_STATION_OFFLINE_MODE'
       });
     }
-
-    if (station.status === 'busy' || station.current_load >= station.capacity) {
+    const stState = stationEffectiveState(station);
+    if (STATION_BLOCKED_STATES.includes(stState)) {
       await client.query('ROLLBACK');
-      return res.status(409).json({ 
-        success: false, 
-        error: 'Station is busy or at capacity',
-        code: 'E_409_STATION_BUSY'
+      return res.status(409).json({
+        success: false,
+        error: `Station state '${stState}' cannot accept orders`,
+        code: 'E_409_STATION_BLOCKED'
+      });
+    }
+    // 可用产能 = traffic_cap (无则回退 capacity); traffic_cap=0 视为无产能拒绝
+    const stCap = Number(station.traffic_cap ?? station.capacity ?? 0);
+    const stActive = await stationActiveCount(client, station_id);
+    if (stActive >= stCap) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        error: 'Station at capacity',
+        code: 'E_409_STATION_AT_CAP',
+        data: { capacity: stCap, current: stActive }
       });
     }
 
@@ -233,7 +263,7 @@ router.post('/jobs/:job_id/dispatch', requireRole('dex', 'du', 'dx'), async (req
     // 更新 Station 负载
     await client.query(
       `UPDATE booth_stations 
-       SET current_load = current_load + 1, status = CASE WHEN current_load + 1 >= capacity THEN 'busy' ELSE status END, updated_at = NOW()
+       SET current_load = current_load + 1, updated_at = NOW()
        WHERE id = $1`,
       [station_id]
     );
@@ -320,8 +350,7 @@ router.post('/jobs/:job_id/cancel', async (req, res, next) => {
     if (job.station_id) {
       await client.query(
         `UPDATE booth_stations 
-         SET current_load = GREATEST(0, current_load - 1), 
-             status = CASE WHEN current_load - 1 < capacity THEN 'online' ELSE status END,
+         SET current_load = GREATEST(0, current_load - 1),
              updated_at = NOW()
          WHERE id = $1`,
         [job.station_id]
@@ -380,9 +409,15 @@ router.post('/jobs/batch-dispatch', requireRole('dex', 'du', 'dx'), async (req, 
 
     const station = stationResult.rows[0];
 
-    if (station.status === 'offline') {
+    // STATION-01: 统一新状态机判断 (与单笔 dispatch / assign-order 语义一致)
+    if (station.offline_mode) {
       await client.query('ROLLBACK');
-      return res.status(503).json({ success: false, error: 'Station is offline', code: 'E_404_STATION_DOWN' });
+      return res.status(423).json({ success: false, error: 'Station is in offline mode - no new assignments', code: 'E_423_STATION_OFFLINE_MODE' });
+    }
+    const stState = stationEffectiveState(station);
+    if (STATION_BLOCKED_STATES.includes(stState)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: `Station state '${stState}' cannot accept orders`, code: 'E_409_STATION_BLOCKED' });
     }
 
     const dispatched: string[] = [];
@@ -397,7 +432,10 @@ router.post('/jobs/batch-dispatch', requireRole('dex', 'du', 'dx'), async (req, 
       [job_ids, user.orgId]
     );
 
-    let availableCapacity = station.capacity - station.current_load;
+    // STATION-01: 产能口径切换 traffic_cap (回退 capacity), active 双链路在途计数
+    const stCap = Number(station.traffic_cap ?? station.capacity ?? 0);
+    const stActive = await stationActiveCount(client, station_id);
+    let availableCapacity = stCap - stActive;
 
     for (const job of jobsResult.rows) {
       const currentStatus = normalizeStatus(job.status);
@@ -428,8 +466,7 @@ router.post('/jobs/batch-dispatch', requireRole('dex', 'du', 'dx'), async (req, 
     if (dispatched.length > 0) {
       await client.query(
         `UPDATE booth_stations 
-         SET current_load = current_load + $1, 
-             status = CASE WHEN current_load + $1 >= capacity THEN 'busy' ELSE status END,
+         SET current_load = current_load + $1,
              updated_at = NOW()
          WHERE id = $2`,
         [dispatched.length, station_id]
@@ -680,7 +717,6 @@ router.post('/station/callback', async (req, res, next) => {
       await client.query(
         `UPDATE booth_stations 
          SET current_load = GREATEST(0, current_load - 1),
-             status = CASE WHEN current_load - 1 < capacity THEN 'online' ELSE status END,
              updated_at = NOW()
          WHERE id = $1`,
         [station_id]
@@ -855,7 +891,6 @@ router.post('/jobs/:job_id/complete', async (req, res, next) => {
       await client.query(
         `UPDATE booth_stations 
          SET current_load = GREATEST(0, current_load - 1),
-             status = CASE WHEN current_load - 1 < capacity THEN 'online' ELSE status END,
              updated_at = NOW()
          WHERE id = $1`,
         [job.station_id]
