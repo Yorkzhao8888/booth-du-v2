@@ -98,8 +98,8 @@ export default function FabStationDetail() {
     setLoading(true);
     try {
       const res = await api.get<any>(`/dexx/fab/stations/${id}`);
-      if (res?.success) {
-        setStation(res.data?.station || res.data || res.station || null);
+      if (res) { // 解包后 res 即 station 对象
+        setStation(res || null);
       }
     } catch {
       // ignore
@@ -117,7 +117,7 @@ export default function FabStationDetail() {
     if (!id) return;
     try {
       const res = await api.get<any>(`/dexx/fab/station/${id}/capabilities`);
-      if (res?.success) setCaps(res.data?.mounts || []);
+      if (res) setCaps(res?.mounts || []); // 解包后 res 即 {mounts}
     } catch {
       // ignore
     }
@@ -150,8 +150,9 @@ export default function FabStationDetail() {
     }
     try {
       const res = await api.post<any>(`/dexx/fab/station/${id}/fault`, { reason: faultReason, strategy: faultStrategy });
-      if (res?.success) {
-        const d = res.data || {};
+      if (res) {
+        // 解包后 res 即 fault 返回体
+        const d = res || {};
         message.success(`故障已传播(${d.strategy}): 影响 ${d.affected_orders || 0} 单, traffic_cap=${d.new_traffic_cap}`);
         setFaultModal(false);
         setFaultReason('');
@@ -229,7 +230,7 @@ export default function FabStationDetail() {
       >
         <Row gutter={24}>
           <Col xs={24} md={8}>
-            <Statistic title="traffic_cap（当前可用产能）" value={cap} precision={0} styles={{ content: { fontFamily: MONO, color: NAVY } }} suffix={station.bottleneck_rate != null ? `/ 节拍 ${station.bottleneck_rate}` : ''} />
+            <Statistic title="traffic_cap（当前可用产能）" value={cap} precision={0} valueStyle={{ fontFamily: MONO, color: NAVY }} suffix={station.bottleneck_rate != null ? `/ 节拍 ${station.bottleneck_rate}` : ''} />
             <div style={{ marginTop: 12 }}>
               <Progress percent={pct} strokeColor={loadColor(pct)} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8c8c8c' }}>

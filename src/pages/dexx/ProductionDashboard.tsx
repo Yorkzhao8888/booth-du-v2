@@ -80,8 +80,8 @@ export default function ProductionDashboard() {
   const fetchDashboard = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/dexx/fab/dashboard');
-      if (res?.success) {
+      const res = await api.get<any>('/dexx/fab/dashboard');
+      if (res) { // api.ts 解包后 res 即业务数据
         const orders: WorkOrder[] = res.orders || [];
         const stageList: StageInfo[] = [
           { key: 'preprocessing', label: '前置工序', color: STAGE_COLORS.preprocessing, orders: [] },

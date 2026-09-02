@@ -59,8 +59,8 @@ export default function FabZoneView() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/dexx/fab/dashboard');
-      if (res?.success) {
+      const res = await api.get<any>('/dexx/fab/dashboard');
+      if (res) { // api.ts 解包后 res 即业务数据
         const allOrders: WorkOrder[] = res.orders || [];
         // Filter by production_stage
         const filtered = allOrders.filter((o) => o.production_stage === stage);

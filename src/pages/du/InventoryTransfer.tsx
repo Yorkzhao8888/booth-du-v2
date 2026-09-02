@@ -52,8 +52,8 @@ export default function InventoryTransfer() {
   const fetchTransfers = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/du/transfers?pageSize=50');
-      if (res?.success) {
+      const res = await api.get<any>('/du/transfers?pageSize=50');
+      if (res) { // api.ts 解包后 res 即业务数据
         setTransfers(res.items || []);
       }
     } catch (err) {
@@ -64,8 +64,8 @@ export default function InventoryTransfer() {
 
   const fetchSkus = async () => {
     try {
-      const res = await api.get('/du/skus?pageSize=100');
-      if (res?.success) {
+      const res = await api.get<any>('/du/skus?pageSize=100');
+      if (res) { // api.ts 解包后 res 即业务数据
         setSkus(res.items || []);
       }
     } catch (err) {
@@ -85,14 +85,14 @@ export default function InventoryTransfer() {
         return;
       }
 
-      const res = await api.post('/du/transfers', {
+      const res = await api.post<any>('/du/transfers', {
         fromWarehouseType: values.fromWarehouseType,
         toWarehouseType: values.toWarehouseType,
         remark: values.remark,
         items: items.map((i) => ({ skuId: i.skuId, skuName: i.skuName, qty: i.qty })),
       });
 
-      if (res?.success) {
+      if (res) { // api.ts 解包后 res 即业务数据
         message.success('调拨单创建成功');
         setModalVisible(false);
         form.resetFields();
@@ -108,8 +108,8 @@ export default function InventoryTransfer() {
 
   const handleApprove = async (id: number, action: 'approve' | 'reject') => {
     try {
-      const res = await api.post(`/du/transfers/${id}/approve`, { action });
-      if (res?.success) {
+      const res = await api.post<any>(`/du/transfers/${id}/approve`, { action });
+      if (res) { // api.ts 解包后 res 即业务数据
         message.success(action === 'approve' ? '审批通过' : '已拒绝');
         fetchTransfers();
       }
@@ -120,8 +120,8 @@ export default function InventoryTransfer() {
 
   const handleComplete = async (id: number) => {
     try {
-      const res = await api.post(`/du/transfers/${id}/complete`);
-      if (res?.success) {
+      const res = await api.post<any>(`/du/transfers/${id}/complete`);
+      if (res) { // api.ts 解包后 res 即业务数据
         message.success('调拨完成，库存已更新');
         fetchTransfers();
       }

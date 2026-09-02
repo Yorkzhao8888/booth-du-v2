@@ -88,7 +88,7 @@ export default function FabStations() {
       if (zone) params.push(`zone_type=${zone}`);
       if (state) params.push(`state=${state}`);
       const res = await api.get<any>(`/dexx/fab/stations${params.length ? '?' + params.join('&') : ''}`);
-      if (res?.success) setStations(res.data?.items || res.items || []);
+      if (res) setStations(res?.items || []); // api.ts 解包后 res 即业务数据
     } catch {
       // ignore
     }
@@ -127,8 +127,9 @@ export default function FabStations() {
         reason: `Manual fault test on ${station.code}`,
         strategy: station.fault_strategy || 'bypass',
       });
-      if (res?.success) {
-        message.success(`Fault propagated (${res.data?.strategy}): ${res.data?.affected_orders || 0} orders affected, traffic_cap=${res.data?.new_traffic_cap}`);
+      if (res) {
+        // 解包后 res 即 fault 返回体({strategy,affected_orders,new_traffic_cap})
+        message.success(`Fault propagated (${res.strategy}): ${res.affected_orders || 0} orders affected, traffic_cap=${res.new_traffic_cap}`);
         fetchStations();
       }
     } catch (e: any) {
@@ -239,9 +240,9 @@ export default function FabStations() {
                         <Dropdown disabled={isReadOnly}
                           menu={{
                             items: REPORTABLE_STATES.map((st) => ({
-                              key: st.value,
+                              key: st.apiState,
                               label: st.label,
-                              disabled: s.state === st.value,
+                              disabled: s.state === st.apiState,
                             })),
                             onClick: ({ key }) => reportStatus(s, key),
                           }}

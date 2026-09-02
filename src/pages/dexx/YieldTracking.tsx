@@ -53,14 +53,14 @@ export default function YieldTracking() {
     setLoading(true);
     try {
       const [statsRes] = await Promise.all([
-        api.get('/dexx/fab/yield/stats?days=7'),
+        api.get<any>('/dexx/fab/yield/stats?days=7'),
       ]);
       if (statsRes?.success) {
         setStats(statsRes);
       }
 
       // Fetch all yield records
-      const recordsRes = await api.get('/dexx/fab/yield/all');
+      const recordsRes = await api.get<any>('/dexx/fab/yield/all');
       if (recordsRes?.success) {
         setRecords(recordsRes.records || []);
       }
@@ -72,8 +72,8 @@ export default function YieldTracking() {
 
   const fetchWorkOrders = async () => {
     try {
-      const res = await api.get('/dexx/fab/queue?status=in_progress');
-      if (res?.success) {
+      const res = await api.get<any>('/dexx/fab/queue?status=in_progress');
+      if (res) { // api.ts 解包后 res 即业务数据
         setWorkOrders(res.items || []);
       }
     } catch (err) {
@@ -88,8 +88,8 @@ export default function YieldTracking() {
   const handleAdd = async () => {
     try {
       const values = await form.validateFields();
-      const res = await api.post('/dexx/fab/yield/record', values);
-      if (res?.success) {
+      const res = await api.post<any>('/dexx/fab/yield/record', values);
+      if (res) { // api.ts 解包后 res 即业务数据
         message.success('记录成功');
         setModalVisible(false);
         form.resetFields();
