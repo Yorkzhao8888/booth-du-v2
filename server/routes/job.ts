@@ -573,24 +573,67 @@ router.get('/stations', async (req, res, next) => {
   }
 });
 
-// POST /stations - 创建 Station
+// POST /stations - 创建 Station [DEV-P2-01] 类型扩展五类(+LAB), 编码 {org}.{ZONE}.{STATION_TYPE}-{seq:03d}
+const STATION_TYPES = ['FAB', 'WH', 'DL', 'SVC', 'LAB'];
+// [DEV-P2-01] 域推导: LAB(研发)->lab; FAB(生产)->shop; WH/SVC/DL(生态作业)->booth
+const TYPE_TO_BUSINESS: Record<string, string> = { FAB: 'shop', LAB: 'lab', WH: 'booth', SVC: 'booth', DL: 'booth' };
+// [DEV-P1-01 约束映射] dimension <-> business_type 合法组合 (与 chk_stations_dimension_business 同源)
+const DIMENSION_BIZ: Record<string, string[]> = {
+  workstation: ['shop', 'booth', 'lab'],
+  point: ['plaz'],
+  case_station: ['case'],
+};
+
 router.post('/stations', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   try {
     const user = getUser(req);
-    const { type, name, capacity } = req.body;
+    const { type, name, capacity, station_type: stationTypeIn, dimension: dimIn, business_type: bizIn } = req.body;
 
-    if (!['FAB', 'WH', 'DL', 'SVC'].includes(type)) {
+    if (!STATION_TYPES.includes(type)) {
       return res.status(400).json({ success: false, error: 'Invalid station type', code: 'INVALID_TYPE' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO booth_stations (org_id, type, name, capacity)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [user.orgId, type, name, capacity || 1]
-    );
+    const stType = String(stationTypeIn || 'manual').toUpperCase();
+    if (!/^[A-Z][A-Z0-9_]{1,19}$/.test(stType)) {
+      return res.status(400).json({ success: false, error: 'Invalid station_type', code: 'INVALID_TYPE' });
+    }
 
-    res.json({ success: true, data: result.rows[0] });
+    const dimension = dimIn || 'workstation';
+    const businessType = bizIn || TYPE_TO_BUSINESS[type] || 'shop';
+    if (!DIMENSION_BIZ[dimension] || !DIMENSION_BIZ[dimension].includes(businessType)) {
+      return res.status(400).json({ success: false, error: `Invalid dimension/business_type combo: ${dimension}/${businessType}`, code: 'INVALID_DIMENSION_COMBO' });
+    }
+
+    // 编码: {org_id}.{ZONE}.{STATION_TYPE}-{seq:03d}, seq 取同前缀最大值续号 (FAB-MES-05 口径)
+    const prefix = `${user.orgId}.${String(type).toUpperCase()}.${stType}-`;
+    const last = await pool.query(
+      `SELECT code FROM booth_stations WHERE org_id = $1 AND code LIKE $2 ORDER BY code DESC LIMIT 1`,
+      [user.orgId, prefix + '%']
+    );
+    let seq = 1;
+    if (last.rows[0]?.code) {
+      const m = String(last.rows[0].code).match(/-(\d{3,})$/);
+      if (m) seq = parseInt(m[1], 10) + 1;
+    }
+    const code = `${prefix}${String(seq).padStart(3, '0')}`;
+
+    try {
+      const result = await pool.query(
+        `INSERT INTO booth_stations (org_id, type, zone_type, station_type, name, capacity, code, dimension, business_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
+        [user.orgId, type, String(type).toUpperCase(), stType, name, capacity || 1, code, dimension, businessType]
+      );
+      res.json({ success: true, data: result.rows[0] });
+    } catch (e: any) {
+      if (e?.code === '23505') {
+        return res.status(409).json({ success: false, error: 'Station code conflict (unique idx_stations_org_code)', code: 'E_409_STATION_CODE' });
+      }
+      if (e?.code === '23514') {
+        return res.status(400).json({ success: false, error: 'dimension/business_type combo rejected by chk_stations_dimension_business', code: 'INVALID_DIMENSION_COMBO' });
+      }
+      throw e;
+    }
   } catch (err) {
     next(err);
   }

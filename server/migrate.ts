@@ -1289,6 +1289,9 @@ export async function migrate() {
          UPDATE booth_stations SET business_type = 'booth'
            WHERE business_type IS NULL AND (code ILIKE '%.WH.%' OR code ILIKE '%.SVC.%' OR code ILIKE '%.DL.%'
              OR type IN ('WH','SVC','DL') OR zone_type IN ('WH','SVC','DL'));
+         -- [DEV-P2-01] LAB(研发站) -> lab
+         UPDATE booth_stations SET business_type = 'lab'
+           WHERE business_type IS NULL AND (code ILIKE '%.LAB.%' OR type = 'LAB' OR zone_type = 'LAB');
          UPDATE booth_stations SET business_type = 'shop' WHERE business_type IS NULL;`
       );
       // 约束映射校验 (CHECK): 先清旧约束再建, 保证幂等可重跑
