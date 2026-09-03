@@ -72,3 +72,11 @@ src/
 - `/api/booth/internal/events/*` — 内部事件
 - `/api/booth/stream` — SSE 实时推送
 - `/api/booth/health` — 健康检查
+- `/events/*` — [LINK-01] 内部事件根级别名（与 `/api/booth/internal/events/*` 等价，Shop XBUS 直调）
+- `PUT /api/booth/job/stations/:id/plaz-mapping` — [LINK-01 任务B] Booth↔X-Dyard(Plaz) 站位映射绑定/解绑（du/ex/dx）
+
+## 跨 APP 事件链路（BOOTH-LINK-01）
+- **入站**：`POST /events/order-confirmed`（X-Event-Key 头 + eventId 幂等）→ 自动创建 supply-order 契约（booth_fulfillments, contract_status=Created, source=mall）→ outbox 回写 `supply_order.created`（Shop 将 `boothWorkOrderId` 写回订单）；取消事件同步回写 `supply_order.cancelled`
+- **幂等三层**：booth_event_log(event_id) → shop_order_id 查重（skipped）→ 唯一索引 idx_fulfillments_org_shop_order
+- **Mate 派单**（任务C）：供给单创建即写 outbox `mate.dispatch`，契约 payload：sourceOrderNo/description/expectedAt/reward/assigneeRole=HU；poller 投递至 `MATE_DISPATCH_URL`，成功回写 mate_dispatch_status=dispatched，终败=failed（outbox 重试 10 次后 dead）
+- **环境变量**：`MATE_DISPATCH_URL`（Mate 接收端点）、`SHOP_CALLBACK_URL`（Shop 回写端点，既有）；outbox 按 event_type 前缀路由（mate.* → Mate，其余 → Shop），未配置的类别保留 pending 不阻塞

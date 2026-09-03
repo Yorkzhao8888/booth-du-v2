@@ -12,6 +12,7 @@ import type { JwtPayload } from './auth.js';
 
 import authRoutes from './routes/auth.js';
 import internalRoutes from './routes/internal.js';
+import { aliasRouter as internalAliasRoutes } from './routes/internal.js'; // [BOOTH-LINK-01] 根级别名 router (Shop XBUS 直调 /events/*)
 import duRoutes from './routes/du/index.js';   // /api/booth/du 聚合入口 (TECH-DEBT-4)
 import exRoutes from './routes/ex.js';
 import exxRoutes from './routes/exx.js';
@@ -59,6 +60,7 @@ app.get('/api/booth/stream', requireAuth, (req, res) => {
 // Mount routes
 app.use('/api/booth/auth', authRoutes);
 app.use('/api/booth/internal', internalRoutes);
+app.use('/events', internalAliasRoutes);         // [BOOTH-LINK-01] 根级别名: Shop XBUS 直调 /events/order-confirmed (与 /api/booth/internal/events 等价)
 // /api/booth/du 聚合挂载: suppliers(前置)/核心看板/purchase-orders/dl+svc+profit+wh+fabqc/supply
 // (TECH-DEBT-4: 原 5 个分散挂载点收敛进 routes/du/index.ts, 挂载顺序不变)
 app.use('/api/booth/du', duRoutes);

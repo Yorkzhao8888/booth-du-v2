@@ -139,14 +139,36 @@ supplyOrdersRouter.post('/', M_ONLY, async (req: Request, res: Response, next: N
       return failure(res, 409, 'DUPLICATE_SHOP_ORDER', `shop_order_id already exists: ${externalId}`);
     }
 
+    // [BOOTH-LINK-01 任务C] 派单契约: 来源工单号/需求描述/期望执行时间/报酬/指派角色 HU
+    const description = Array.isArray(items)
+      ? items.map((it: any) => `${it.productName || it.name || 'item'}x${it.qty ?? '?'}`).join('; ')
+      : `Shop order ${externalId}`;
+    const reward = Array.isArray(items)
+      ? items.reduce((sum: number, it: any) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0), 0)
+      : 0;
+
     const ins = await pool.query(
       `INSERT INTO booth_fulfillments
-         (org_id, shop_order_id, status, items, required_at, contract_status, milestones, quote_snapshot)
-       VALUES ($1, $2, 'pending', $3::jsonb, $4, 'Created', '{}'::jsonb, NULL)
+         (org_id, shop_order_id, status, items, required_at, contract_status, milestones, quote_snapshot, mate_dispatch_status)
+       VALUES ($1, $2, 'pending', $3::jsonb, $4, 'Created', '{}'::jsonb, NULL, 'pending')
        RETURNING *`,
       [user.orgId, externalId, JSON.stringify(items), required_at ?? null]
     );
-    return res.json({ success: true, data: fullView(normalizeContract(ins.rows[0])) });
+    const created = ins.rows[0];
+
+    // [BOOTH-LINK-01 任务C] 供给单创建即派 Mate 工作者 (outbox 异步投递, 失败重试/状态标记)
+    await emitOutbox(user.orgId, 'mate.dispatch', {
+      sourceOrderId: created.id,
+      sourceOrderNo: `BOOTH-SUP-${created.id}`,
+      shopOrderId: externalId,
+      description,
+      expectedAt: required_at ?? null,
+      reward,
+      assigneeRole: 'HU',
+      fulfillmentId: created.id,
+    });
+
+    return res.json({ success: true, data: fullView(normalizeContract(created)) });
   } catch (err) {
     next(err);
   }

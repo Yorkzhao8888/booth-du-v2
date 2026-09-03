@@ -1326,6 +1326,17 @@ export async function migrate() {
       );
       console.log('[migrate] DEV-P2-02: station type-specific optional fields ready.');
 
+      // ===== [四大APP打通 BOOTH-LINK-01] Shop 事件自动建供给单 + Mate 派单状态 =====
+      // 任务A: booth_fulfillments 即 supply-orders 契约载体(BOOTH-PK-02 方案A), 事件建单需 contract_status/source
+      // 任务C: mate_dispatch_status 派单状态标记 (pending/dispatched/failed), outbox 投递结果回写
+      await client.query(
+        `ALTER TABLE booth_fulfillments ADD COLUMN IF NOT EXISTS mate_dispatch_status TEXT;
+         CREATE UNIQUE INDEX IF NOT EXISTS idx_fulfillments_org_shop_order
+           ON booth_fulfillments (org_id, shop_order_id)
+           WHERE shop_order_id IS NOT NULL;`
+      );
+      console.log('[migrate] BOOTH-LINK-01: fulfillment mate_dispatch_status + shop_order unique index ready.');
+
       // ===== FAB-MES-01: 设备台账 + OEE 稼动率 =====
       await client.query(`
         CREATE TABLE IF NOT EXISTS booth_equipment (

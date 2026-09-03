@@ -55,7 +55,8 @@ router.get('/fab/stations', requireFabRead, async (req, res, next) => {
         [st.id]
       );
       const { status: _legacyStatus, ...stationFields } = st; // [DEV-P1-02] 旧 status 下线, 响应不回传
-      stations.push({ ...stationFields, active_orders: parseInt(wos.rows[0]?.cnt || '0') });
+      // [BOOTH-LINK-01 任务B] X-Dyard(Plaz) 站位映射: plaz_id 存 stationCode, 语义字段带出 (null=Booth 自建站)
+      stations.push({ ...stationFields, plaz_station_code: st.plaz_id ?? null, active_orders: parseInt(wos.rows[0]?.cnt || '0') });
     }
     res.json({ success: true, data: { items: stations, total: stations.length } });
   } catch (err) { next(err); }
@@ -103,6 +104,7 @@ router.get('/fab/stations/:id', requireFabRead, async (req, res, next) => {
       success: true,
       data: {
         ...station,
+        plaz_station_code: station.plaz_id ?? null, // [BOOTH-LINK-01 任务B] X-Dyard 站位映射语义字段
         queue: queue.rows,
         agents,
         devices,
@@ -167,8 +169,8 @@ router.post('/fab/station/:id/assign-order', requireHat('FAB'), async (req, res,
       `UPDATE booth_stations SET state = 'busy', current_load = current_load + 1, updated_at = NOW() WHERE id = $1`,
       [id]
     );
-    // SSE 通知
-    broadcast(user.orgId, 'station.assigned', { station_id: Number(id), work_order_id, active: active + 1, cap });
+    // SSE 通知 ([BOOTH-LINK-01 任务B] 附 X-Dyard stationCode, Plaz 侧可见 Booth 作业)
+    broadcast(user.orgId, 'station.assigned', { station_id: Number(id), work_order_id, active: active + 1, cap, plaz_station_code: station.plaz_id ?? null });
     res.json({ success: true, data: { station_id: Number(id), work_order_id, active: active + 1, cap } });
   } catch (err) { next(err); }
 });
@@ -209,7 +211,7 @@ router.post('/fab/station/:id/report-status', requireHat('FAB'), async (req, res
       `UPDATE booth_stations SET metadata = metadata || $1::jsonb WHERE id = $2`,
       [JSON.stringify({ state_history: stateHistory }), id]
     );
-    broadcast(user.orgId, 'station.status', { station_id: Number(id), from: oldState, to: internalState, traffic_cap: newCap });
+    broadcast(user.orgId, 'station.status', { station_id: Number(id), from: oldState, to: internalState, traffic_cap: newCap, plaz_station_code: st.rows[0].plaz_id ?? null });
     res.json({ success: true, data: { station_id: Number(id), from: oldState, to: internalState, traffic_cap: newCap } });
   } catch (err) { next(err); }
 });
@@ -363,7 +365,7 @@ router.post('/fab/station/:id/fault', requireHat('FAB'), async (req, res, next) 
         fault_history: [...(((station.metadata || {}) as any).fault_history || []).slice(-49), { reason, strategy: fs, affected_orders: affectedOrders, at: new Date().toISOString() }],
       }), id]
     );
-    broadcast(user.orgId, 'station.fault', { station_id: Number(id), strategy: fs, affected_orders: affectedOrders, traffic_cap: newCap, state: newState });
+    broadcast(user.orgId, 'station.fault', { station_id: Number(id), strategy: fs, affected_orders: affectedOrders, traffic_cap: newCap, state: newState, plaz_station_code: st.rows[0].plaz_id ?? null });
     res.json({
       success: true,
       data: {

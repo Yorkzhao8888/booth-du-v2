@@ -646,6 +646,28 @@ router.post('/stations', requireRole('ex', 'du', 'dx'), async (req, res, next) =
   }
 });
 
+// PUT /stations/:id/plaz-mapping - [BOOTH-LINK-01 任务B] Booth 使用方适配: 绑定/解绑 X-Dyard(Plaz) 站位 stationCode
+// body: { plaz_station_code: string } 传入绑定; 传空/null 解绑。plaz_id 列(DEV-P2-03 预埋)存 X-Dyard stationCode, 如 FAB-A1-001
+router.put('/stations/:id/plaz-mapping', requireRole('ex', 'du', 'dx'), async (req: any, res, next) => {
+    try {
+        const user = getUser(req);
+        const { id } = req.params;
+        const raw = req.body?.plaz_station_code;
+        const code = raw == null || String(raw).trim() === '' ? null : String(raw).trim();
+        if (code && (code.length > 64 || !/^[A-Za-z0-9][A-Za-z0-9-_]*$/.test(code))) {
+            return res.status(400).json({ success: false, error: 'Invalid plaz_station_code', code: 'INVALID_PLAZ_CODE' });
+        }
+        const result = await pool.query(
+            `UPDATE booth_stations SET plaz_id = $1, updated_at = NOW() WHERE id = $2 AND org_id = $3 RETURNING id, code, plaz_id`,
+            [code, id, user.orgId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Station not found', code: 'E_404_STATION' });
+        }
+        const st = result.rows[0];
+        res.json({ success: true, data: { station_id: st.id, code: st.code, plaz_station_code: st.plaz_id, mapped: !!st.plaz_id } });
+    } catch (err) { next(err); }
+});
 // PUT /stations/:id/status - 更新 Station 状态
 router.put('/stations/:id/status', requireRole('ex', 'du', 'dx'), async (req, res, next) => {
   try {

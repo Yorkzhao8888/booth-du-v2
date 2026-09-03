@@ -13,7 +13,8 @@ function validateEventKey(req: any, res: any, next: any) {
   next();
 }
 
-router.post('/events/order-confirmed', validateEventKey, async (req, res, next) => {
+// [BOOTH-LINK-01] XBUS 事件 handler (主挂载 /api/booth/internal/events/* 与根级别名 /events/* 复用)
+async function orderConfirmedHandler(req: any, res: any, next: any) {
   try {
     const eventId = req.headers['x-event-id'] as string || req.body.eventId;
     const eventType = 'order.confirmed';
@@ -32,9 +33,9 @@ router.post('/events/order-confirmed', validateEventKey, async (req, res, next) 
   } catch (err) {
     next(err);
   }
-});
+}
 
-router.post('/events/order-cancelled', validateEventKey, async (req, res, next) => {
+async function orderCancelledHandler(req: any, res: any, next: any) {
   try {
     const eventId = req.headers['x-event-id'] as string || req.body.eventId;
     const eventType = 'order.cancelled';
@@ -53,6 +54,15 @@ router.post('/events/order-cancelled', validateEventKey, async (req, res, next) 
   } catch (err) {
     next(err);
   }
-});
+}
 
+router.post('/events/order-confirmed', validateEventKey, orderConfirmedHandler);
+router.post('/events/order-cancelled', validateEventKey, orderCancelledHandler);
+
+// 根级别名 router: 挂载于 /events, 子路径即 /events/order-confirmed (Shop XBUS 直调口径)
+const aliasRouter = Router();
+aliasRouter.post('/order-confirmed', validateEventKey, orderConfirmedHandler);
+aliasRouter.post('/order-cancelled', validateEventKey, orderCancelledHandler);
+
+export { aliasRouter };
 export default router;
