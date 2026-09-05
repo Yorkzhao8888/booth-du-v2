@@ -39,7 +39,10 @@ let OAS_PUBLIC_KEY: string | null = parsePublicKeyPem();
 
 /** [AUTH-02] 运行时注入公钥 (JWKS 自动发现), 仅在尚未就绪时生效; 显式 PEM 配置优先 */
 export function setOASPublicKey(pem: string): boolean {
-  if (OAS_PUBLIC_KEY) return true; // 显式配置已就绪, 不覆盖
+  if (OAS_PUBLIC_KEY) {
+    console.log('[AUTH] OAS public key from OAS_PUBLIC_KEY env (explicit) - auth ready');
+    return true;
+  } // 显式配置已就绪, 不覆盖
   try {
     crypto.createPublicKey(pem);
     OAS_PUBLIC_KEY = pem;
@@ -108,10 +111,16 @@ export async function oasDevToken(body: { username?: string; role?: string; expi
     const text = await resp.text();
     let data: Record<string, unknown> = {};
     try { data = JSON.parse(text) as Record<string, unknown>; } catch { /* 非 JSON 响应保留空对象 */ }
-    if (!resp.ok || !data.token) {
-      return { ok: false, status: resp.status, error: (data.error as string) || (data.message as string) || text.slice(0, 120) || `HTTP ${resp.status}` };
+    // 双结构兼容: OAS 包装结构 {code:200, data:{token,...}, message} (登录页实查) / 工单契约裸结构 {token,...}
+    const unwrapped = (typeof data.code === 'number' && data.data && typeof data.data === 'object')
+      ? (data.data as Record<string, unknown>)
+      : data;
+    if (!resp.ok || typeof unwrapped.token !== 'string' || !unwrapped.token) {
+      const errMsg = (data.message as string) || (data.error as string) || (unwrapped.error as string)
+        || text.slice(0, 120) || `HTTP ${resp.status}`;
+      return { ok: false, status: resp.status, error: errMsg };
     }
-    return { ok: true, status: resp.status, data: data as unknown as OASDevTokenResult['data'] };
+    return { ok: true, status: resp.status, data: unwrapped as unknown as OASDevTokenResult['data'] };
   } catch (err) {
     return { ok: false, status: 502, error: `OAS dev-token unreachable: ${(err as Error).message}` };
   }
