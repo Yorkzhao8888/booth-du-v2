@@ -12,6 +12,8 @@ import crypto from 'crypto';
 export const OAS_BASE_URL = process.env.OAS_BASE_URL || '';
 // [R7-DEF-1] 公钥 PEM 支持 \n 字面转义 (env 单行注入) 与原生多行
 const OAS_PUBLIC_KEY_RAW = process.env.OAS_PUBLIC_KEY || '';
+// [AUTH-02] OAS JWKS 端点 (公钥自动发现兜底: OAS_PUBLIC_KEY 未配置时启动期拉取)
+const OAS_JWKS_URL = process.env.OAS_JWKS_URL || (OAS_BASE_URL ? `${OAS_BASE_URL.replace(/\/$/, '')}/.well-known/jwks.json` : '');
 // OAS AMS 代理 app 段 (R7-01 收口: /api/v1/os/booth/proxy/ams/auth/login)
 const OAS_PROXY_APP = process.env.OAS_PROXY_APP || 'booth';
 
@@ -33,9 +35,19 @@ function parsePublicKeyPem(): string | null {
   }
 }
 
-const OAS_PUBLIC_KEY: string | null = parsePublicKeyPem();
-/** [R7-DEF] fail-closed 全局标志: OAS 启用且公钥就绪才放行认证 */
-export const OAS_AUTH_READY = Boolean(OAS_BASE_URL) && OAS_PUBLIC_KEY !== null;
+let OAS_PUBLIC_KEY: string | null = parsePublicKeyPem();
+
+/** [AUTH-02] 运行时注入公钥 (JWKS 自动发现), 仅在尚未就绪时生效; 显式 PEM 配置优先 */
+export function setOASPublicKey(pem: string): boolean {
+  if (OAS_PUBLIC_KEY) return true; // 显式配置已就绪, 不覆盖
+  try {
+    crypto.createPublicKey(pem);
+    OAS_PUBLIC_KEY = pem;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function isOASEnabled(): boolean {
   return Boolean(OAS_BASE_URL);
@@ -43,7 +55,66 @@ export function isOASEnabled(): boolean {
 
 /** [BOOTH-R7-01/DEF] fail-closed 状态: OAS 启用但公钥未配置 → 认证全拒 (503 AUTH_NOT_READY) */
 export function isOASAuthReady(): boolean {
-  return OAS_AUTH_READY;
+  return Boolean(OAS_BASE_URL) && OAS_PUBLIC_KEY !== null;
+}
+
+/**
+ * [AUTH-02] 启动期认证初始化: 显式 PEM 就绪则跳过; 否则从 OAS JWKS 端点自动发现公钥。
+ * 异步 fire-and-forget: 就绪前认证请求按 fail-closed 503 处理 (与未配置语义一致), 就绪后自动恢复。
+ * 失败不阻塞启动, 仅记日志 (部署仍可通过 OAS_PUBLIC_KEY 显式注入)。
+ */
+export async function initOASAuth(): Promise<boolean> {
+  if (!isOASEnabled()) return false;
+  if (OAS_PUBLIC_KEY) return true;
+  if (!OAS_JWKS_URL) {
+    console.error('[FATAL][AUTH] OAS_BASE_URL configured but OAS_PUBLIC_KEY missing and JWKS URL unavailable - fail-closed: all authenticated requests will be rejected with 503 AUTH_NOT_READY.');
+    return false;
+  }
+  try {
+    const resp = await fetch(OAS_JWKS_URL, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) throw new Error(`JWKS HTTP ${resp.status}`);
+    const jwks = (await resp.json()) as { keys?: Array<{ kty?: string; use?: string; kid?: string; n?: string; e?: string }> };
+    const jwk = (jwks.keys || []).find((k) => k.kty === 'RSA' && (!k.use || k.use === 'sig') && k.n && k.e);
+    if (!jwk) throw new Error('no RSA signing key in JWKS');
+    const pem = crypto.createPublicKey({ key: jwk as unknown as { kty: string; n: string; e: string }, format: 'jwk' }).export({ type: 'spki', format: 'pem' }).toString();
+    if (!setOASPublicKey(pem)) throw new Error('invalid public key from JWKS');
+    console.log(`[AUTH] OAS public key discovered via JWKS (kid=${jwk.kid || 'n/a'}) - auth ready`);
+    return true;
+  } catch (err) {
+    console.error(`[FATAL][AUTH] OAS public key unavailable (env missing + JWKS discovery failed: ${(err as Error).message}) - fail-closed: all authenticated requests will be rejected with 503 AUTH_NOT_READY.`);
+    return false;
+  }
+}
+
+/* ─────────────── [AUTH-02] OAS dev-token 客户端 (开发期临时令牌, 仅 DEV) ─────────────── */
+
+export interface OASDevTokenResult {
+  ok: boolean;
+  status: number;
+  data?: { token: string; expires_at?: string; username?: string; role?: string };
+  error?: string;
+}
+
+/** 代理 OAS POST /api/v1/auth/dev-token (Booth 不自行签发, 仅透传) */
+export async function oasDevToken(body: { username?: string; role?: string; expires_minutes?: number }): Promise<OASDevTokenResult> {
+  if (!isOASEnabled()) return { ok: false, status: 503, error: 'OAS not configured' };
+  try {
+    const resp = await fetch(`${OAS_BASE_URL.replace(/\/$/, '')}/api/v1/auth/dev-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
+    });
+    const text = await resp.text();
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(text) as Record<string, unknown>; } catch { /* 非 JSON 响应保留空对象 */ }
+    if (!resp.ok || !data.token) {
+      return { ok: false, status: resp.status, error: (data.error as string) || (data.message as string) || text.slice(0, 120) || `HTTP ${resp.status}` };
+    }
+    return { ok: true, status: resp.status, data: data as unknown as OASDevTokenResult['data'] };
+  } catch (err) {
+    return { ok: false, status: 502, error: `OAS dev-token unreachable: ${(err as Error).message}` };
+  }
 }
 
 // ============ 价格红线: 成本字段剥离 (R7 从 auth.ts 平移, 实现不变) ============
@@ -136,7 +207,7 @@ export interface OASTokenPayload {
  * 校验链: 签名(RS256) → iss=ziway-oas → exp; edition 缺失容错 (基座侧补齐节奏)
  */
 export function verifyOASToken(token: string): OASTokenVerifyOk | OASTokenVerifyFail {
-  if (!OAS_AUTH_READY || !OAS_PUBLIC_KEY) {
+  if (!isOASAuthReady() || !OAS_PUBLIC_KEY) {
     return { ok: false, code: 'AUTH_NOT_READY', reason: 'OAS public key not configured (fail-closed)' };
   }
   let payload: OASTokenPayload;
@@ -255,8 +326,8 @@ export function getOASConfigStatus() {
     baseUrl: OAS_BASE_URL || null,
     supplyOs: process.env.OAS_SUPPLY_OS || 'booth',
     proxyApp: OAS_PROXY_APP,
-    authReady: OAS_AUTH_READY,
-    failClosed: isOASEnabled() && !OAS_AUTH_READY,
+    authReady: isOASAuthReady(),
+    failClosed: isOASEnabled() && !isOASAuthReady(),
     publicKeyConfigured: OAS_PUBLIC_KEY !== null,
     issuer: OAS_ISSUER,
     eventSigning: process.env.OAS_EVENT_SIGNING_KEY ? 'enabled' : 'disabled', // [R7-DEF-3]

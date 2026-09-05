@@ -27,11 +27,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// [BOOTH-R7-01/DEF] 启动期 fail-closed 检查: OAS 启用但公钥未配置 → FATAL + 全量鉴权拒绝 (503 AUTH_NOT_READY)
-import { isOASAuthReady, isOASEnabled } from './services/oas-client.js';
-if (isOASEnabled() && !isOASAuthReady()) {
-  console.error('[FATAL][AUTH] OAS_PUBLIC_KEY missing - fail-closed: all authenticated requests will be rejected with 503 AUTH_NOT_READY. Inject OAS platform PEM to restore service.');
-}
+// [BOOTH-R7-01/DEF + AUTH-02] 启动期认证初始化: 显式 PEM 优先, 缺省时 JWKS 自动发现; 全程失败则 fail-closed (503 AUTH_NOT_READY)
+import { initOASAuth, isOASEnabled } from './services/oas-client.js';
+void initOASAuth(); // 异步就绪: 就绪前认证请求按 fail-closed 503 处理, 就绪后自动恢复
 
 const PORT = Number(process.env.DEPLOY_RUN_PORT || process.env.PORT) || 5000;
 

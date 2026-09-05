@@ -7,7 +7,7 @@
  */
 import type { Request, Response, NextFunction } from 'express';
 import { pool } from './db.js';
-import { verifyOASToken, toBoothUser, isOASEnabled, OAS_AUTH_READY, type BoothUser } from './services/oas-client.js';
+import { verifyOASToken, toBoothUser, isOASEnabled, isOASAuthReady, type BoothUser } from './services/oas-client.js';
 
 export type { BoothUser };
 
@@ -31,7 +31,7 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   }
 
   // [R7-DEF] fail-closed: OAS 启用但公钥未就绪 → 拒绝 (503), 不降级
-  if (!OAS_AUTH_READY) {
+  if (!isOASAuthReady()) {
     return res.status(503).json({
       success: false,
       error: 'Authentication service not ready: OAS public key missing (fail-closed)',

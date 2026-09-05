@@ -21,6 +21,8 @@ interface AuthState {
   canSeeSalePrice: () => boolean;
   isReadOnly: () => boolean;
   fetchUser: () => void;
+  /** [AUTH-02] 写入已就绪会话 (dev-token 生成成功后免手动复制) */
+  applySession: (token: string, user: AuthUser) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -48,6 +50,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('booth_token');
     localStorage.removeItem('booth_user');
     set({ token: null, user: null });
+  },
+
+  applySession: (token, user) => {
+    localStorage.setItem('booth_token', token);
+    localStorage.setItem('booth_user', JSON.stringify(user));
+    set({ token, user });
   },
 
   hasHat: (hat: string) => {
