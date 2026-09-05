@@ -58,6 +58,22 @@ const Login: React.FC = () => {
               登录
             </Button>
           </Form.Item>
+          {/* [OAS-DEV-TOKEN] 开发期临时令牌入口占位（仅 DEV 渲染，生产不输出 DOM）。
+              OAS POST /api/v1/auth/dev-token 接口定型后按正式接入单实施：
+              1) 调 OAS dev-token 生成后写入本地登录态/填入令牌框; 2) 或跳 OAS /login?mode=dev-token&redirect= 回跳。
+              Booth 侧不自行实现签发逻辑。 */}
+          {import.meta.env.DEV && (
+            <Form.Item style={{ marginTop: 12, marginBottom: 0 }}>
+              <Button
+                type="dashed"
+                block
+                disabled
+                title="OAS dev-token 接口定型后启用（等待正式接入单）"
+              >
+                生成临时令牌（DEV）
+              </Button>
+            </Form.Item>
+          )}
         </Form>
       </Card>
     </div>

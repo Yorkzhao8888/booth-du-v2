@@ -13,6 +13,8 @@
  * 事件：SupplyOrder.Confirmed / Delivery.Confirmed 走 booth_outbox（结算订阅可用）。
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { TOPIC } from '../services/event-topics.js';
+import { emitAudit } from '../services/audit-service.js'; // [BOOTH-R7-03]
 import { pool } from '../db.js';
 import { requireRole, type JwtPayload } from '../auth.js';
 import { openXCaseForFulfillment } from '../services/finance-service.js';
@@ -157,7 +159,7 @@ supplyOrdersRouter.post('/', M_ONLY, async (req: Request, res: Response, next: N
     const created = ins.rows[0];
 
     // [BOOTH-LINK-01 任务C] 供给单创建即派 Mate 工作者 (outbox 异步投递, 失败重试/状态标记)
-    await emitOutbox(user.orgId, 'mate.dispatch', {
+    await emitOutbox(user.orgId, TOPIC.MATE_DISPATCH, {
       sourceOrderId: created.id,
       sourceOrderNo: `BOOTH-SUP-${created.id}`,
       shopOrderId: externalId,
@@ -167,6 +169,9 @@ supplyOrdersRouter.post('/', M_ONLY, async (req: Request, res: Response, next: N
       assigneeRole: 'HU',
       fulfillmentId: created.id,
     });
+
+    // [BOOTH-R7-03] 供给单创建 (代录) → OAS 审计
+    emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'supply_order.create', resource: 'supply_order', resourceId: String(created.id), result: 'success', detail: { shop_order_id: externalId, source: 'manual', contract_status: 'Created' } }, user.orgId,);
 
     return res.json({ success: true, data: fullView(normalizeContract(created)) });
   } catch (err) {
@@ -226,6 +231,8 @@ async function quoteHandler(req: Request, res: Response, next: NextFunction) {
        RETURNING *`,
       [id, user.orgId, JSON.stringify(snapshot)]
     );
+    // [BOOTH-R7-03] 报价 → OAS 审计 (涉及金额)
+    emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'supply_order.quote', resource: 'supply_order', resourceId: String(id), result: 'success', detail: { shop_order_id: row.shop_order_id, total_amount: snapshot.total_amount } }, );
     return res.json({ success: true, data: fullView(normalizeContract(upd.rows[0])) });
   } catch (err) {
     next(err);
@@ -253,7 +260,9 @@ async function confirmHandler(req: Request, res: Response, next: NextFunction) {
       [id, user.orgId]
     );
     const data = fullView(normalizeContract(upd.rows[0]));
-    await emitOutbox(user.orgId, 'SupplyOrder.Confirmed', {
+    // [BOOTH-R7-03] 审批动作: 供给单确认 (GMBS: 涉及金额审批)
+    emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'supply_order.confirm', resource: 'supply_order', resourceId: String(id), result: 'success', detail: { shop_order_id: row.shop_order_id, contract_status: 'Confirmed' }, gmbs: { flag: true, category: 'amount_approval', amount: Number(row.quote_snapshot?.total_amount) || 0 } }, );
+    await emitOutbox(user.orgId, TOPIC.SUPPLY_ORDER_CONFIRMED, {
       fulfillment_id: id,
       shop_order_id: row.shop_order_id,
       contract_status: 'Confirmed',
@@ -340,7 +349,9 @@ async function deliveryConfirmHandler(req: Request, res: Response, next: NextFun
       [id, user.orgId]
     );
     const data = fullView(normalizeContract(upd.rows[0]));
-    await emitOutbox(user.orgId, 'Delivery.Confirmed', {
+    // [BOOTH-R7-03] 签收结算 → OAS 审计 (GMBS: 资金结算)
+    emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'supply_order.settle', resource: 'supply_order', resourceId: String(id), result: 'success', detail: { shop_order_id: row.shop_order_id, contract_status: 'Settled' }, gmbs: { flag: true, category: 'settlement', amount: Number(row.quote_snapshot?.total_amount) || 0 } }, );
+    await emitOutbox(user.orgId, TOPIC.DELIVERY_CONFIRMED, {
       fulfillment_id: id,
       shop_order_id: row.shop_order_id,
       contract_status: 'Settled',
@@ -353,7 +364,7 @@ async function deliveryConfirmHandler(req: Request, res: Response, next: NextFun
     try {
       const fin = await openXCaseForFulfillment(user.orgId, upd.rows[0]);
       if (fin) {
-        await emitOutbox(user.orgId, 'Finance.XCaseOpened', {
+        await emitOutbox(user.orgId, TOPIC.FINANCE_XCASE_OPENED, {
           xcase_no: fin.xcaseNo,
           fulfillment_id: id,
           income: fin.income,

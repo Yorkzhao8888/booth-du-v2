@@ -1,119 +1,94 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
-import { pool } from '../db.js';
-import { signToken, signTokenFromOAS } from '../auth.js';
-import { orgModes } from '../migrate.js';
-import { oasLogin, isOASEnabled, verifyOASToken, oasPayloadToBoothUser, getOASConfigStatus } from '../services/oas-client.js';
+import { oasLogin, verifyOASToken, toBoothUser, getOASConfigStatus, OAS_AUTH_READY } from '../services/oas-client.js';
+import { emitAudit } from '../services/audit-service.js';
 
 const router = Router();
 
 /**
- * POST /login
- * 
- * If OAS is enabled, proxy login through OAS.
- * Otherwise, fall back to local authentication.
+ * [BOOTH-R7-01] POST /login —— 已收口为 OAS AMS 单一登录源
+ *
+ * 用户名/密码透传 OAS AMS 代理: POST /api/v1/os/booth/proxy/ams/auth/login
+ * 响应直接透传 OAS 原生 RS256 access_token (Booth 不再本地换签/自签)。
+ * OAS 校验失败/账号不存在 → 401, 不回退本地账号 (legacy 信任源已移除)。
+ * 登录成功/失败均有审计埋点 ([R7-03])。
  */
 router.post('/login', async (req, res, next) => {
   try {
     const { phone, password, username } = req.body;
-
-    // Support both phone and username for OAS compatibility
     const loginId = username || phone;
 
     if (!loginId || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Username/phone and password are required', 
-        code: 'MISSING_FIELDS' 
+      return res.status(400).json({ success: false, error: 'Username/phone and password are required', code: 'MISSING_FIELDS' });
+    }
+    if (!OAS_AUTH_READY) {
+      return res.status(503).json({
+        success: false,
+        error: 'Authentication service not ready: OAS public key missing (fail-closed)',
+        code: 'AUTH_NOT_READY',
       });
     }
 
-    // [主认证路径] OAS authentication first
-    if (isOASEnabled()) {
-      const oasResponse = await oasLogin(loginId, password);
-      
-      if (oasResponse.success && oasResponse.data?.access_token) {
-        // Verify the OAS token and extract user info
-        const oasPayload = verifyOASToken(oasResponse.data.access_token);
-        if (oasPayload) {
-          const boothUser = oasPayloadToBoothUser(oasPayload);
-          if (boothUser) {
-            // Sign a Booth-local token for subsequent requests
-            const token = signTokenFromOAS(boothUser);
-
-            return res.json({
-              success: true,
-              data: {
-                token,
-                oas_token: oasResponse.data.access_token,
-                expires_in: oasResponse.data.expires_in,
-                user: {
-                  id: 0,
-                  identityId: boothUser.identityId,
-                  name: boothUser.name,
-                  role: boothUser.role,
-                  subRole: boothUser.subRole,
-                  hats: boothUser.hats,
-                  orgId: boothUser.orgId,
-                  orgMode: boothUser.orgMode,
-                  nhiFlag: boothUser.nhiFlag,
-                  msAccess: boothUser.msAccess,
-                  source: 'oas',
-                },
-              },
-            });
-          }
-        }
-      }
-      // OAS login failed or role mapping failed - fall through to local auth
-      // This allows local accounts (like EM) to login even when OAS is enabled
-      console.log('[auth] OAS login failed for %s, falling back to local auth', loginId);
+    const oas = await oasLogin(loginId, password);
+    if (!oas.ok || !oas.data?.access_token) {
+      // [R7-03] 登录失败审计 (异常路径)
+      await emitAudit({
+        actor: loginId,
+        action: 'auth.login',
+        resource: 'booth_session',
+        resourceId: loginId,
+        result: 'failure',
+        detail: { reason: oas.error || `OAS ${oas.status}` },
+      });
+      return res.status(oas.status === 502 || oas.status === 503 ? 502 : 401).json({
+        success: false,
+        error: oas.error || 'Invalid credentials (OAS AMS)',
+        code: 'INVALID_CREDENTIALS',
+      });
     }
 
-    // [DEPRECATED - fallback] Local authentication (legacy 本地账号: 测试账号/EM)
-    // 兼容截止日: 2026-12-31, 见 server/auth.ts 兼容层标注。行为冻结不扩展。
-    const userRes = await pool.query(
-      `SELECT u.*, o.mode as org_mode
-       FROM booth_users u
-       JOIN booth_orgs o ON o.id = u.org_id
-       WHERE u.phone = $1 AND u.is_active = TRUE`,
-      [loginId]
-    );
-
-    if (userRes.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
+    const v = verifyOASToken(oas.data.access_token);
+    if (!v.ok) {
+      await emitAudit({
+        actor: loginId,
+        action: 'auth.login',
+        resource: 'booth_session',
+        resourceId: loginId,
+        result: 'failure',
+        detail: { reason: `token verify: ${v.reason}` },
+      });
+      return res.status(401).json({ success: false, error: `OAS token rejected: ${v.reason}`, code: 'E_INVALID_TOKEN' });
     }
 
-    const user = userRes.rows[0];
-    const valid = bcrypt.compareSync(password, user.password_hash);
+    const user = toBoothUser(v.payload, Number(v.payload.org_id ?? 1) || 1);
 
-    if (!valid) {
-      return res.status(401).json({ success: false, error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
-    }
-
-    const orgMode = orgModes.get(user.org_id) || user.org_mode || 'du';
-
-    const token = signToken({
-      id: user.id,
-      org_id: user.org_id,
-      name: user.name,
-      role: user.role,
-      hats: user.hats || [],
-      orgMode,
+    // [R7-03] 登录成功审计
+    await emitAudit({
+      actor: String(user.identity_id ?? loginId),
+      action: 'auth.login',
+      resource: 'booth_session',
+      resourceId: String(user.identity_id ?? loginId),
+      result: 'success',
+      detail: { role: user.role, roleKey: user.roleKey, hats: user.hats },
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
-        token,
+        // [R7-01] 直接透传 OAS RS256 token, Booth 不再签发任何本地令牌
+        token: oas.data.access_token,
+        oas_token: oas.data.access_token,
+        expires_in: oas.data.expires_in,
         user: {
-          id: user.id,
-          name: user.name,
+          id: 0,
+          identityId: user.identity_id,
+          name: user.name ?? loginId,
           role: user.role,
-          hats: user.hats || [],
-          orgId: user.org_id,
-          orgMode,
-          source: 'legacy',
+          roleKey: user.roleKey,
+          hats: user.hats,
+          orgId: user.orgId,
+          edition: user.edition ?? null,
+          msAccess: user.ms_access ?? [],
+          source: 'oas',
         },
       },
     });
@@ -123,27 +98,20 @@ router.post('/login', async (req, res, next) => {
 });
 
 /**
- * GET /oas-status
- * 
- * Returns OAS configuration status (for debugging)
+ * GET /oas-status —— OAS 配置状态 (R7-DEF: 增加 authReady/failClosed)
  */
 router.get('/oas-status', (_req, res) => {
-  res.json({
-    success: true,
-    data: getOASConfigStatus(),
-  });
+  res.json({ success: true, data: getOASConfigStatus() });
 });
 
 /**
- * POST /logout
- * 
- * Logout endpoint (no-op for JWT, but provides consistent API)
+ * POST /logout (无状态 JWT, 保留一致性 API; token 失效交由 OAS 侧过期/吊销)
  */
 router.post('/logout', (_req, res) => {
-  res.json({
-    success: true,
-    data: { message: 'Logged out successfully' },
-  });
+  res.json({ success: true, data: { message: 'Logged out successfully' } });
 });
 
 export default router;
+
+// [BOOTH-R7-01] legacy 移除清单: 本地 booth_users 密码校验 / signToken / signTokenFromOAS / bcrypt 依赖
+// 13800000001~06 本地测试账号不再可用 (OAS AMS 未同步该批账号, 见回报遗留缺口); OAS test-accounts 五角色为登录验收口径

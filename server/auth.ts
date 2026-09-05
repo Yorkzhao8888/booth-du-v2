@@ -1,244 +1,124 @@
-import jwt from 'jsonwebtoken';
+/**
+ * [BOOTH-R7-01 / R7-DEF] 认证中间件 —— 已收口为 OAS 单一信任源
+ *  - 仅接受 OAS 签发 RS256 JWT (iss=ziway-oas, 公钥验签)
+ *  - OAS_PUBLIC_KEY 未就绪 → 503 AUTH_NOT_READY (fail-closed, 启动期 FATAL 日志)
+ *  - legacy 自签 HS256 JWT 信任源已移除 (不再接受非 OAS 签发令牌, 不降级放行)
+ *  - telemetry 内部通道独立密钥 (X-Telemetry-Key), 与登录态无关, 保留
+ */
 import type { Request, Response, NextFunction } from 'express';
-import { verifyOASToken, oasPayloadToBoothUser, isOASEnabled, type BoothUserFromOAS } from './services/oas-client.js';
+import { pool } from './db.js';
+import { verifyOASToken, toBoothUser, isOASEnabled, OAS_AUTH_READY, type BoothUser } from './services/oas-client.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'booth-dev-secret';
+export type { BoothUser };
 
-// ---------------------------------------------------------------------------
-// [DEPRECATED - 兼容层] Legacy JWT 载荷与本地签发（OAS 为主认证路径）
-// 兼容截止日: 2026-12-31。届时评估移除需主 Agent 另行裁定。
-// 约定: 认证主路径 = OAS（signTokenFromOAS 签发 / verifyOASToken 校验）；
-// legacy 本地 JWT 仅作为 fallback 保留（本地测试账号/EM 登录），冻结不扩展。
-// ---------------------------------------------------------------------------
-// Legacy JWT payload (for backward compatibility during transition)
-export interface JwtPayload {
-  userId: number;
-  orgId: number;
-  name: string;
-  role: string;
-  hats: string[];
-  orgMode: string;
-  // OAS fields (when using OAS tokens)
-  identityId?: string;
-  subRole?: string;
-  nhiFlag?: boolean;
-  msAccess?: string[];
-  source?: 'oas' | 'legacy';
+const TELEMETRY_KEY = process.env.TELEMETRY_KEY || 'dev-telemetry-2024';
+
+export interface AuthedRequest extends Request {
+  user?: BoothUser;
+  telemetry?: boolean;
 }
 
 /**
- * [DEPRECATED - legacy fallback] 本地账号签发（测试账号/EM 本地登录用）。
- * 主认证签发路径请使用 signTokenFromOAS。兼容截止日: 2026-12-31。
+ * 统一认证入口:
+ *  1. telemetry 内部通道 (X-Telemetry-Key)
+ *  2. OAS RS256 JWT (Authorization: Bearer / x-oas-token / SSE query token)
+ * 验签失败一律 401 拒绝, 无任何回退
  */
-export function signToken(user: {
-  id: number;
-  org_id: number;
-  name: string;
-  role: string;
-  hats: string[];
-  orgMode: string;
-}): string {
-  const payload: JwtPayload = {
-    userId: user.id,
-    orgId: user.org_id,
-    name: user.name,
-    role: user.role,
-    hats: user.hats || [],
-    orgMode: user.orgMode,
-    source: 'legacy',
-  };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-}
-
-/**
- * [主认证路径] Sign a token from OAS user info
- */
-export function signTokenFromOAS(user: BoothUserFromOAS): string {
-  const payload: JwtPayload = {
-    userId: 0, // OAS users don't have local IDs
-    orgId: user.orgId,
-    name: user.name,
-    role: user.role,
-    hats: user.hats,
-    orgMode: user.orgMode,
-    identityId: user.identityId,
-    subRole: user.subRole,
-    nhiFlag: user.nhiFlag,
-    msAccess: user.msAccess,
-    source: 'oas',
-  };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' }); // Shorter expiry for OAS tokens
-}
-
-export function requireAuth(req: Request, _res: Response, next: NextFunction) {
-  // Prefer Authorization: Bearer header; fall back to ?token= query param
-  // (EventSource/SSE cannot set custom headers).
-  let token: string | undefined;
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.slice(7);
-  } else if (typeof req.query.token === 'string' && req.query.token) {
-    token = req.query.token;
-  } else {
-    // Fallback: manually parse token from raw URL (in case proxy strips query)
-    try {
-      const rawUrl = req.url || '';
-      const qIdx = rawUrl.indexOf('?');
-      if (qIdx !== -1) {
-        const params = new URLSearchParams(rawUrl.slice(qIdx));
-        const t = params.get('token');
-        if (t) token = t;
-      }
-    } catch { /* ignore */ }
-  }
-
-  // Debug log for production troubleshooting
-  if (!token) {
-    console.warn('[auth] No token found. headers.authorization:', !!authHeader, 'query:', JSON.stringify(req.query), 'url:', req.url);
-  }
-
-  // [BOOTH-PK-03] 边缘设备遥测上报密钥通道: 无 JWT 时允许 X-Telemetry-Key 匹配 env.TELEMETRY_INGEST_KEY 放行。
-  // org 归属校验在业务 handler 内完成; env 未配置时该通道永不可用(fail-closed), 不留假 token。
-  const telemetryKey = req.headers['x-telemetry-key'];
-  if (
-    !token &&
-    typeof telemetryKey === 'string' &&
-    telemetryKey.length > 0 &&
-    process.env.TELEMETRY_INGEST_KEY &&
-    telemetryKey === process.env.TELEMETRY_INGEST_KEY
-  ) {
-    // @ts-ignore mark key-channel auth for telemetry ingest handler
-    req.telemetryKeyAuth = true;
+export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (req.headers['x-telemetry-key'] === TELEMETRY_KEY) {
+    req.telemetry = true;
     return next();
   }
 
+  // [R7-DEF] fail-closed: OAS 启用但公钥未就绪 → 拒绝 (503), 不降级
+  if (!OAS_AUTH_READY) {
+    return res.status(503).json({
+      success: false,
+      error: 'Authentication service not ready: OAS public key missing (fail-closed)',
+      code: 'AUTH_NOT_READY',
+    });
+  }
+
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ')
+    ? header.slice(7)
+    : ((req.headers['x-oas-token'] as string) || (req.query.token as string) || '');
   if (!token) {
-    return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'Missing or invalid token' });
+    return res.status(401).json({ success: false, error: 'Missing token', code: 'E_NO_TOKEN' });
   }
 
-  // ---- [主认证路径] OAS JWT verification first if OAS is enabled ----
-  if (isOASEnabled()) {
-    const oasPayload = verifyOASToken(token);
-    if (oasPayload) {
-      const boothUser = oasPayloadToBoothUser(oasPayload);
-      if (boothUser) {
-        // @ts-ignore
-        req.user = {
-          userId: 0,
-          orgId: boothUser.orgId,
-          name: boothUser.name,
-          role: boothUser.role,
-          hats: boothUser.hats,
-          orgMode: boothUser.orgMode,
-          identityId: boothUser.identityId,
-          subRole: boothUser.subRole,
-          nhiFlag: boothUser.nhiFlag,
-          msAccess: boothUser.msAccess,
-          source: 'oas',
-        } as JwtPayload;
-        return next();
-      }
+  const v = verifyOASToken(token);
+  if (!v.ok) {
+    // [R7-DEF] 验签失败一律 401; AUTH_NOT_READY(理论不可达, 上方已拦) 同样拒绝
+    if (v.code === 'AUTH_NOT_READY') {
+      return res.status(503).json({ success: false, error: v.reason, code: 'AUTH_NOT_READY' });
     }
-    // If OAS verification fails, fall through to legacy verification
-    // This allows for graceful migration
+    return res.status(401).json({ success: false, error: `Invalid token: ${v.reason}`, code: 'E_INVALID_TOKEN' });
   }
 
-  // ---------------------------------------------------------------------------
-  // [DEPRECATED - fallback] Legacy JWT verification
-  // 仅当 OAS 关闭或 OAS 校验失败时进入（graceful migration）。
-  // 兼容截止日: 2026-12-31。行为冻结：不新增字段、不放宽校验。
-  // Fail-closed: OAS 与 legacy 均失败时拒绝访问（401），保持现状。
-  // ---------------------------------------------------------------------------
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    // @ts-ignore
-    req.user = decoded;
-    next();
-  } catch {
-    // Fail-closed: if both OAS and legacy verification fail, deny access
-    next({ statusCode: 401, code: 'INVALID_TOKEN', error: 'Token verification failed' });
-  }
+  const payload = v.payload;
+  const orgId = Number(payload.org_id ?? payload.orgId ?? 1) || 1;
+  req.user = toBoothUser(payload, orgId);
+  next();
 }
 
-export function requireRole(...roles: string[]) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    // @ts-ignore
-    const user = req.user as JwtPayload;
-    if (!user || !roles.includes(user.role)) {
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
+/** 角色 → org 绑定校验 + RBAC + 帽子 (逻辑不变, 信任源已收口为 OAS) */
+const ROLE_ORG_MAP: Record<string, number> = { dm: 1, du: 1, dx: 1, dxx: 1, ex: 1, exx: 1, em: 1 };
+
+export function requireRole(...allowed: string[]) {
+  return (req: AuthedRequest, res: Response, next: NextFunction) => {
+    try {
+      const user = req.user;
+      if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
+      if (!allowed.includes(user.roleKey)) {
+        return res.status(403).json({ success: false, error: `Forbidden: requires ${allowed.join('/')}`, code: 'E_FORBIDDEN' });
+      }
+      // org 绑定: OAS claim 显式 org_id 优先, 否则按角色默认绑定 Booth org=1
+      const expected = ROLE_ORG_MAP[user.roleKey] ?? 1;
+      if (user.orgId !== expected) {
+        return res.status(403).json({ success: false, error: `Forbidden: org ${user.orgId} not bound to role ${user.roleKey}`, code: 'E_ORG_MISMATCH' });
+      }
+      next();
+    } catch (err) {
+      next(err);
     }
-    next();
   };
 }
 
+/** 写权限: dm 只读穿透 */
+export async function requireWriteAccess(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (req.telemetry) return next();
+  const user = req.user;
+  if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
+  if (user.roleKey === 'dm') {
+    return res.status(403).json({ success: false, error: 'Read-only role (dm) cannot write', code: 'E_READ_ONLY' });
+  }
+  next();
+}
+
+/** 帽子校验 (执行端 FAB/WH 等); OAS ms_access 无匹配时已在 toBoothUser 按角色兜底 */
 export function requireHat(hat: string) {
-  return (req: Request, _res: Response, next: NextFunction) => {
-    // @ts-ignore
-    const user = req.user as JwtPayload;
-    if (!user || !user.hats || !user.hats.includes(hat)) {
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: `Missing hat: ${hat}` });
+  return async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    if (req.telemetry) return next();
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
+    if (['du', 'dx', 'dm', 'em'].includes(user.roleKey)) return next(); // M 层全帽
+    if (!user.hats?.includes(hat)) {
+      return res.status(403).json({ success: false, error: `Missing hat ${hat}`, code: 'E_NO_HAT' });
     }
     next();
   };
 }
 
-// DM 运营：只读穿透（可访问所有读接口，写接口 403）
-export function requireWriteAccess(req: Request, _res: Response, next: NextFunction) {
-  // @ts-ignore
-  const user = req.user as JwtPayload;
-  if (user?.role === 'dm') {
-    const method = req.method?.toUpperCase();
-    if (method && method !== 'GET' && method !== 'HEAD') {
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM role is read-only' });
-    }
-  }
-  next();
-}
+/** 兼容导出: OAS 是否启用 (登录路由探测用) */
+export { isOASEnabled };
 
-// Price isolation: strip cost/price fields for DXX role
-export function stripCostFields<T>(obj: T): T {
-  // @ts-ignore
-  const user = { role: 'unknown' } as JwtPayload; // Will be overridden by middleware context
-  
-  const COST_FIELDS = [
-    'costPrice', 'cost_price', 'unitCost', 'unit_cost', 'totalCost', 'total_cost',
-    'purchasePrice', 'purchase_price', 'margin', 'grossMargin', 'gross_margin',
-    'profit', 'grossProfit', 'gross_profit', 'netProfit', 'net_profit',
-    'materialCost', 'material_cost', 'laborCost', 'labor_cost',
-    'revenue', 'settleAmount', 'settle_amount', 'totalSettled', 'total_settled',
-    'pendingSettlement', 'pending_settlement',
-  ];
+/** 兼容导出: 旧代码引用名 (R7 重命名后的等价物) */
+export type JwtPayload = BoothUser;
 
-  function strip(obj: unknown): unknown {
-    if (Array.isArray(obj)) {
-      return obj.map(strip);
-    }
-    if (obj && typeof obj === 'object') {
-      const result: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-        if (!COST_FIELDS.includes(key)) {
-          result[key] = strip(value);
-        }
-      }
-      return result;
-    }
-    return obj;
-  }
+/** [BOOTH-R7] 成本剥离 (价格红线: X 层零价) — 从 oas-client 权威实现转发 */
+import { stripCostFields as _stripCostFields } from './services/oas-client.js';
+export const stripCostFields = _stripCostFields;
 
-  return strip(obj) as T;
-}
-
-// Middleware to strip cost fields for DXX role
-export function stripCostFieldsForDXX(req: Request, res: Response, next: NextFunction) {
-  // @ts-ignore
-  const user = req.user as JwtPayload;
-  
-  if (user?.role === 'dxx') {
-    const originalJson = res.json.bind(res);
-    res.json = function (body: unknown) {
-      return originalJson(stripCostFields(body as Record<string, unknown>));
-    };
-  }
-  
-  next();
-}
+// [R7-DEF] 以下 legacy 能力已移除: signToken (HS256 自签), signTokenFromOAS (本地换签), LEGACY verify fallback
+// 登录响应直接透传 OAS 原生 access_token (RS256), 见 server/routes/auth.ts

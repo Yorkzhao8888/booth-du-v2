@@ -264,6 +264,22 @@ ALTER TABLE booth_svc_tasks ADD COLUMN IF NOT EXISTS service_type TEXT;
 ALTER TABLE booth_inventory ADD COLUMN IF NOT EXISTS warehouse_type TEXT DEFAULT 'material';
 ALTER TABLE booth_stock_batches ADD COLUMN IF NOT EXISTS warehouse_type TEXT DEFAULT 'material';
 
+-- ====== [BOOTH-R7] 事件契约与 DLQ ======
+-- [R7-DEF] outbox 投递失败原因留痕 (重试耗尽转 dead 时写入)
+ALTER TABLE booth_outbox ADD COLUMN IF NOT EXISTS last_error TEXT;
+
+-- [R7-DEF] 验签失败/非法事件死信队列 (401 响应前留证, 供人工核查与重放)
+CREATE TABLE IF NOT EXISTS booth_event_dlq (
+  id SERIAL PRIMARY KEY,
+  event_id VARCHAR(120),
+  event_type VARCHAR(120),
+  reason VARCHAR(60) NOT NULL,
+  payload JSONB,
+  headers JSONB,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_event_dlq_received ON booth_event_dlq (received_at DESC);
+
 -- 工单 D：供应商管理 + 结算
 CREATE TABLE IF NOT EXISTS booth_suppliers (
   id SERIAL PRIMARY KEY,

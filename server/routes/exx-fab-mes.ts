@@ -5,6 +5,7 @@
  * 红线: Agent invoke 不越过 LoRA 的「门」(door authority stays with LoRA)
  */
 import { Router } from 'express';
+import { emitAudit } from '../services/audit-service.js'; // [BOOTH-R7-03]
 import { pool } from '../db.js';
 import { canStationTransition } from '../services/station-state-machine.js';
 import { requireHat } from '../auth.js';
@@ -171,6 +172,9 @@ router.post('/fab/station/:id/assign-order', requireHat('FAB'), async (req, res,
     );
     // SSE 通知 ([BOOTH-LINK-01 任务B] 附 X-Dyard stationCode, Plaz 侧可见 Booth 作业)
     broadcast(user.orgId, 'station.assigned', { station_id: Number(id), work_order_id, active: active + 1, cap, plaz_station_code: station.plaz_id ?? null });
+
+    // [BOOTH-R7-03] 任务指派 → OAS 审计
+    emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'station.assign_order', resource: 'station', resourceId: String(id), result: 'success', detail: { work_order_id, job_type: wo.rows[0]?.job_type, station_code: station.code, plaz_station_code: station.plaz_id ?? null } }, user.orgId,);
     res.json({ success: true, data: { station_id: Number(id), work_order_id, active: active + 1, cap } });
   } catch (err) { next(err); }
 });

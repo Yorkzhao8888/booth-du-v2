@@ -34,22 +34,31 @@ pnpm start        # node dist/server/index.js
 ## 目录结构
 ```
 server/
-  index.ts          # Express 入口
-  auth.ts           # JWT 认证中间件
+  index.ts          # Express 入口 (rawBody 捕获 + 启动 fail-closed FATAL)
+  auth.ts           # 认证中间件 ([R7-01] 仅 OAS RS256 验签, fail-closed 503)
   db.ts             # PostgreSQL 连接池
-  migrate.ts        # DDL + 种子数据 + 角色迁移
+  migrate.ts        # DDL + 种子数据 + 角色迁移 (+ [R7] booth_event_dlq / last_error)
   sse.ts            # SSE 实时推送
   routes/
-    auth.ts         # 登录
+    auth.ts         # 登录 ([R7-01] 纯 OAS 代理) + oas-status
     du.ts           # 经营看板 (du+dx)
     dex.ts          # 交付工作台 (dex)
-    exx.ts         # 执行端 FAB/WH (exx)
-    internal.ts     # 内部事件接收
+    exx.ts          # 执行端 FAB/WH (exx)
+    internal.ts     # 内部事件接收 ([R7-DEF] 签名验证 + DLQ + 主题规范化)
+    supply-order.ts # [PK-02] 契约 quote/confirm/settle ([R7-03] 审计+GMBS)
   services/
+    oas-client.ts       # [R7-01] OAS AMS 客户端 (RS256 验签/角色映射/成本剥离)
+    event-topics.ts     # [R7-02] cmd.<domain>.<action>.v1 主题常量
+    audit-service.ts    # [R7-03] emitAudit 五要素 + GMBS
+    event-signature.ts  # [R7-DEF] HMAC-SHA256 签名/验签
     fulfillment-service.ts  # 履约/拆单
     inventory-service.ts    # 库存事务
     work-order-service.ts   # 工单状态机
-    outbox-service.ts       # Outbox 异步投递
+    outbox-service.ts       # Outbox 异步投递 (三目标路由 + 出站签名)
+docs/
+  event-contract-registry.md  # [R7-02] 事件契约登记表
+scripts/
+  dev-r7-migrate.cjs / rollback.cjs  # [R7] 迁移可逆脚本
 src/
   App.tsx           # 路由 + 守卫
   api.ts            # API 请求封装
@@ -65,18 +74,28 @@ src/
 ```
 
 ## API 路径
-- `/api/booth/auth/login` — 登录
+- `/api/booth/auth/login` — 登录（[R7-01] 纯 OAS AMS 代理透传，无本地签发）
+- `/api/booth/auth/oas-status` — OAS 配置状态（authReady/failClosed/signing）
 - `/api/booth/du/*` — 经营端 (du+dx)
 - `/api/booth/dex/*` — 交付端 (dex)
 - `/api/booth/exx/*` — 执行端 (exx)
+- `/api/booth/supply-orders/*` — [PK-02] SupplyOrder 显式契约（quote/confirm/settle 带审计+GMBS）
 - `/api/booth/internal/events/*` — 内部事件
 - `/api/booth/stream` — SSE 实时推送
 - `/api/booth/health` — 健康检查
 - `/events/*` — [LINK-01] 内部事件根级别名（与 `/api/booth/internal/events/*` 等价，Shop XBUS 直调）
 - `PUT /api/booth/job/stations/:id/plaz-mapping` — [LINK-01 任务B] Booth↔X-Dyard(Plaz) 站位映射绑定/解绑（du/ex/dx）
 
+## 统一登录与事件契约（BOOTH-R7）
+- **统一登录 [R7-01]**：Booth 仅信任 OAS AMS 签发的 RS256 JWT（iss=ziway-oas）。`OAS_PUBLIC_KEY`（SPKI PEM，支持 \n 转义）未配置 → **fail-closed**：启动 FATAL 日志 + 所有需登录接口 503 `AUTH_NOT_READY`（health 不受影响）。legacy 本地账号/jwt 自签/test-mode 全部移除，138 本地测试账号不可用（OAS AMS 未同步），验收口径为 OAS 五角色 admin/operator/customer/viewer/em × test123，映射 SU→du / AU→dx / CU→exx / GU→dxx / EM→em，exx 依赖角色默认帽子（CU→[FAB]）
+- **事件契约 [R7-02]**：主题统一 `cmd.<domain>.<action>.v1`（常量见 `server/services/event-topics.ts`），登记表 `docs/event-contract-registry.md`；入站 Shop 事件规范化为 `cmd.shop.order.confirmed.v1` / `cmd.shop.order.cancelled.v1`
+- **审计埋点 [R7-03]**：`emitAudit()`（audit-service.ts）五要素 actor/action/resource+resourceId/occurred_at/result + GMBS 标记（资金类操作 flag+category+amount），写入 outbox `cmd.booth.audit.log.v1` 投递至 `OAS_AUDIT_URL`
+- **签名 [R7-DEF]**：出站消息统一附 `X-Event-Signature: sha256=HMAC(body)`（密钥 `OAS_EVENT_SIGNING_KEY`）；入站配置该密钥后强制验签（timingSafeEqual），失败 401 并写入死信表 `booth_event_dlq`；未配置为兼容期（signing=disabled 放行）
+- **迁移**：`booth_event_dlq` 表 + `booth_outbox.last_error` 列（migrate.ts [BOOTH-R7] 块，可逆脚本 scripts/dev-r7-migrate.cjs / rollback.cjs）
+- **curl 注意**：入站签名验签对原始字节敏感，测试时用 `--data-binary @file`（`-d` 会剥离尾换行导致 mismatch）
+
 ## 跨 APP 事件链路（BOOTH-LINK-01）
-- **入站**：`POST /events/order-confirmed`（X-Event-Key 头 + eventId 幂等）→ 自动创建 supply-order 契约（booth_fulfillments, contract_status=Created, source=mall）→ outbox 回写 `supply_order.created`（Shop 将 `boothWorkOrderId` 写回订单）；取消事件同步回写 `supply_order.cancelled`
+- **入站**：`POST /events/order-confirmed`（X-Event-Key 头 + eventId 幂等）→ 自动创建 supply-order 契约（booth_fulfillments, contract_status=Created, source=mall）→ outbox 回写 `cmd.booth.supply_order.created.v1`（Shop 将 `boothWorkOrderId` 写回订单）；取消事件同步回写 `cmd.booth.supply_order.cancelled.v1`
 - **幂等三层**：booth_event_log(event_id) → shop_order_id 查重（skipped）→ 唯一索引 idx_fulfillments_org_shop_order
-- **Mate 派单**（任务C）：供给单创建即写 outbox `mate.dispatch`，契约 payload：sourceOrderNo/description/expectedAt/reward/assigneeRole=HU；poller 投递至 `MATE_DISPATCH_URL`，成功回写 mate_dispatch_status=dispatched，终败=failed（outbox 重试 10 次后 dead）
-- **环境变量**：`MATE_DISPATCH_URL`（Mate 接收端点）、`SHOP_CALLBACK_URL`（Shop 回写端点，既有）；outbox 按 event_type 前缀路由（mate.* → Mate，其余 → Shop），未配置的类别保留 pending 不阻塞
+- **Mate 派单**（任务C）：供给单创建即写 outbox `cmd.booth.mate.dispatch.v1`，契约 payload：sourceOrderNo/description/expectedAt/reward/assigneeRole=HU；poller 投递至 `MATE_DISPATCH_URL`，成功回写 mate_dispatch_status=dispatched，终败=failed（outbox 重试 10 次后 dead + last_error 留痕）
+- **环境变量**：`MATE_DISPATCH_URL`（Mate 接收端点）、`SHOP_CALLBACK_URL`（Shop 回写端点，既有）、`OAS_AUDIT_URL`（审计上报，[R7-03] 新增）；outbox 按 event_type 路由（含 `.mate.` → Mate / 含 `.audit.` → OAS，带服务账号登录态，401 自动重登一次 / 其余 → Shop），未配置的类别保留 pending 不阻塞

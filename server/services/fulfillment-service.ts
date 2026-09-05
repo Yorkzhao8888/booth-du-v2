@@ -1,4 +1,6 @@
 import { pool } from '../db.js';
+import { TOPIC } from './event-topics.js';
+import { emitAudit } from './audit-service.js'; // [BOOTH-R7-03]
 import { broadcast } from '../sse.js';
 import type { JwtPayload } from '../auth.js';
 
@@ -61,6 +63,7 @@ export async function createFromOrderEvent(event: {
         [event.eventId, event.eventType, JSON.stringify(event.payload)]
       );
       await client.query('COMMIT');
+      emitAudit({ actor: 'xbus:shop-event', action: 'supply_order.create', resource: 'supply_order', resourceId: String(dup.rows[0].id), result: 'success', detail: { shop_order_id: shopOrderId, reason: 'duplicate_shop_order' } }, orgId,);
       return { skipped: true, reason: 'duplicate_shop_order', fulfillment: dup.rows[0] };
     }
 
@@ -76,8 +79,8 @@ export async function createFromOrderEvent(event: {
     // [BOOTH-LINK-01 任务A] 回写 Shop: outbox 投递 supply_order.created, Shop 将 boothWorkOrderId 写回订单
     await client.query(
       `INSERT INTO booth_outbox (org_id, event_type, payload, status, created_at)
-       VALUES ($1, 'supply_order.created', $2::jsonb, 'pending', NOW())`,
-      [orgId, JSON.stringify({
+       VALUES ($1, $2, $3::jsonb, 'pending', NOW())`,
+      [orgId, TOPIC.SUPPLY_ORDER_CREATED, JSON.stringify({
         shopOrderId,
         supplyOrderId: ful.id,
         boothWorkOrderId: String(ful.id),
@@ -89,8 +92,8 @@ export async function createFromOrderEvent(event: {
     // [BOOTH-LINK-01 任务C] Mate 派单: 供给单创建即派 HU 工作者 (契约: 来源工单号/需求描述/期望执行时间/报酬/指派角色)
     await client.query(
       `INSERT INTO booth_outbox (org_id, event_type, payload, status, created_at)
-       VALUES ($1, 'mate.dispatch', $2::jsonb, 'pending', NOW())`,
-      [orgId, JSON.stringify({
+       VALUES ($1, $2, $3::jsonb, 'pending', NOW())`,
+      [orgId, TOPIC.MATE_DISPATCH, JSON.stringify({
         sourceOrderId: ful.id,
         sourceOrderNo: `BOOTH-SUP-${ful.id}`,
         shopOrderId,
@@ -110,6 +113,9 @@ export async function createFromOrderEvent(event: {
     );
 
     await client.query('COMMIT');
+
+    // [BOOTH-R7-03] 供给单创建 → OAS 审计 (五要素)
+    emitAudit({ actor: 'xbus:shop-event', action: 'supply_order.create', resource: 'supply_order', resourceId: String(ful.id), result: 'success', detail: { shop_order_id: shopOrderId, contract_status: 'Created', items_count: Array.isArray(items) ? items.length : 0 } }, );
 
     broadcast(orgId, 'fulfillment_created', ful);
     broadcast(orgId, 'supply_order_created', { id: ful.id, shop_order_id: shopOrderId, contract_status: 'Created' });
@@ -181,11 +187,14 @@ export async function cancelFromOrderEvent(event: {
       [fulfillment.id]
     );
 
+    // [BOOTH-R7-03] 供给单取消 → OAS 审计
+    emitAudit({ actor: 'xbus:shop-event', action: 'supply_order.cancel', resource: 'supply_order', resourceId: String(fulfillment.id), result: 'success', detail: { shop_order_id: shopOrderId, contract_status: 'Cancelled' } }, );
+
     // [BOOTH-LINK-01 任务A] 取消事件同步回写 Shop
     await client.query(
       `INSERT INTO booth_outbox (org_id, event_type, payload, status, created_at)
-       VALUES ($1, 'supply_order.cancelled', $2::jsonb, 'pending', NOW())`,
-      [orgId, JSON.stringify({ shopOrderId, supplyOrderId: fulfillment.id, boothWorkOrderId: String(fulfillment.id), contractStatus: 'Cancelled' })]
+       VALUES ($1, $2, $3::jsonb, 'pending', NOW())`,
+      [orgId, TOPIC.SUPPLY_ORDER_CANCELLED, JSON.stringify({ shopOrderId, supplyOrderId: fulfillment.id, boothWorkOrderId: String(fulfillment.id), contractStatus: 'Cancelled' })]
     );
 
     // Record event

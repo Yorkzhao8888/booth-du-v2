@@ -3,6 +3,8 @@
 // 幂等: 凭证 uq(org, source_voucher); vcase 入账 uq(org, source_voucher); xcase uq(org, fulfillment_id)
 import { Router } from 'express';
 import { Request, Response, NextFunction } from 'express';
+import { TOPIC } from '../services/event-topics.js';
+import { emitAudit } from '../services/audit-service.js'; // [BOOTH-R7-03]
 import { pool } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { addVoucher, closeXCase, reconcile } from '../services/finance-service.js';
@@ -86,6 +88,8 @@ router.post('/xcases/:id/vouchers', M_WRITE, async (req: Request, res: Response,
     }
     try {
       const voucher = await addVoucher(user.orgId, id, { direction, category: body.category!, amount, summary: body.summary, sourceVoucher });
+      // [BOOTH-R7-03] 资金凭证入账 → OAS 审计 (GMBS: 资金操作)
+      emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'finance.voucher.create', resource: 'voucher', resourceId: String(voucher?.voucherNo ?? id), result: 'success', detail: { xcase_id: id, direction, category: body.category, source_voucher: sourceVoucher }, gmbs: { flag: true, category: 'voucher', amount } }, user.orgId,);
       return res.status(201).json({ success: true, data: { voucher } });
     } catch (err: any) {
       if (err?.message === 'XCASE_NOT_FOUND') return res.status(404).json({ success: false, error: 'XCASE_NOT_FOUND' });
@@ -107,8 +111,10 @@ const closeHandler = async (req: Request, res: Response, next: NextFunction) => 
     try {
       const result = await closeXCase(user.orgId, id);
       // 幂等结案(entered=0)不重复发事件, 减少下游重复消费
+      // [BOOTH-R7-03] 业财结案 → OAS 审计 (GMBS: 资金汇总)
+      emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'finance.xcase.close', resource: 'xcase', resourceId: String(id), result: 'success', detail: { xcase_no: result.xcaseNo, entered: result.entered, skipped: result.skipped }, gmbs: { flag: true, category: 'xcase_close', amount: Number(result.income) - Number(result.expense) } }, );
       if (result.entered > 0 || result.skipped > 0) {
-        await emitOutbox(user.orgId, 'Finance.XCaseClosed', {
+        await emitOutbox(user.orgId, TOPIC.FINANCE_XCASE_CLOSED, {
           xcase_no: result.xcaseNo,
           entered: result.entered,
           skipped: result.skipped,

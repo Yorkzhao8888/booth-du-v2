@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
+import { emitAudit } from '../services/audit-service.js'; // [BOOTH-R7-03]
 import { requireAuth, stripCostFields } from '../auth.js';
 import type { JwtPayload } from '../auth.js';
 
@@ -367,7 +368,10 @@ supplyRouter.post('/suppliers/:supplierId/settlements', async (req, res, next) =
       VALUES ($1, $2, $3, $4, 'pending', $5)
       RETURNING *
     `, [user.orgId, supplierId, po_id, amount, remark]);
-    
+
+    // [BOOTH-R7-03] 供应商结算创建 → OAS 审计 (GMBS: 资金结算)
+    emitAudit({ actor: `${user.role}:${user.identity_id}`, action: 'supplier_settlement.create', resource: 'settlement', resourceId: String(r.rows[0].id), result: 'success', detail: { supplier_id: supplierId, po_id, status: 'pending' }, gmbs: { flag: true, category: 'settlement', amount: Number(amount) || 0 } }, user.orgId,);
+
     res.json({ success: true, data: r.rows[0] });
   } catch (err) {
     next(err);
