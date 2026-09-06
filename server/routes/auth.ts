@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { oasLogin, verifyOASToken, toBoothUser, getOASConfigStatus, isOASAuthReady, oasDevToken, type BoothUser } from '../services/oas-client.js';
 import { emitAudit } from '../services/audit-service.js';
+import { AUTH_OPEN, buildAnonymousUser } from '../auth.js';
 
 const router = Router();
 
@@ -193,7 +194,10 @@ router.post('/dev-token', async (req, res, next) => {
  * GET /oas-status —— OAS 配置状态 (R7-DEF: 增加 authReady/failClosed)
  */
 router.get('/oas-status', (_req, res) => {
-  res.json({ success: true, data: getOASConfigStatus() });
+  const base = getOASConfigStatus();
+  // [OAS-OPEN-DEV-01] 开发期匿名放行状态 + 匿名会话 (前端守卫探测用)
+  const authOpen = AUTH_OPEN;
+  res.json({ success: true, data: { ...base, authOpen, ...(authOpen ? { anonymousUser: buildAnonymousUser() } : {}) } });
 });
 
 /**

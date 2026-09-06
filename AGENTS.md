@@ -91,6 +91,13 @@ src/
 - **落点约定**：订单模型实施时预留 `order_family` 字段（枚举 C/D/Y/H/E/T），随订单模块迭代落地，验收=订单能正确标注归属族
 - **Booth 归属预判**：`booth_fulfillments` 供给契约（Shop 供货履约）→ **Order-E 通货供给**；FAB/WH 内部工单为执行单，若构成对外技术支撑订单 → **Order-T**（实施时判定）；禁止再用 Order-D 表示技术订单
 
+## 开发期认证开关（OAS-OPEN-DEV-01）
+- **开关**：环境变量 `OAS_AUTH_ENABLED`——未配置/任何非 `false` 值 = **认证启用**（安全默认，漏配不裸奔）；仅显式 `OAS_AUTH_ENABLED=false` 时关闭
+- **关闭态行为**：`requireAuth`/`requireRole`/`requireHat` 全部放行；无有效 token 的请求挂 `buildAnonymousUser()`（du 角色+全帽+orgMode='du'，`source:'oas'` 等价店主视图），带合法 OAS token 仍挂真实 user；fail-closed(503) 同步跳过
+- **前端**：`App.tsx` RequireAuth 守卫无 token 时探测 `GET /api/booth/auth/oas-status`——`authOpen:true` 则以返回的 `anonymousUser` 建立匿名会话（token 哨兵 `dev-open`）进入页面；`authOpen:false` 跳登录页
+- **恢复（内测）**：部署 env 移除 `OAS_AUTH_ENABLED=false`（或改 true）并重启即恢复 RS256 认证，前端匿名入口自动消失，零代码改动
+- **不受影响**：dev-token PROD 404 红线、`/events/*` 事件签名验签、SSE/health
+
 ## 统一登录与事件契约（BOOTH-R7）
 - **统一登录 [R7-01]**：Booth 仅信任 OAS AMS 签发的 RS256 JWT（iss=ziway-oas）。公钥来源两级：`OAS_PUBLIC_KEY`（SPKI PEM，支持 \n 转义）**显式配置优先**；未配置时启动自动从 `${OAS_BASE_URL}/.well-known/jwks.json` **JWKS 发现**（日志 `[AUTH] OAS public key discovered via JWKS`）。两者皆无 → **fail-closed**：启动 FATAL 日志 + 所有需登录接口 503 `AUTH_NOT_READY`（health 不受影响）。legacy 本地账号/jwt 自签/test-mode 全部移除，138 本地测试账号不可用（OAS AMS 未同步），验收口径为 OAS 五角色 admin/operator/customer/viewer/em × test123，映射 SU→du / AU→dx / CU→exx / GU→dxx / EM→em，exx 依赖角色默认帽子（CU→[FAB]）。登录返回 user 含 orgMode（du 价格可见性依赖）
 - **DEV 临时令牌 [AUTH-02]**：`POST /api/booth/auth/dev-token`（`COZE_PROJECT_ENV=PROD` 时 404）→ 代理 OAS `POST /api/v1/auth/dev-token`（body: username?/role?/expires_minutes?，默认 30min 上限 60）→ **生成立即本地 RS256 验签 + toBoothUser 角色映射** → 返回 `{token, user, expires_at, oas}`。前端 Login 页 DEV-only 入口（`import.meta.env.DEV`，生产构建 tree-shake 移除），生成成功写入本地登录态免复制。Booth 侧不自行实现签发逻辑。OAS 平台=62j75kfyn3.coze.site（`OAS_BASE_URL` 部署配置需同步）

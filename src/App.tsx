@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store';
 import SSEListener from './components/SSEListener';
@@ -94,10 +94,35 @@ import EmployeeManagement from './pages/du/EmployeeManagement';
 import WarehouseDashboard from './pages/du/WarehouseDashboard';
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { token, user } = useAuthStore();
+  const { token, user, applySession } = useAuthStore();
   const location = useLocation();
+  const [devProbe, setDevProbe] = useState<'pending' | 'open' | 'closed'>('pending');
+
+  // [OAS-OPEN-DEV-01] 开发期匿名放行探测: 无会话时问后端认证是否处于开放模式
+  useEffect(() => {
+    if (token) return;
+    let alive = true;
+    fetch('/api/booth/auth/oas-status')
+      .then((r) => r.json())
+      .then((d) => {
+        const body = d?.data ?? d;
+        if (alive && body?.authOpen && body?.anonymousUser) {
+          applySession('dev-open', body.anonymousUser);
+          setDevProbe('open');
+        } else if (alive) {
+          setDevProbe('closed');
+        }
+      })
+      .catch(() => {
+        if (alive) setDevProbe('closed');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token, applySession]);
 
   if (!token) {
+    if (devProbe === 'pending') return null;
     return <Navigate to="/login" replace />;
   }
 

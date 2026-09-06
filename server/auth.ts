@@ -19,6 +19,34 @@ export interface AuthedRequest extends Request {
 }
 
 /**
+ * [OAS-OPEN-DEV-01] 开发期认证放行开关:
+ *  - 仅当环境变量 OAS_AUTH_ENABLED 显式 = 'false' 时关闭认证 (默认 true, 安全默认: 漏配 = 认证开)
+ *  - 关闭时: requireAuth 匿名放行 (带合法 OAS token 仍解析挂真实身份; 无/无效 token 挂开发匿名身份 du+全帽)
+ *            requireRole / requireHat 全部短路放行
+ *  - 内测恢复: 部署 env 移除 OAS_AUTH_ENABLED 或设为任意非 'false' 值, 重启即恢复 RS256 认证, 零代码改动
+ */
+export const AUTH_OPEN = String(process.env.OAS_AUTH_ENABLED ?? 'true').trim().toLowerCase() === 'false';
+
+/** 开发期匿名身份: 等价 du 角色 + 全帽子, 保证所有 handler 对 req.user 的读取不崩、页面开发视图完整 */
+export function buildAnonymousUser(): BoothUser {
+  return {
+    userId: 0,
+    identity_id: 'dev-anonymous',
+    name: '(开发期匿名)',
+    role: 'du',
+    roleKey: 'du',
+    subRole: 'du',
+    hats: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
+    orgId: 1,
+    orgMode: 'du',
+    edition: null,
+    nhiFlag: false,
+    ms_access: [],
+    source: 'oas',
+  };
+}
+
+/**
  * 统一认证入口:
  *  1. telemetry 内部通道 (X-Telemetry-Key)
  *  2. OAS RS256 JWT (Authorization: Bearer / x-oas-token / SSE query token)
@@ -27,6 +55,23 @@ export interface AuthedRequest extends Request {
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
   if (req.headers['x-telemetry-key'] === TELEMETRY_KEY) {
     req.telemetry = true;
+    return next();
+  }
+
+  // [OAS-OPEN-DEV-01] 开发期放行: 合法 OAS token 挂真实身份, 否则匿名 du 全帽
+  if (AUTH_OPEN) {
+    const header0 = req.headers.authorization;
+    const token0 = header0?.startsWith('Bearer ')
+      ? header0.slice(7)
+      : ((req.headers['x-oas-token'] as string) || (req.query.token as string) || '');
+    if (token0 && isOASAuthReady()) {
+      const v0 = verifyOASToken(token0);
+      if (v0.ok) {
+        req.user = toBoothUser(v0.payload, Number(v0.payload.org_id ?? v0.payload.orgId ?? 1) || 1);
+        return next();
+      }
+    }
+    req.user = buildAnonymousUser();
     return next();
   }
 
@@ -67,6 +112,8 @@ const ROLE_ORG_MAP: Record<string, number> = { dm: 1, du: 1, dx: 1, dxx: 1, ex: 
 
 export function requireRole(...allowed: string[]) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
+    // [OAS-OPEN-DEV-01] 开发期放行
+    if (AUTH_OPEN) return next();
     try {
       const user = req.user;
       if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
@@ -99,6 +146,8 @@ export async function requireWriteAccess(req: AuthedRequest, res: Response, next
 /** 帽子校验 (执行端 FAB/WH 等); OAS ms_access 无匹配时已在 toBoothUser 按角色兜底 */
 export function requireHat(hat: string) {
   return async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    // [OAS-OPEN-DEV-01] 开发期放行
+    if (AUTH_OPEN) return next();
     if (req.telemetry) return next();
     const user = req.user;
     if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
