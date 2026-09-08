@@ -326,6 +326,54 @@ CREATE INDEX IF NOT EXISTS idx_production_tasks_order ON booth_production_tasks 
 CREATE INDEX IF NOT EXISTS idx_production_tasks_status ON booth_production_tasks (org_id, status);
 CREATE INDEX IF NOT EXISTS idx_production_tasks_wo ON booth_production_tasks (work_order_id) WHERE work_order_id IS NOT NULL;
 
+-- ====== [BOOTH-PRD-003] 四铺拆单闭环（阶段一 P0 核心）：工单反挂任务 / 工艺 / 凭证 / 供给单据骨架 ======
+-- 工单 ← 四铺拆单反挂: 一个任务按铺规则可拆 N 张工单(RD N工序=N工单/DL 2点×2维度), 经 production_task_id 关联
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS production_task_id BIGINT REFERENCES booth_production_tasks(id);
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS split_source TEXT;   -- 双来源(MF-002): self_made 自产 / outsource 外发
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS step_name TEXT;      -- 工序名(RD 工序/DL 分拣·配送/SP 简化)
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS dimension TEXT;      -- 配送维度(DL-001): sorting 分拣 / delivery 配送
+CREATE INDEX IF NOT EXISTS idx_work_orders_production_task ON booth_work_orders (production_task_id) WHERE production_task_id IS NOT NULL;
+
+-- 研发铺工艺表 (RD-001/004/005): 菜品匹配工艺 → steps 有序工序 → N 工序=N 工单
+CREATE TABLE IF NOT EXISTS booth_crafts (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  craft_code TEXT NOT NULL,
+  craft_name TEXT NOT NULL,
+  product_name TEXT NOT NULL,               -- 匹配生产单 items[].name
+  steps JSONB NOT NULL DEFAULT '[]'::jsonb, -- [{seq:1,name:'需求分析'},...]
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (org_id, craft_code)
+);
+CREATE INDEX IF NOT EXISTS idx_crafts_org_product ON booth_crafts (org_id, product_name);
+
+-- 凭证表 (G-005): 工单凭证上传 → 完成状态自动联动
+CREATE TABLE IF NOT EXISTS booth_work_order_evidences (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  work_order_id BIGINT NOT NULL REFERENCES booth_work_orders(id) ON DELETE CASCADE,
+  evidence_type TEXT NOT NULL DEFAULT 'photo',  -- photo/label/report
+  url TEXT NOT NULL,
+  note TEXT,
+  uploaded_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_evidences_wo ON booth_work_order_evidences (work_order_id);
+
+-- 供给铺三类单据骨架 (SP-002): 出入库/调拨/盘点按需登记, 完整出入库流为 P2 边界(仅登记不开发)
+CREATE TABLE IF NOT EXISTS booth_stock_docs (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  work_order_id BIGINT REFERENCES booth_work_orders(id) ON DELETE SET NULL,
+  doc_type TEXT NOT NULL CHECK (doc_type IN ('inbound','outbound','transfer','stocktake')),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_stock_docs_org ON booth_stock_docs (org_id, doc_type);
+
 -- ====== [BOOTH-PRD-002] 铺面管理+权限（阶段一）：供应铺 / 订单类型字典 / 生产单类型列 ======
 ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'self_made';
 CREATE TABLE IF NOT EXISTS booth_supply_shops (

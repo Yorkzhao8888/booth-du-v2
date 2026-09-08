@@ -183,6 +183,81 @@ router.post('/fab/work-orders/:id/complete', requireHat('FAB'), async (req, res,
   }
 });
 
+// ==================== G-005 凭证联动 (BOOTH-PRD-003) ====================
+
+// GET /fab/work-orders/:id/evidences — 凭证列表
+router.get('/fab/work-orders/:id/evidences', requireHat('FAB'), async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const r = await pool.query(
+      `SELECT id, work_order_id, evidence_type, url, note, uploaded_by, created_at
+       FROM booth_work_order_evidences WHERE work_order_id = $1 ORDER BY id ASC`,
+      [id]
+    );
+    res.json({ success: true, data: r.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /fab/work-orders/:id/evidences — 上传凭证 → 满足条件自动流转至 completed（无需人工二次确认）
+// body: { url*, evidenceType?, note? }
+router.post('/fab/work-orders/:id/evidences', requireHat('FAB'), async (req, res, next) => {
+  try {
+    // @ts-ignore
+    const user = req.user as JwtPayload;
+    const id = parseInt(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ success: false, error: 'invalid work order id', code: 'INVALID_ID' });
+    }
+    const body: any = req.body || {};
+    const url = String(body.url || '').trim();
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'url is required', code: 'MISSING_URL' });
+    }
+    const evidenceType = String(body.evidenceType || 'photo');
+
+    const woRes = await pool.query(`SELECT * FROM booth_work_orders WHERE id = $1`, [id]);
+    if (woRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Work order not found', code: 'NOT_FOUND' });
+    }
+    const wo = woRes.rows[0];
+    if (wo.status === 'completed') {
+      return res.status(400).json({ success: false, error: 'Work order already completed', code: 'INVALID_STATE' });
+    }
+
+    const ins = await pool.query(
+      `INSERT INTO booth_work_order_evidences (org_id, work_order_id, evidence_type, url, note, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [wo.org_id, id, evidenceType, url, body.note ?? null, String(user.identity_id || user.userId || 'unknown')]
+    );
+
+    // [G-005 BDD-07] 凭证上传 → 状态自动推进: pending→accepted→preparing→completed (无需人工二次确认)
+    // 轻量推进至 preparing（PRD-003 拆单工单无 BOM, 不触发库存扣减）, completed 经 completeWorkOrder 走完整回传链
+    let completed: any = null;
+    if (wo.status !== 'preparing') {
+      await pool.query(
+        `UPDATE booth_work_orders
+         SET status = 'preparing',
+             accepted_at = COALESCE(accepted_at, NOW()),
+             started_at = COALESCE(started_at, NOW()),
+             operator_id = CASE WHEN $1 > 0 AND EXISTS (SELECT 1 FROM booth_users WHERE id = $1) THEN COALESCE(operator_id, $1) ELSE operator_id END,
+             progress = GREATEST(COALESCE(progress, 0), 10)
+         WHERE id = $2`,
+        [Number(user.userId) || 0, id]
+      );
+    }
+    completed = await completeWorkOrder(id, user.userId);
+
+    res.json({ success: true, data: { evidence: ins.rows[0], workOrder: completed, autoCompleted: true } });
+  } catch (err: any) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ success: false, error: err.error, code: err.code });
+    }
+    next(err);
+  }
+});
+
 // ==================== WH Routes (require WH hat) ====================
 
 // GET /wh/inventory - minimal fields

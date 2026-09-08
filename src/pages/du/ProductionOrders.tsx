@@ -5,7 +5,7 @@
  * - 事件接线: issued.v1 / packed.v1 触发点归 IMPL-001, 详情侧展示映射关系
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Badge, Button, Descriptions, Drawer, Space, Table, Tag, Tooltip, message } from 'antd';
+import { Alert, Badge, Button, Descriptions, Drawer, Modal, Space, Table, Tag, Tooltip, message } from 'antd';
 import { ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { apiGet, apiPost } from '../../api';
 
@@ -17,8 +17,12 @@ const PROD_STATUS_META: Record<string, { label: string; color: string }> = {
   exception: { label: '异常', color: 'error' },
 };
 
+// [BOOTH-PRD-002 裁定] 四铺枚举: 研发(rd)/制造(manufacture)/配送(delivery)/供给(supply)
 const TASK_TYPE_META: Record<string, string> = {
+  rd: '研发铺',
   manufacture: '制造铺',
+  delivery: '配送铺',
+  supply: '供给铺',
   intelligent: '智造铺',
   service: '服务铺',
   goods: '商品铺',
@@ -65,9 +69,26 @@ interface TaskRow {
   expected_delivery_at: string | null;
 }
 
+// [BOOTH-PRD-003] 拆单工单（反挂任务, 一个任务 N 张）
+interface SplitWorkOrderRow {
+  id: number;
+  work_order_no: string;
+  product_name: string;
+  qty: number;
+  status: string;
+  progress: number;
+  step_name: string | null;
+  dimension: string | null;
+  split_source: string | null;
+  production_task_id: number | null;
+  evidence_count: number;
+  completed_at: string | null;
+}
+
 interface DetailResp {
   productionOrder: ProductionOrderRow & { items: unknown };
   tasks: TaskRow[];
+  workOrdersByTask?: Record<string, SplitWorkOrderRow[]>;
 }
 
 // [PM-002] MVP 订单类型三类
@@ -115,6 +136,68 @@ export default function ProductionOrders() {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  // [BOOTH-PRD-003 G-005] 凭证上传 → 工单状态自动流转 completed（无需人工二次确认）
+  const [evidenceModal, setEvidenceModal] = useState<{ open: boolean; wo: SplitWorkOrderRow | null; url: string; evidenceType: string }>({ open: false, wo: null, url: '', evidenceType: 'photo' });
+  const [uploading, setUploading] = useState(false);
+
+  const submitEvidence = async () => {
+    if (!evidenceModal.wo) return;
+    if (!evidenceModal.url.trim()) {
+      message.warning('请填写凭证 URL（图片/标签/报告链接）');
+      return;
+    }
+    setUploading(true);
+    try {
+      await apiPost(`/exx/fab/work-orders/${evidenceModal.wo.id}/evidences`, {
+        url: evidenceModal.url.trim(),
+        evidenceType: evidenceModal.evidenceType,
+        note: 'PRD-003 走查凭证',
+      });
+      message.success(`凭证已上传, 工单 ${evidenceModal.wo.work_order_no} 已自动完成回传（packed.v1）`);
+      setEvidenceModal({ open: false, wo: null, url: '', evidenceType: 'photo' });
+      if (detail?.productionOrder) await openDetail(detail.productionOrder.id);
+    } catch (e: unknown) {
+      message.error(e instanceof Error ? e.message : '凭证上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const renderWorkOrdersOfTask = (taskId: number, linkedWoId: number | null, linkedWoNo: string | null, linkedWoStatus: string | null) => {
+    const wos = detail?.workOrdersByTask?.[String(taskId)] || [];
+    // 兼容旧单挂接（link-work-order 既有路径）
+    if (wos.length === 0 && linkedWoId) {
+      return (
+        <span>
+          {linkedWoNo || `#${linkedWoId}`}
+          {linkedWoStatus ? (
+            <Tag style={{ marginLeft: 6 }} color={linkedWoStatus === 'completed' ? 'success' : 'processing'}>{linkedWoStatus}</Tag>
+          ) : null}
+        </span>
+      );
+    }
+    if (wos.length === 0) return <Tag>待拆分（四铺拆单点）</Tag>;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {wos.map((w) => (
+          <div key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <code style={{ fontSize: 12 }}>{w.work_order_no}</code>
+            {w.step_name ? <Tag color="geekblue">{w.step_name}</Tag> : null}
+            {w.dimension ? <Tag color={w.dimension === 'sorting' ? 'orange' : 'cyan'}>{w.dimension === 'sorting' ? '分拣' : '配送'}</Tag> : null}
+            {w.split_source ? <Tag color="purple">{w.split_source === 'outsource' ? '外发' : '自产'}</Tag> : null}
+            <Tag color={w.status === 'completed' ? 'success' : 'processing'}>{w.status === 'completed' ? '已完成' : '进行中'}</Tag>
+            <span style={{ color: '#999', fontSize: 12 }}>凭证 {w.evidence_count}</span>
+            {w.status !== 'completed' ? (
+              <Button size="small" type="link" onClick={() => setEvidenceModal({ open: true, wo: w, url: '', evidenceType: 'photo' })}>
+                凭证上传
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const runEvaluate = async () => {
@@ -193,21 +276,9 @@ export default function ProductionOrders() {
       },
     },
     {
-      title: '挂接工单',
+      title: '拆单工单链',
       key: 'work_order',
-      render: (_: unknown, r: TaskRow) =>
-        r.work_order_id ? (
-          <span>
-            {r.work_order_no || `#${r.work_order_id}`}
-            {r.work_order_status ? (
-              <Tag style={{ marginLeft: 6 }} color={r.work_order_status === 'completed' ? 'success' : 'processing'}>
-                {r.work_order_status}
-              </Tag>
-            ) : null}
-          </span>
-        ) : (
-          <Tag>待挂接（四铺拆单点）</Tag>
-        ),
+      render: (_: unknown, r: TaskRow) => renderWorkOrdersOfTask(r.id, r.work_order_id, r.work_order_no, r.work_order_status),
     },
     {
       title: '约定交付',
@@ -302,6 +373,31 @@ export default function ProductionOrders() {
             />
           </>
         )}
+        <Modal
+          title={evidenceModal.wo ? `凭证上传 — ${evidenceModal.wo.work_order_no}` : '凭证上传'}
+          open={evidenceModal.open}
+          onCancel={() => setEvidenceModal({ open: false, wo: null, url: '', evidenceType: 'photo' })}
+          onOk={submitEvidence}
+          confirmLoading={uploading}
+          okText="上传并自动完成"
+          cancelText="取消"
+        >
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ color: '#666' }}>凭证类型：</span>
+            {['photo', 'label', 'report'].map((t) => (
+              <Tag.CheckableTag key={t} checked={evidenceModal.evidenceType === t} onChange={() => setEvidenceModal((m) => ({ ...m, evidenceType: t }))}>
+                {t === 'photo' ? '成品照片' : t === 'label' ? '打包标签' : '质检报告'}
+              </Tag.CheckableTag>
+            ))}
+          </div>
+          <input
+            style={{ width: '100%', padding: '6px 10px', border: '1px solid #d9d9d9', borderRadius: 6 }}
+            placeholder="凭证 URL（如 https://... /tmp/photo.jpg）"
+            value={evidenceModal.url}
+            onChange={(e) => setEvidenceModal((m) => ({ ...m, url: e.target.value }))}
+          />
+          <Alert style={{ marginTop: 12 }} type="info" showIcon message="G-005 凭证联动：上传后工单状态自动流转至已完成，无需人工二次确认；完成回传 packed.v1 自动触发三级状态聚合。" />
+        </Modal>
       </Drawer>
     </div>
   );

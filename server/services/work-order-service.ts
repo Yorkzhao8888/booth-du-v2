@@ -275,6 +275,7 @@ export async function completeWorkOrder(id: number, userId: number) {
     let shopOrderId: string | null = null;
     let waveNo: string | null = null;
     let contractItems: unknown = null;
+    let productionNo: string | null = null; // [BOOTH-PRD-003] 生产单链路真实 productionNo
     if (wo.fulfillment_id) {
       const fulRes = await client.query(
         'SELECT shop_order_id, wave_no, items FROM booth_fulfillments WHERE id = $1',
@@ -284,6 +285,21 @@ export async function completeWorkOrder(id: number, userId: number) {
         shopOrderId = fulRes.rows[0].shop_order_id;
         waveNo = fulRes.rows[0].wave_no;
         contractItems = fulRes.rows[0].items;
+      }
+    } else if (wo.production_task_id) {
+      // [BOOTH-PRD-003] 四铺拆单链路: 工单 → 任务 → 生产单, productionNo/dxCaseNo/waveNo 单源透传 (BDD-05)
+      const chain = await client.query(
+        `SELECT po.production_no, po.shop_order_id, po.dx_case_no, po.wave_no, po.items
+         FROM booth_production_tasks t
+         JOIN booth_production_orders po ON po.id = t.production_order_id
+         WHERE t.id = $1`,
+        [wo.production_task_id]
+      );
+      if (chain.rows.length > 0) {
+        productionNo = chain.rows[0].production_no;
+        shopOrderId = chain.rows[0].dx_case_no || chain.rows[0].shop_order_id;
+        waveNo = chain.rows[0].wave_no;
+        contractItems = chain.rows[0].items;
       }
     }
 
@@ -301,6 +317,7 @@ export async function completeWorkOrder(id: number, userId: number) {
     );
 
     // [SHOP-CONT-BOOTH] PROD_PACKED: 生产完成打包入库（工单粒度，事务内原子入 outbox）
+    // [BOOTH-PRD-003 BDD-11] packed.v1: productionNo(生产单真实号) + workOrderId + packedAt
     if (shopOrderId) {
       await client.query(
         `INSERT INTO booth_outbox (org_id, event_type, payload)
@@ -310,12 +327,15 @@ export async function completeWorkOrder(id: number, userId: number) {
           TOPIC.PROD_ORDER_PACKED,
           JSON.stringify({
             shopEvent: 'PROD_PACKED',
-            productionNo: wo.work_order_no,
+            productionNo: productionNo || wo.work_order_no,
             dxCaseNo: shopOrderId,
             waveNo,
             productRefs: Array.isArray(contractItems) ? contractItems : [{ sku: wo.product_name, qty: wo.qty, productName: wo.product_name }],
             supplyOrderId: wo.fulfillment_id,
+            productionTaskId: wo.production_task_id,
             workOrderId: id,
+            workOrderNo: wo.work_order_no,
+            stepName: wo.step_name ?? null,
             packedAt: new Date().toISOString(),
             state: 'packed',
           }),
@@ -324,6 +344,23 @@ export async function completeWorkOrder(id: number, userId: number) {
     }
 
     await client.query('COMMIT');
+
+    // [BOOTH-PRD-003] 完成回传: 三级状态自动聚合刷新（工单→任务→生产单, G-007/BDD-18）
+    if (wo.production_task_id) {
+      try {
+        const poRes = await pool.query(
+          `SELECT production_order_id FROM booth_production_tasks WHERE id = $1`,
+          [wo.production_task_id]
+        );
+        const poId = poRes.rows[0]?.production_order_id;
+        if (poId) {
+          const { refreshAggregation } = await import('./state-machine.js');
+          await refreshAggregation(wo.org_id, poId);
+        }
+      } catch (aggErr) {
+        console.error('[work-order-service] aggregation refresh failed', { workOrderId: id, taskId: wo.production_task_id, error: (aggErr as Error)?.message });
+      }
+    }
 
     broadcast(wo.org_id, 'work_order_updated', updated.rows[0]);
     return updated.rows[0];

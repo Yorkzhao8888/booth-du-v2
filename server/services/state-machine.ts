@@ -157,10 +157,13 @@ export async function refreshAggregation(orgId: number, productionOrderId: numbe
     }
     const po = poRes.rows[0];
 
-    // 工单 → 任务 (每个任务按其挂接工单聚合)
+    // 工单 → 任务 (每个任务按其挂接工单聚合; [BOOTH-PRD-003] 兼容反挂 production_task_id 的多工单 + 旧单挂 work_order_id)
     const tasksRes = await client.query(
-      `SELECT t.id, t.status, t.work_order_id,
-              COALESCE((SELECT json_agg(w.status) FROM booth_work_orders w WHERE w.id = t.work_order_id), '[]'::json) AS wo_statuses
+      `SELECT t.id, t.status,
+              COALESCE((
+                SELECT json_agg(w.status) FROM booth_work_orders w
+                WHERE w.org_id = $2 AND (w.production_task_id = t.id OR w.id = t.work_order_id)
+              ), '[]'::json) AS wo_statuses
        FROM booth_production_tasks t
        WHERE t.production_order_id = $1 AND t.org_id = $2`,
       [productionOrderId, orgId]

@@ -24,6 +24,7 @@ import jobRoutes from './routes/job.js';
 import { supplyOrdersRouter, deliveriesRouter } from './routes/supply-order.js'; // BOOTH-PK-02 SupplyOrder 显式契约
 import productionRoutes from './routes/production.js'; // [BOOTH-PRD-001] 契约地基: 生产单聚合实体 + G-007 状态机
 import pmMgmtRoutes from './routes/pm.js'; // [BOOTH-PRD-002] 铺面管理+权限
+import craftsRoutes from './routes/crafts.js'; // [BOOTH-PRD-003] 研发铺工艺管理
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,6 +88,7 @@ app.use('/api/booth/supply-orders', requireAuth, supplyOrdersRouter);
 app.use('/api/booth/deliveries', requireAuth, deliveriesRouter);
 // [BOOTH-PRD-001] 契约地基: 生产单(幂等创建/四铺拆单挂接/G-007 三级状态联动/超期自动判定)
 app.use('/api/booth/production-orders', requireAuth, productionRoutes);
+app.use('/api/booth/crafts', requireAuth, craftsRoutes); // [BOOTH-PRD-003 / RD-004/005] 研发铺工艺管理
 app.use('/api/booth', requireAuth, pmMgmtRoutes); // [BOOTH-PRD-002] 供应铺/订单类型/RBAC
 
 // Production: serve static files and SPA fallback

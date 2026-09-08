@@ -85,6 +85,8 @@ src/
 - `/api/booth/health` — 健康检查
 - `/events/*` — [LINK-01] 内部事件根级别名（与 `/api/booth/internal/events/*` 等价，Shop XBUS 直调）
 - `PUT /api/booth/job/stations/:id/plaz-mapping` — [LINK-01 任务B] Booth↔X-Dyard(Plaz) 站位映射绑定/解绑（du/ex/dx）
+- `/api/booth/crafts` — [PRD-003 RD-005] 工艺管理 CRUD（du/dx/dex；前端 /du/crafts 与 /ex/crafts）
+- `POST /api/booth/exx/fab/work-orders/:id/evidences` — [PRD-003 G-005] 凭证上传→工单自动完成联动（FAB 帽）
 
 ## 订单族编码同步（ORDER-T，2026-09-05 定义 LOCKED）
 六订单族统一编码：Order-C 对客经营 / Order-D 履约经营 / Order-Y 智场工程 / Order-H 人事伙伴 / Order-E 通货供给 / Order-T 技研支撑（技术订单已由 Order-D 重名修正为 **Order-T**，D 仅指履约）。
@@ -106,6 +108,21 @@ src/
 - **RBAC API**：GET /api/booth/rbac/roles（角色链+价格矩阵+DEU 说明）、GET /api/booth/rbac/me（roleKey/isDeuShadow/priceVisible/xExecutorStripped/menuScope）
 - **G-006 三级状态筛选**：GET /api/booth/production-orders?status=&taskStatus=&workOrderStatus=（EXISTS 子查询）
 - **前端**：/du/supply-shops（PM-001）、/du/order-types（PM-002）、/du/roles（PM-004 矩阵）+ ProductionOrders 增强（类型列+三级筛选）
+
+## 四铺拆单闭环（BOOTH-PRD-003，阶段一 P0 核心）
+- **主链路**：订单下发 → 四铺拆单（split-service 按任务铺型路由）→ 工单执行 → 完成回传（packed.v1+三级聚合），承接 PRD-001 生产单实体与 G-007 状态机
+- **四铺规则（BDD-02/09/10）**：`server/services/split-service.ts`
+  - **研发铺 RD-001**：菜品匹配 `booth_crafts`（org+product_name+enabled）→ N 工序=N 工单（steps JSONB 按 seq 升序，step_name=工序名）；无匹配工艺回退单工序「通用研发」
+  - **制造铺 MF-001/002/007**：双来源（split_source=self_made/outsource）、同工序多菜品合并一张工单（product_name='菜B×1、菜C×2'、qty=Σ）、不设工序链
+  - **配送铺 DL-001**：items[].point（缺省'默认点'）分组 × 分拣/配送两维度（dimension=sorting/delivery，step_name=分拣/配送）→ 每点 2 工单
+  - **供给铺 SP-001/002**：简化拆单一任务一工单 + 拆单即登记出库单骨架（`booth_stock_docs` doc_type=outbound，P2 边界仅登记不开发流）
+- **工单挂接**：`booth_work_orders` 新列 production_task_id（反挂多工单）/split_source/step_name/dimension；任务溯源快列 work_order_no=首张工单号；工单号 PROD-yyyyMMdd-NNNN 与 IMPL-001 同序列
+- **G-005 凭证联动（BDD-07）**：`booth_work_order_evidences` 表 + `POST /api/booth/exx/fab/work-orders/:id/evidences`（FAB 帽）→ 凭证入库后轻量推进 pending→preparing → `completeWorkOrder` 走完整回传链（completed+packed.v1+聚合刷新），**无需人工二次确认**；operator_id 带 EXISTS guard（匿名 userId=0 不写 FK）
+- **完成回传（BDD-11/BDD-05）**：completeWorkOrder 双链路——fulfillment_id（IMPL-001 口径不变）/production_task_id（productionNo=生产单真实 production_no，dxCaseNo=dx_case_no||shop_order_id，waveNo 透传）+ workOrderId/workOrderNo/stepName/packedAt；COMMIT 后自动 `refreshAggregation`（工单→任务→生产单）
+- **dispatch 增强**：POST /api/booth/production-orders/:id/dispatch 默认 autoSplit=true（新建任务按铺型规则自动拆单；重放幂等——任务 skipped 不重复拆）；详情 GET /:id 返回 workOrdersByTask 三级链路树
+- **工艺管理 API**：/api/booth/crafts CRUD（GET 列表/POST 创建/PUT /:id/DELETE /:id 停用），角色 du/dx/dex；/du/crafts 与 /ex/crafts 双路由（DEX 工艺管理菜单）
+- **前端**：/du/crafts（/ex/crafts）工艺管理（工序步骤编辑）；ProductionOrders 详情 Drawer 三级链路（订单→任务→工单树+凭证上传入口）
+- **幂等三层**：dispatch 任务级幂等 → splitTaskToWorkOrders 任务已有工单跳过 → 工单号当日序列唯一索引兜底
 
 ## 统一登录与事件契约（BOOTH-R7）
 - **统一登录 [R7-01]**：Booth 仅信任 OAS AMS 签发的 RS256 JWT（iss=ziway-oas）。公钥来源两级：`OAS_PUBLIC_KEY`（SPKI PEM，支持 \n 转义）**显式配置优先**；未配置时启动自动从 `${OAS_BASE_URL}/.well-known/jwks.json` **JWKS 发现**（日志 `[AUTH] OAS public key discovered via JWKS`）。两者皆无 → **fail-closed**：启动 FATAL 日志 + 所有需登录接口 503 `AUTH_NOT_READY`（health 不受影响）。legacy 本地账号/jwt 自签/test-mode 全部移除，138 本地测试账号不可用（OAS AMS 未同步），验收口径为 OAS 五角色 admin/operator/customer/viewer/em × test123，映射 SU→du / AU→dx / CU→exx / GU→dxx / EM→em，exx 依赖角色默认帽子（CU→[FAB]）。登录返回 user 含 orgMode（du 价格可见性依赖）

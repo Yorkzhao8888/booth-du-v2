@@ -55,7 +55,8 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
         { key: '/du/replenishment', label: '智能补货' },
         { key: '/du/suppliers', label: '供应商管理' },
         { key: '/du/fulfillment-track', label: '履约追踪' },
-        { key: '/du/production-orders', label: '生产单全链路' },
+        { key: '/du/production-orders', label: '生产单全链路' }, // [BOOTH-PRD-001]
+        { key: '/du/crafts', label: '工艺管理' }, // [BOOTH-PRD-003 RD-005]
         { key: '/du/supply-shops', label: '供应铺管理' }, // [BOOTH-PRD-002 PM-001]
         { key: '/du/order-types', label: '订单类型配置' }, // [BOOTH-PRD-002 PM-002]
         ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/roles', label: '角色权限' }] : []), // [BOOTH-PRD-002 PM-004]
@@ -66,6 +67,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
       ] : []),
       // dex 自有路由项（/dex/skus、/dex/boms 已在 App.tsx 注册）
       ...(role === 'ex' ? [{ key: '/ex/skus', label: 'SKU管理' }] : []),
+      ...(role === 'ex' ? [{ key: '/ex/crafts', label: '工艺管理' }] : []), // [BOOTH-PRD-003 RD-005]
       ...(role === 'ex' ? [{ key: '/ex/boms', label: 'BOM管理' }] : []),
     ].map(item => ({
       ...item,

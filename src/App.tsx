@@ -30,6 +30,7 @@ import ProductionOrders from './pages/du/ProductionOrders'; // [BOOTH-PRD-001] �
 import SupplyShops from './pages/du/SupplyShops'; // [BOOTH-PRD-002] PM-001 供应铺管理
 import OrderTypes from './pages/du/OrderTypes'; // [BOOTH-PRD-002] PM-002 订单类型配置
 import RbacRoles from './pages/du/RbacRoles'; // [BOOTH-PRD-002] PM-004 角色权限矩阵
+import Crafts from './pages/du/Crafts'; // [BOOTH-PRD-003] RD-005 工艺管理
 // DEX pages
 import ExDashboard from './pages/ex/Dashboard';
 import ExWorkOrders from './pages/ex/WorkOrders';
@@ -215,6 +216,7 @@ const App: React.FC = () => {
           <Route path="supply-shops" element={<ErrorBoundary><SupplyShops /></ErrorBoundary>} />
           <Route path="order-types" element={<ErrorBoundary><OrderTypes /></ErrorBoundary>} />
           <Route path="roles" element={<ErrorBoundary><RbacRoles /></ErrorBoundary>} />
+          <Route path="crafts" element={<ErrorBoundary><Crafts /></ErrorBoundary>} /> {/* [BOOTH-PRD-003] RD-005 */}
           <Route path="inventory-transfer" element={<ErrorBoundary><DuInventoryTransfer /></ErrorBoundary>} />
           <Route path="realtime-dashboard" element={<ErrorBoundary><DuRealtimeDashboard /></ErrorBoundary>} />
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
@@ -297,6 +299,7 @@ const App: React.FC = () => {
           <Route path="stocktakes" element={<ErrorBoundary><ExStocktakeApproval /></ErrorBoundary>} />
           <Route path="capacity" element={<ErrorBoundary><ExCapacityQuery /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><ExSupplyQuotes /></ErrorBoundary>} />
+          <Route path="crafts" element={<ErrorBoundary><Crafts /></ErrorBoundary>} /> {/* [BOOTH-PRD-003] DEX 工艺管理 */}
           {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 exx 组件 */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />

@@ -166,7 +166,25 @@ router.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFu
        ORDER BY t.id`,
       [id, orgId]
     );
-    return res.json({ success: true, data: { productionOrder: po.rows[0], tasks: tasks.rows, eventWiring: STATUS_EVENT_WIRING } });
+    // [BOOTH-PRD-003] 三级链路溯源: 任务 → 全部反挂工单（含凭证计数, BDD-02/05/09/10 链路视图）
+    const taskIds = tasks.rows.map((t: any) => t.id);
+    let workOrdersByTask: Record<number, any[]> = {};
+    if (taskIds.length > 0) {
+      const wos = await pool.query(
+        `SELECT w.id, w.work_order_no, w.product_name, w.qty, w.status, w.progress, w.step_name, w.dimension, w.split_source,
+                w.production_task_id, w.completed_at, w.created_at,
+                (SELECT count(*)::int FROM booth_work_order_evidences e WHERE e.work_order_id = w.id) AS evidence_count
+         FROM booth_work_orders w
+         WHERE w.org_id = $1 AND (w.production_task_id = ANY($2::int[]) OR w.id IN (SELECT work_order_id FROM booth_production_tasks WHERE production_order_id = $3 AND org_id = $1 AND work_order_id IS NOT NULL))
+         ORDER BY w.id`,
+        [orgId, taskIds, id]
+      );
+      for (const w of wos.rows) {
+        const tid = w.production_task_id ?? (tasks.rows.find((t: any) => t.work_order_id === w.id)?.id ?? 0);
+        (workOrdersByTask[tid] = workOrdersByTask[tid] || []).push(w);
+      }
+    }
+    return res.json({ success: true, data: { productionOrder: po.rows[0], tasks: tasks.rows, workOrdersByTask, eventWiring: STATUS_EVENT_WIRING } });
   } catch (err) {
     return next(err);
   }
@@ -240,8 +258,20 @@ router.post('/:id/dispatch', requireAuth, requireRole('du', 'dx', 'dex'), async 
       created.push(ins.rows[0]);
     }
 
-    // 生产单状态推进: 待下发/已下发 → 已下发 (canTransition 校验)
-    const nextStatus = PROD_STATUS.DISPATCHED;
+    // [BOOTH-PRD-003] 四铺拆单引擎: 新建任务按铺型规则自动拆工单（RD N工序=N工单 / MF 合并 / DL 按点×维度 / SP 简化+单据登记）
+    // 幂等: 仅对本次新建任务拆（重放 dispatch 任务 skipped → 不重复拆）; splitTaskToWorkOrders 内部再兜底幂等
+    let workOrders: any[] = [];
+    const autoSplit = (req.body as any)?.autoSplit !== false; // 默认 true
+    if (autoSplit && created.length > 0) {
+      const { splitTaskToWorkOrders } = await import('../services/split-service.js');
+      for (const t of created) {
+        const wos = await splitTaskToWorkOrders(client, orgId, t, order);
+        workOrders.push(...wos);
+      }
+    }
+
+    // 生产单状态推进: 待下发/已下发 → 已下发; [BOOTH-PRD-003] 已拆出工单(执行中) → 进行中 (canTransition 校验)
+    const nextStatus = workOrders.length > 0 ? PROD_STATUS.IN_PROGRESS : PROD_STATUS.DISPATCHED;
     if (canTransition('order', order.status, nextStatus) && order.status !== nextStatus) {
       await client.query(
         `UPDATE booth_production_orders SET status = $1, updated_at = NOW() WHERE id = $2`,
@@ -251,10 +281,10 @@ router.post('/:id/dispatch', requireAuth, requireRole('du', 'dx', 'dex'), async 
     await client.query('COMMIT');
 
     if (created.length > 0) {
-      emitAudit({ actor: authed.user?.identity_id || 'unknown', action: 'production_order.dispatch', resource: 'production_order', resourceId: String(id), result: 'success', detail: { createdTasks: created.length, taskTypes: created.map((c) => c.task_type) } }, orgId);
-      broadcast(orgId, 'production_order_dispatched', { id, createdTasks: created.length });
+      emitAudit({ actor: authed.user?.identity_id || 'unknown', action: 'production_order.dispatch', resource: 'production_order', resourceId: String(id), result: 'success', detail: { createdTasks: created.length, taskTypes: created.map((c) => c.task_type), splitWorkOrders: workOrders.length } }, orgId);
+      broadcast(orgId, 'production_order_dispatched', { id, createdTasks: created.length, splitWorkOrders: workOrders.length });
     }
-    return res.json({ success: true, data: { createdTasks: created.length, tasks: created, skippedTypes: tasks.map((t) => String(t.taskType)).filter((ty) => existingTypes.has(ty)) } });
+    return res.json({ success: true, data: { createdTasks: created.length, tasks: created, skippedTypes: tasks.map((t) => String(t.taskType)).filter((ty) => existingTypes.has(ty)), workOrders, splitTaskIds: created.filter((c) => workOrders.some((w: any) => w.id && c.id)).map((c) => c.id) } });
   } catch (err) {
     await client.query('ROLLBACK');
     return next(err);
