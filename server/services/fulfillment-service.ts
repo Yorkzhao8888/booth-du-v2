@@ -50,6 +50,8 @@ export async function createFromOrderEvent(event: {
     const shopOrderId = String(order.shopOrderId || order.orderId || order.id);
     const items = order.items || [];
     const requiredAt = order.requiredAt || order.expectedAt || null;
+    // [SHOP-CONT-BOOTH] waveNo 透传不解析 (未传则 null), 落库出站原样回传
+    const waveNo = order.waveNo != null && String(order.waveNo).trim() !== '' ? String(order.waveNo) : null;
 
     // [BOOTH-LINK-01] 幂等第二层: 同 shop_order_id 已建单则不重复(不同 event_id 的重复事件)
     const dup = await client.query(
@@ -69,10 +71,10 @@ export async function createFromOrderEvent(event: {
 
     // [BOOTH-LINK-01] 供给单契约口径: contract_status='Created' + source='mall', 与 POST /supply-orders 代录链路一致
     const fulRes = await client.query(
-      `INSERT INTO booth_fulfillments (org_id, shop_order_id, status, items, required_at, contract_status, milestones, quote_snapshot, source, mate_dispatch_status)
-       VALUES ($1, $2, 'pending', $3::jsonb, $4, 'Created', '{}'::jsonb, NULL, 'mall', 'pending')
+      `INSERT INTO booth_fulfillments (org_id, shop_order_id, status, items, required_at, contract_status, milestones, quote_snapshot, source, mate_dispatch_status, wave_no)
+       VALUES ($1, $2, 'pending', $3::jsonb, $4, 'Created', '{}'::jsonb, NULL, 'mall', 'pending', $5)
        RETURNING *`,
-      [orgId, shopOrderId, JSON.stringify(items), requiredAt]
+      [orgId, shopOrderId, JSON.stringify(items), requiredAt, waveNo]
     );
     const ful = fulRes.rows[0];
 

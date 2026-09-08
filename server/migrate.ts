@@ -280,6 +280,11 @@ CREATE TABLE IF NOT EXISTS booth_event_dlq (
 );
 CREATE INDEX IF NOT EXISTS idx_event_dlq_received ON booth_event_dlq (received_at DESC);
 
+-- ====== [SHOP-CONT-BOOTH] 预订日配契约：生产单号 + 波次透传 ======
+ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS work_order_no TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_work_orders_work_order_no ON booth_work_orders (work_order_no) WHERE work_order_no IS NOT NULL;
+ALTER TABLE booth_fulfillments ADD COLUMN IF NOT EXISTS wave_no TEXT;
+
 -- 工单 D：供应商管理 + 结算
 CREATE TABLE IF NOT EXISTS booth_suppliers (
   id SERIAL PRIMARY KEY,
@@ -603,6 +608,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_work_orders_job_id ON booth_work_orders(jo
 CREATE INDEX IF NOT EXISTS idx_work_orders_org_status ON booth_work_orders(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_work_orders_station ON booth_work_orders(station_id);
 CREATE INDEX IF NOT EXISTS idx_work_orders_priority ON booth_work_orders(priority DESC);
+ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS type TEXT;
 CREATE INDEX IF NOT EXISTS idx_stations_org_type ON booth_stations(org_id, type);
 CREATE INDEX IF NOT EXISTS idx_stations_status ON booth_stations(status);
 
@@ -1245,7 +1251,9 @@ export async function migrate() {
          ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS fault_strategy TEXT DEFAULT 'bypass';
          ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS traffic_cap NUMERIC DEFAULT 0;
          ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS bottleneck_rate NUMERIC DEFAULT 0;
-         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS offline_mode BOOLEAN DEFAULT FALSE;`
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS offline_mode BOOLEAN DEFAULT FALSE;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 1;
+         ALTER TABLE booth_stations ADD COLUMN IF NOT EXISTS type TEXT;`
       );
       // 兼容映射: 旧 status → 新 state (online→idle, offline→down, busy→busy)
       await client.query(
@@ -1372,6 +1380,7 @@ export async function migrate() {
         );
       `);
       await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_equipment_org_code ON booth_equipment(org_id, code);`);
+      await client.query(`ALTER TABLE booth_equipment ADD COLUMN IF NOT EXISTS station_id INTEGER;`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_equipment_station ON booth_equipment(station_id);`);
       await client.query(`ALTER TABLE booth_equipment ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();`);
 

@@ -112,3 +112,12 @@ src/
 - **幂等三层**：booth_event_log(event_id) → shop_order_id 查重（skipped）→ 唯一索引 idx_fulfillments_org_shop_order
 - **Mate 派单**（任务C）：供给单创建即写 outbox `cmd.booth.mate.dispatch.v1`，契约 payload：sourceOrderNo/description/expectedAt/reward/assigneeRole=HU；poller 投递至 `MATE_DISPATCH_URL`，成功回写 mate_dispatch_status=dispatched，终败=failed（outbox 重试 10 次后 dead + last_error 留痕）
 - **环境变量**：`MATE_DISPATCH_URL`（Mate 接收端点）、`SHOP_CALLBACK_URL`（Shop 回写端点，既有）、`OAS_AUDIT_URL`（审计上报，[R7-03] 新增）；outbox 按 event_type 路由（含 `.mate.` → Mate / 含 `.audit.` → OAS，带服务账号登录态，401 自动重登一次 / 其余 → Shop），未配置的类别保留 pending 不阻塞
+
+## Shop 生产单回执（SHOP-CONT-BOOTH，2026-09-08 发布）
+- **issued**：供给单 dispatch 拆单（Confirmed→Planning）时点 emit `cmd.booth.prod_order.issued.v1`（Shop 侧 `PO_ISSUED`），落点 `work-order-service.ts` 拆单事务 COMMIT 前
+- **packed**：FAB 工单完成（completeWorkOrder）时点 emit `cmd.booth.prod_order.packed.v1`（Shop 侧 `PROD_PACKED`）
+- **payload 最小集**：productionNo / dxCaseNo（原样回传=shop_order_id）/ waveNo（透传不解析不生成，未传为 null）/ productRefs；扩展 supplyOrderId/issuedAt|packedAt/state
+- **工单号**：`booth_work_orders.work_order_no` = `PROD-<yyyyMMdd>-<NNNN>`（事务内按日计数生成），部分唯一索引 `idx_work_orders_work_order_no`（NULL 不约束历史行）
+- **波次**：`booth_fulfillments.wave_no` 入站建单透传落库，出站原样回传
+- **幂等**：拆单/完成复用既有状态机（重复 complete 400 INVALID_STATE、重复 dispatch 不重复拆单）；Shop 按 productionNo 幂等
+- **迁移**：老库增量跑 `scripts/dev-shop-cont-migrate.cjs`（回滚 `dev-shop-cont-rollback.cjs`）；migrate 主流程 DDL 块已同步（含 booth_stations 补列 type/capacity、booth_equipment 补列 station_id 三处历史存量修复）

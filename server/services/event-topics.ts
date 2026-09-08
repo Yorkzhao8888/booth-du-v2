@@ -24,6 +24,9 @@ export const TOPIC = {
   DELIVERY_CONFIRMED: 'cmd.booth.delivery.confirmed.v1',
   FINANCE_XCASE_OPENED: 'cmd.booth.finance.xcase_opened.v1',
   FINANCE_XCASE_CLOSED: 'cmd.booth.finance.xcase_closed.v1',
+  // pub (SHOP-CONT-BOOTH 预订日配契约: Shop 事件名 PO_ISSUED / PROD_PACKED)
+  PROD_ORDER_ISSUED: 'cmd.booth.prod_order.issued.v1',
+  PROD_ORDER_PACKED: 'cmd.booth.prod_order.packed.v1',
   // sub (Shop 域)
   SHOP_ORDER_CONFIRMED: 'cmd.shop.order.confirmed.v1',
   SHOP_ORDER_CANCELLED: 'cmd.shop.order.cancelled.v1',

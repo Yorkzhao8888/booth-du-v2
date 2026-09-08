@@ -1,5 +1,16 @@
 import { pool } from '../db.js';
 import { broadcast } from '../sse.js';
+import { TOPIC } from './event-topics.js';
+
+// [SHOP-CONT-BOOTH] 生产单编号: PROD-<yyyyMMdd>-<4位流水>（当日序号，UNIQUE 索引兜底防重）
+async function nextProductionNo(client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }): Promise<string> {
+  const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const r = await client.query(
+    `SELECT count(*)::int AS n FROM booth_work_orders WHERE work_order_no LIKE $1`,
+    [`PROD-${ymd}-%`]
+  );
+  return `PROD-${ymd}-${String((r.rows[0]?.n ?? 0) + 1).padStart(4, '0')}`;
+}
 
 // 状态归一化：将新旧状态统一映射
 // 旧 5 态: pending/accepted/preparing/completed/cancelled
@@ -260,15 +271,19 @@ export async function completeWorkOrder(id: number, userId: number) {
       [id]
     );
 
-    // Get fulfillment for shop_order_id
+    // Get fulfillment for shop_order_id / wave_no / items
     let shopOrderId: string | null = null;
+    let waveNo: string | null = null;
+    let contractItems: unknown = null;
     if (wo.fulfillment_id) {
       const fulRes = await client.query(
-        'SELECT shop_order_id FROM booth_fulfillments WHERE id = $1',
+        'SELECT shop_order_id, wave_no, items FROM booth_fulfillments WHERE id = $1',
         [wo.fulfillment_id]
       );
       if (fulRes.rows.length > 0) {
         shopOrderId = fulRes.rows[0].shop_order_id;
+        waveNo = fulRes.rows[0].wave_no;
+        contractItems = fulRes.rows[0].items;
       }
     }
 
@@ -284,6 +299,29 @@ export async function completeWorkOrder(id: number, userId: number) {
         completedAt: new Date().toISOString(),
       })]
     );
+
+    // [SHOP-CONT-BOOTH] PROD_PACKED: 生产完成打包入库（工单粒度，事务内原子入 outbox）
+    if (shopOrderId) {
+      await client.query(
+        `INSERT INTO booth_outbox (org_id, event_type, payload)
+         VALUES ($1, $2, $3)`,
+        [
+          wo.org_id,
+          TOPIC.PROD_ORDER_PACKED,
+          JSON.stringify({
+            shopEvent: 'PROD_PACKED',
+            productionNo: wo.work_order_no,
+            dxCaseNo: shopOrderId,
+            waveNo,
+            productRefs: Array.isArray(contractItems) ? contractItems : [{ sku: wo.product_name, qty: wo.qty, productName: wo.product_name }],
+            supplyOrderId: wo.fulfillment_id,
+            workOrderId: id,
+            packedAt: new Date().toISOString(),
+            state: 'packed',
+          }),
+        ]
+      );
+    }
 
     await client.query('COMMIT');
 
@@ -350,6 +388,14 @@ export async function dispatchFulfillment(
   workOrders: Array<{ productName: string; qty: number; bomId?: number; boms?: WorkOrderBom[] }>,
   orgId: number
 ) {
+  // [SHOP-CONT-BOOTH] 幂等防护: 该供给单已有工单则直接返回现有列表(不重复拆单/不重复签发)
+  const existingWo = await pool.query(
+    `SELECT * FROM booth_work_orders WHERE fulfillment_id = $1 AND org_id = $2 ORDER BY id`,
+    [fulfillmentId, orgId]
+  );
+  if (existingWo.rows.length > 0) {
+    return existingWo.rows;
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -387,11 +433,13 @@ export async function dispatchFulfillment(
         }
       }
 
+      // [SHOP-CONT-BOOTH] 签发生产单: 生成 productionNo 并落工单
+      const productionNo = await nextProductionNo(client);
       const result = await client.query(
-        `INSERT INTO booth_work_orders (org_id, fulfillment_id, product_name, qty, status, boms, progress)
-         VALUES ($1, $2, $3, $4, 'pending', $5, 0)
+        `INSERT INTO booth_work_orders (org_id, fulfillment_id, product_name, qty, status, boms, progress, work_order_no)
+         VALUES ($1, $2, $3, $4, 'pending', $5, 0, $6)
          RETURNING *`,
-        [orgId, fulfillmentId, wo.productName, wo.qty, JSON.stringify(bomsData)]
+        [orgId, fulfillmentId, wo.productName, wo.qty, JSON.stringify(bomsData), productionNo]
       );
       created.push(result.rows[0]);
     }
@@ -417,6 +465,28 @@ export async function dispatchFulfillment(
     // Broadcast each new work order
     for (const wo of created) {
       broadcast(orgId, 'work_order_updated', wo);
+    }
+
+    // [SHOP-CONT-BOOTH] PO_ISSUED（对应 Shop 事件）：Confirmed→Planning 签发生产单事件，每工单一条，Shop 按 productionNo 幂等消费
+    const fulRes0 = await pool.query(
+      `SELECT shop_order_id, wave_no, items FROM booth_fulfillments WHERE id = $1`,
+      [fulfillmentId]
+    );
+    const ful0 = fulRes0.rows[0] ?? {};
+    for (const wo of created) {
+      await pool.query(
+        `INSERT INTO booth_outbox (org_id, event_type, payload) VALUES ($1, $2, $3)`,
+        [orgId, TOPIC.PROD_ORDER_ISSUED, JSON.stringify({
+          shopEvent: 'PO_ISSUED',
+          productionNo: wo.work_order_no ?? null,
+          dxCaseNo: ful0.shop_order_id ?? null,
+          waveNo: ful0.wave_no ?? null,
+          productRefs: (ful0.items as unknown[]) ?? [],
+          supplyOrderId: fulfillmentId,
+          issuedAt: new Date().toISOString(),
+          state: 'planning',
+        })]
+      );
     }
 
     return created;
