@@ -183,27 +183,46 @@ router.put('/order-types/:id', requireAuth, requireWriteAccess, async (req: Auth
 /* ─────────────── PM-004 角色管理 (修正口径) ─────────────── */
 
 /** 生态角色链 + 价格边界矩阵 (BDD-17 权威口径; DEU=DU 分身非独立角色) */
-router.get('/rbac/roles', requireAuth, async (_req: AuthedReq, res: Response, next: NextFunction) => {
+router.get('/rbac/roles', requireAuth, async (req: AuthedReq, res: Response, next: NextFunction) => {
   try {
+    const user = req.user as { roleKey?: string; actingAs?: string; orgId?: number; hats?: string[] } | undefined;
+    // [BUG-20260908-BOOTH-ECO-01 修复] 响应结构与前端 RbacRoles 契约对齐 (chain[].roleKey/ecoName/priceVisible + me)
+    const chain = [
+      { roleKey: 'dm', ecoName: 'DM', layer: 'M-层', priceVisible: true, description: '生态管理 (M 层上游, 只读)' },
+      { roleKey: 'du', ecoName: 'DU', layer: 'M-层', priceVisible: true, description: '店主/履约铺主' },
+      { roleKey: 'dx', ecoName: 'DX', layer: 'X-管理', priceVisible: true, description: '店长' },
+      { roleKey: 'ex', ecoName: 'DEX', layer: 'X-执行', priceVisible: false, description: 'DEX = ex (店-铺长), 全链路不可见售价' },
+      { roleKey: 'exx', ecoName: 'DEXX', layer: 'X-执行', priceVisible: false, description: 'DEXX = exx (铺员), 全链路不可见售价' },
+    ];
+    const roleKey = user?.roleKey || 'du';
+    const self = chain.find((c) => c.roleKey === roleKey);
+    const ecoName = user?.actingAs === 'deu' ? 'DEU (DU 分身)' : self?.ecoName || roleKey.toUpperCase();
+    const priceVisible = canSeePrice(user as never);
+    const hatScope: Record<string, string> = { FAB: 'fab', WH: 'wh', DL: 'dl', SVC: 'svc' };
+    const hats = user?.hats || [];
+    const menuScope =
+      roleKey === 'exx'
+        ? hats.map((h) => hatScope[h]).filter(Boolean)
+        : roleKey === 'ex'
+          ? ['fab', 'wh', 'dl', 'svc']
+          : ['mkt', 'fab', 'wh', 'dl', 'svc'];
+    const dataScope = ['du', 'dx', 'dm'].includes(roleKey)
+      ? `org#${user?.orgId ?? 1} 全域 (M/X 管理层)`
+      : roleKey === 'ex'
+        ? `org#${user?.orgId ?? 1} 履约铺执行域 (DEX, 无价格)`
+        : `org#${user?.orgId ?? 1} 帽子域 [${hats.join('/') || '无'}] (DEXX, 无价格)`;
     res.json({
       success: true,
       data: {
-        chain: [
-          { key: 'dm', name: 'DM', layer: 'M', desc: '生态管理 (M 层上游, 只读)' },
-          { key: 'du', name: 'DU', layer: 'M', desc: '店主/履约铺主' },
-          { key: 'dx', name: 'DX', layer: 'X管理', desc: '店长' },
-          { key: 'dex', name: 'DEX', sysRole: 'ex', layer: 'X执行', desc: '店-铺长' },
-          { key: 'dexx', name: 'DEXX', sysRole: 'exx', layer: 'X执行', desc: '铺员' },
-        ],
-        deuWiring: {
-          type: 'session-alias', // 非独立角色: DU 携 X-Acting-As: deu 以分身身份进入履约铺后台
-          note: 'DEU=DU 履约铺分身, 保留经营决策权(订单下发/审批终审/看板/收入)与价格可见; 系统内不出现 DEU 独立角色',
-        },
-        priceMatrix: {
-          // [价格边界红线] M 层(dm/du) + X 层管理(dx) 可见价格; X 层执行(ex/exx/dxx) 不可见任何价格; DEXX 不可见售价
-          canSeePrice: ['dm', 'du', 'dx'],
-          cannotSeePrice: ['ex(DEX)', 'exx(DEXX)', 'dxx'],
-          deuNote: 'DEU(DU 分身)可见价格',
+        chain,
+        deuExplanation: 'DEU=DU 履约铺分身, 非独立角色 (会话级别名 X-Acting-As: deu); 保留经营决策权 (订单下发/审批终审/看板/收入) 与价格可见; 系统内不出现 DEU 独立角色。',
+        me: {
+          roleKey,
+          ecoName,
+          actingAs: user?.actingAs,
+          priceVisible,
+          menuScope,
+          dataScope,
         },
       },
     });

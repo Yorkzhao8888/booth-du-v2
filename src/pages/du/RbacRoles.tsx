@@ -62,7 +62,7 @@ export default function RbacRoles() {
               <Space key={c.roleKey} size={6}>
                 {i > 0 ? <Text type="secondary">→</Text> : null}
                 <Tag color={LAYER_COLOR[c.layer] || 'default'}>
-                  {c.ecoName} = {c.roleKey}
+                  {c.ecoName || (c.roleKey || '').toUpperCase()} = {c.roleKey}
                 </Tag>
               </Space>
             ))}
@@ -94,20 +94,20 @@ export default function RbacRoles() {
         <Space direction="vertical" size={4}>
           <Space size={8}>
             <Text>身份:</Text>
-            <Tag color="blue">{data.me.ecoName} ({data.me.roleKey})</Tag>
-            {data.me.actingAs === 'deu' ? <Tag color="geekblue">DEU 分身生效中</Tag> : null}
+            <Tag color="blue">{data.me?.ecoName || data.me?.roleKey?.toUpperCase() || '未知'} ({data.me?.roleKey || '-'})</Tag>
+            {data.me?.actingAs === 'deu' ? <Tag color="geekblue">DEU 分身生效中</Tag> : null}
             <Text>价格:</Text>
-            {data.me.priceVisible ? <Tag color="green">可见</Tag> : <Tag color="red">全链路不可见售价</Tag>}
+            {data.me?.priceVisible ? <Tag color="green">可见</Tag> : <Tag color="red">全链路不可见售价</Tag>}
           </Space>
           <div>
             <Text>菜单权限:</Text>{' '}
             <Space size={4} wrap>
-              {data.me.menuScope.map((m) => (
+              {(data.me?.menuScope || []).map((m) => (
                 <Tag key={m}>{m}</Tag>
               ))}
             </Space>
           </div>
-          <Text type="secondary">数据权限: {data.me.dataScope}</Text>
+          <Text type="secondary">数据权限: {data.me?.dataScope || '-'}</Text>
         </Space>
       </Card>
       <Card title="DEU 分身机制 (修正口径落地)" size="small">

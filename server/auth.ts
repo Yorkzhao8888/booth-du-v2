@@ -72,6 +72,9 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
       }
     }
     req.user = buildAnonymousUser();
+    // [BOOTH-PRD-002] 开发期匿名态同样支持 DEU 分身标记 (X-Acting-As: deu, 仅 du 生效)
+    const actingOpen = String(req.headers['x-acting-as'] || '').toLowerCase();
+    if (actingOpen === 'deu' && (req.user as { roleKey?: string }).roleKey === 'du') (req.user as { actingAs?: string }).actingAs = 'deu';
     return next();
   }
 
