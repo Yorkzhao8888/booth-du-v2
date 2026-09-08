@@ -285,6 +285,47 @@ ALTER TABLE booth_work_orders ADD COLUMN IF NOT EXISTS work_order_no TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_work_orders_work_order_no ON booth_work_orders (work_order_no) WHERE work_order_no IS NOT NULL;
 ALTER TABLE booth_fulfillments ADD COLUMN IF NOT EXISTS wave_no TEXT;
 
+-- ====== [BOOTH-PRD-001] 契约地基（阶段零）：生产单聚合实体 + 四铺任务（G-007 状态机 / BDD-19 闭环骨架） ======
+-- 生产单: Shop 订单 → 四铺拆单 → 工单执行 → 完成回传 的聚合载体; productionNo = PROD-yyyyMMdd-4位流水 幂等键
+CREATE TABLE IF NOT EXISTS booth_production_orders (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  production_no TEXT NOT NULL,
+  shop_order_id TEXT NOT NULL,
+  dx_case_no TEXT,
+  wave_no TEXT,
+  order_no TEXT,
+  status TEXT NOT NULL DEFAULT 'pending_dispatch',
+  exception_reason TEXT,
+  expected_delivery_at TIMESTAMPTZ,
+  plaz_point TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(org_id, shop_order_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_production_orders_no ON booth_production_orders (production_no);
+CREATE INDEX IF NOT EXISTS idx_production_orders_status ON booth_production_orders (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_production_orders_delivery ON booth_production_orders (expected_delivery_at) WHERE expected_delivery_at IS NOT NULL;
+
+-- 任务: 生产单按四铺(铺型枚举预留)拆分的执行单元; 经 work_order_id 挂接 IMPL-001 工单(booth_work_orders)
+CREATE TABLE IF NOT EXISTS booth_production_tasks (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  production_order_id INTEGER NOT NULL REFERENCES booth_production_orders(id) ON DELETE CASCADE,
+  task_type TEXT NOT NULL DEFAULT 'manufacture',
+  status TEXT NOT NULL DEFAULT 'pending_split',
+  exception_reason TEXT,
+  work_order_id BIGINT REFERENCES booth_work_orders(id),
+  work_order_no TEXT,
+  expected_delivery_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_production_tasks_order ON booth_production_tasks (production_order_id);
+CREATE INDEX IF NOT EXISTS idx_production_tasks_status ON booth_production_tasks (org_id, status);
+CREATE INDEX IF NOT EXISTS idx_production_tasks_wo ON booth_production_tasks (work_order_id) WHERE work_order_id IS NOT NULL;
+
 -- 工单 D：供应商管理 + 结算
 CREATE TABLE IF NOT EXISTS booth_suppliers (
   id SERIAL PRIMARY KEY,

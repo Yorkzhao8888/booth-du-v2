@@ -26,6 +26,7 @@ import DuFulfillmentTrack from './pages/du/FulfillmentTrack';
 import DuSupplyOrders from './pages/du/SupplyOrders';
 import DuInventoryTransfer from './pages/du/InventoryTransfer';
 import DuRealtimeDashboard from './pages/du/RealtimeDashboard';
+import ProductionOrders from './pages/du/ProductionOrders'; // [BOOTH-PRD-001] 生产单契约地基
 // DEX pages
 import ExDashboard from './pages/ex/Dashboard';
 import ExWorkOrders from './pages/ex/WorkOrders';
@@ -205,6 +206,8 @@ const App: React.FC = () => {
           <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
           {/* BOOTH-PK-02: SupplyOrder 显式契约 (M 层 du/dx) */}
           <Route path="supply-orders" element={<ErrorBoundary><DuSupplyOrders /></ErrorBoundary>} />
+          {/* [BOOTH-PRD-001] 生产单契约地基 (G-007 三级状态联动 / BDD-19 闭环骨架) */}
+          <Route path="production-orders" element={<ErrorBoundary><ProductionOrders /></ErrorBoundary>} />
           <Route path="inventory-transfer" element={<ErrorBoundary><DuInventoryTransfer /></ErrorBoundary>} />
           <Route path="realtime-dashboard" element={<ErrorBoundary><DuRealtimeDashboard /></ErrorBoundary>} />
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />

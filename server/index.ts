@@ -22,6 +22,7 @@ import emRoutes from './routes/em.js';
 import marketRoutes from './routes/market.js';
 import jobRoutes from './routes/job.js';
 import { supplyOrdersRouter, deliveriesRouter } from './routes/supply-order.js'; // BOOTH-PK-02 SupplyOrder 显式契约
+import productionRoutes from './routes/production.js'; // [BOOTH-PRD-001] 契约地基: 生产单聚合实体 + G-007 状态机
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,6 +83,8 @@ app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 J
 // BOOTH-PK-02: SupplyOrder 显式契约 (shop 下单→报价→追踪→签收闭环, 契约载体=booth_fulfillments 方案A)
 app.use('/api/booth/supply-orders', requireAuth, supplyOrdersRouter);
 app.use('/api/booth/deliveries', requireAuth, deliveriesRouter);
+// [BOOTH-PRD-001] 契约地基: 生产单(幂等创建/四铺拆单挂接/G-007 三级状态联动/超期自动判定)
+app.use('/api/booth/production-orders', requireAuth, productionRoutes);
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {

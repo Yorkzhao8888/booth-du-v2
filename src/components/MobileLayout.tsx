@@ -182,6 +182,10 @@ const MobileLayout: React.FC = () => {
           gap: 6,
           borderBottom: '1px solid #f0f0f0',
           height: 48,
+          // [G-001] 移动端滚动独立: Header 吸顶
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
           lineHeight: '48px',
         }}
       >

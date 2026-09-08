@@ -54,6 +54,7 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/du/replenishment', label: '智能补货' },
         { key: '/du/suppliers', label: '供应商管理' },
         { key: '/du/fulfillment-track', label: '履约追踪' },
+        { key: '/du/production-orders', label: '生产单全链路' },
         { key: '/du/inventory-transfer', label: '库存调拨' },
         { key: '/du/realtime-dashboard', label: '实时大屏' },
         { key: '/du/org-chart', label: '组织架构' },
@@ -316,8 +317,9 @@ const AppLayout: React.FC = () => {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={220} style={{ background: '#1F3A5F' }}>
+    // [G-001] 全局布局约束: 滚动独立 —— Header/Sider 固定, Content 独立滚动
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+      <Sider width={220} style={{ background: '#1F3A5F', overflow: 'auto', flexShrink: 0 }}>
         <div style={{ 
           padding: '16px', 
           textAlign: 'center', 
@@ -342,15 +344,16 @@ const AppLayout: React.FC = () => {
           }}
         />
       </Sider>
-      <Layout>
-        <Header style={{ 
-          background: '#FFFFFF', 
-          padding: '0 24px', 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
+      <Layout style={{ minWidth: 0 }}>
+        <Header style={{
+          background: '#FFFFFF',
+          padding: '0 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           borderBottom: '1px solid #E5E9F0',
-          boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)'
+          boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)',
+          flexShrink: 0,
         }}>
           <div style={{ fontSize: '14px', color: '#1F3A5F', fontWeight: 500 }}>
             Booth 供给履约系统
@@ -364,7 +367,8 @@ const AppLayout: React.FC = () => {
             </Dropdown>
           </Space>
         </Header>
-        <Content style={{ margin: '24px', padding: '24px', background: '#FFFFFF', borderRadius: '8px', minHeight: 'auto', boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)' }}>
+        {/* [G-001] 主内容区独立滚动: Header/Sider 不随内容滚动 */}
+        <Content style={{ margin: '24px', padding: '24px', background: '#FFFFFF', borderRadius: '8px', overflow: 'auto', boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)' }}>
           <Outlet />
         </Content>
       </Layout>
