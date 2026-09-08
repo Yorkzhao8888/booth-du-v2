@@ -15,6 +15,8 @@
 | `cmd.booth.finance.xcase_opened.v1` | pub | 业财 XCase 开立 | xcase_id | outbox 重试 10 次 → dead | 内部/财务 |
 | `cmd.booth.finance.xcase_closed.v1` | pub | 业财 XCase 结案（收入/支出汇总入账）；GMBS | xcase_id | outbox 重试 10 次 → dead | 内部/财务 |
 | `cmd.booth.audit.log.v1` | pub | OAS 审计上报（操作者/动作/对象/时间/结果五要素 + GMBS 标记），投递 OAS `POST /api/v1/admin/audit-logs` | actor+action+resource_id+occurred_at | outbox 重试 10 次 → dead | OAS（审计基座） |
+| `cmd.booth.prod_order.issued.v1` | pub | **[SHOP-CONT-BOOTH 拟发布]** 生产单签发（供给单 Confirmed→Planning 时点）；Shop 侧事件名 `PO_ISSUED`；最小 payload：productionNo/dxCaseNo/waveNo/productRefs + 扩展 supplyOrderId/contractNo/issuedAt | production_no | outbox 重试 10 次 → dead | Shop（SHOP-CONT-BOOTH，2026-09-08 对齐） |
+| `cmd.booth.prod_order.packed.v1` | pub | **[SHOP-CONT-BOOTH 拟发布]** 生产完成打包（Delivered 前置节点）；Shop 侧事件名 `PROD_PACKED`；最小 payload 同上 + packedAt/packOperator | production_no | outbox 重试 10 次 → dead | Shop（SHOP-CONT-BOOTH，2026-09-08 对齐） |
 
 ## 订阅（其他 APP → Booth）
 
