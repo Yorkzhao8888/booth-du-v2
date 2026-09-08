@@ -18,6 +18,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+  // [BOOTH-PRD-002 PM-004] DEU 分身: DU 会话期进入履约铺后台时全链路携带分身标记
+  let storedRole = '';
+  try { storedRole = JSON.parse(localStorage.getItem('booth_user') || 'null')?.role || ''; } catch { /* ignore */ }
+  if (storedRole === 'du' && localStorage.getItem('booth-acting-deu')) {
+    headers['X-Acting-As'] = 'deu';
+  }
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 

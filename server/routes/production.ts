@@ -22,8 +22,11 @@ import {
 const router = Router();
 
 // 四铺铺型枚举（PRD v1.0 四铺; 制造铺默认进行中）
-const TASK_TYPES = ['manufacture', 'intelligent', 'service', 'goods'] as const;
+// [BOOTH-PRD-002 裁定] 四铺 = 研发(rd)/制造(manufacture)/配送(delivery)/供给(supply)
+const TASK_TYPES = ['rd', 'manufacture', 'delivery', 'supply'] as const;
 const MANUFACTURE_DEFAULT_STATUS = TASK_STATUS.IN_PROGRESS; // 制造铺默认进行中
+const DEFAULT_TASK_TYPE_BY_ORDER: Record<string, string> = { outsource: 'supply', self_made: 'manufacture', rd_dev: 'rd' }; // BDD-01 类型驱动派发
+const ORDER_TYPES = ['outsource', 'self_made', 'rd_dev'] as const; // [PM-002] MVP 三类=外发/自制/研发 (字典化扩展预留)
 
 /** 生产单编号: PROD-<yyyyMMdd>-<4位流水> (表内按日独立序列, 唯一索引兜底) */
 async function nextProductionOrderNo(client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }): Promise<string> {
@@ -71,8 +74,8 @@ router.post('/', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Reques
     const productionNo = await nextProductionOrderNo(client);
     const ins = await client.query(
       `INSERT INTO booth_production_orders
-         (org_id, production_no, shop_order_id, dx_case_no, wave_no, order_no, status, expected_delivery_at, plaz_point, items)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+         (org_id, production_no, shop_order_id, dx_case_no, wave_no, order_no, status, order_type, expected_delivery_at, plaz_point, items)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
        RETURNING *`,
       [
         orgId,
@@ -82,6 +85,7 @@ router.post('/', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Reques
         body.waveNo ?? null, // waveNo 透传不双源: 原样落库原样回传, 不解析不生成
         body.orderNo ?? null,
         PROD_STATUS.PENDING_DISPATCH,
+        ORDER_TYPES.includes(body.orderType) ? body.orderType : 'self_made', // [PM-002] MVP 三类, 字典化预留
         body.expectedDeliveryAt ? new Date(body.expectedDeliveryAt) : null,
         body.plazPoint ?? null,
         JSON.stringify(Array.isArray(body.items) ? body.items : []),
@@ -113,6 +117,18 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
       params.push(status);
       cond = `AND po.status = $2`;
     }
+    // [G-006] 三级状态筛选: 订单(status) / 任务(taskStatus) / 工单(workOrderStatus)
+    let extra = '';
+    const taskStatus = String((req.query.taskStatus as string) || '');
+    const woStatus = String((req.query.workOrderStatus as string) || '');
+    if (taskStatus) {
+      params.push(taskStatus);
+      extra += ` AND EXISTS (SELECT 1 FROM booth_production_tasks tt WHERE tt.production_order_id = po.id AND tt.status = $${params.length})`;
+    }
+    if (woStatus) {
+      params.push(woStatus);
+      extra += ` AND EXISTS (SELECT 1 FROM booth_production_tasks tt2 JOIN booth_work_orders ww ON ww.id = tt2.work_order_id WHERE tt2.production_order_id = po.id AND ww.status = $${params.length})`;
+    }
     const r = await pool.query(
       `SELECT po.*,
               (SELECT count(*)::int FROM booth_production_tasks t WHERE t.production_order_id = po.id) AS task_count,
@@ -120,7 +136,7 @@ router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunct
               (SELECT count(*)::int FROM booth_production_tasks t WHERE t.production_order_id = po.id AND t.status = 'exception') AS task_exception,
               (expected_delivery_at IS NOT NULL AND expected_delivery_at < NOW() AND status NOT IN ('completed','exception')) AS overdue
        FROM booth_production_orders po
-       WHERE po.org_id = $1 ${cond}
+       WHERE po.org_id = $1 ${cond}${extra}
        ORDER BY po.id DESC
        LIMIT 200`,
       params
@@ -166,9 +182,15 @@ router.post('/:id/dispatch', requireAuth, requireRole('du', 'dx', 'dex'), async 
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const id = Number(req.params.id);
-  const tasks: any[] = Array.isArray((req.body as any)?.tasks) ? (req.body as any).tasks : [];
+  let tasks: any[] = Array.isArray((req.body as any)?.tasks) ? (req.body as any).tasks : [];
   if (tasks.length === 0) {
-    return res.status(400).json({ success: false, error: 'tasks array is required', code: 'MISSING_TASKS' });
+    // [BOOTH-PRD-002 BDD-01] 类型驱动派发: 订单类型 → 字典 default_target_shop_type → 默认主铺任务
+    const poRow = await pool.query('SELECT order_type FROM booth_production_orders WHERE id = $1 AND org_id = $2', [id, orgId]);
+    if (poRow.rows.length === 0) return res.status(404).json({ success: false, error: 'production order not found', code: 'NOT_FOUND' });
+    const ot = String(poRow.rows[0].order_type || 'self_made');
+    const dict = await pool.query('SELECT default_target_shop_type FROM booth_order_types WHERE type_code = $1 AND enabled = true', [ot]);
+    const target = String(dict.rows[0]?.default_target_shop_type || DEFAULT_TASK_TYPE_BY_ORDER[ot] || 'manufacture');
+    tasks = [{ taskType: target }];
   }
   for (const t of tasks) {
     const taskType = String(t.taskType);

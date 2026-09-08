@@ -104,6 +104,9 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   const payload = v.payload;
   const orgId = Number(payload.org_id ?? payload.orgId ?? 1) || 1;
   req.user = toBoothUser(payload, orgId);
+  // [BOOTH-PRD-002] DEU 分身: DU 携 X-Acting-As: deu 进入履约铺后台 (会话级身份, 非独立角色; 保留经营决策权/价格可见)
+  const acting = String(req.headers['x-acting-as'] || '').toLowerCase();
+  if (acting === 'deu' && req.user.roleKey === 'du') req.user.actingAs = 'deu';
   next();
 }
 
@@ -117,7 +120,8 @@ export function requireRole(...allowed: string[]) {
     try {
       const user = req.user;
       if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
-      if (!allowed.includes(user.roleKey)) {
+      const deuAsEx = allowed.includes('ex') && user.roleKey === 'du' && user.actingAs === 'deu'; // DEU 分身可入 DEX(ex) 端
+      if (!allowed.includes(user.roleKey) && !deuAsEx) {
         return res.status(403).json({ success: false, error: `Forbidden: requires ${allowed.join('/')}`, code: 'E_FORBIDDEN' });
       }
       // org 绑定: OAS claim 显式 org_id 优先, 否则按角色默认绑定 Booth org=1
@@ -165,9 +169,21 @@ export { isOASEnabled };
 /** 兼容导出: 旧代码引用名 (R7 重命名后的等价物) */
 export type JwtPayload = BoothUser;
 
+/** [BOOTH-PRD-002 价格红线] X 层执行响应统一剥售价 (前后端双重拦截之数据权限层; DEU 分身豁免) */
+export function stripXExecutorPrices(req: AuthedRequest, res: Response, next: NextFunction) {
+  const originalJson = res.json.bind(res);
+  res.json = (body: unknown) => {
+    if (isXExecutor(req.user as never)) return originalJson(stripSalePriceFields(body));
+    return originalJson(body);
+  };
+  next();
+}
+
 /** [BOOTH-R7] 成本剥离 (价格红线: X 层零价) — 从 oas-client 权威实现转发 */
-import { stripCostFields as _stripCostFields } from './services/oas-client.js';
+import { stripCostFields as _stripCostFields, stripSalePriceFields as _stripSalePriceFields, isXExecutor as _isXExecutor } from './services/oas-client.js';
 export const stripCostFields = _stripCostFields;
+export const stripSalePriceFields = _stripSalePriceFields;
+export const isXExecutor = _isXExecutor;
 
 // [R7-DEF] 以下 legacy 能力已移除: signToken (HS256 自签), signTokenFromOAS (本地换签), LEGACY verify fallback
 // 登录响应直接透传 OAS 原生 access_token (RS256), 见 server/routes/auth.ts

@@ -151,6 +151,35 @@ export function stripCostFields<T>(obj: T): T {
   return strip(obj) as T;
 }
 
+/** [BOOTH-PRD-002 价格红线] X 层执行 (DEX=ex / DEXX=exx / 游客 dxx) 不可见任何售价 — 剥离售价字段 */
+const SALE_PRICE_FIELDS = [
+  'sale_price', 'salePrice', 'selling_price', 'sellingPrice', 'retail_price', 'retailPrice',
+  'list_price', 'listPrice', 'unit_price', 'unitPrice', 'total_price', 'totalPrice',
+  'revenue', 'sales_amount', 'salesAmount', 'order_amount', 'orderAmount',
+];
+
+export function stripSalePriceFields<T>(obj: T): T {
+  function strip(obj: unknown): unknown {
+    if (Array.isArray(obj)) return obj.map(strip);
+    if (obj && typeof obj === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+        if (!SALE_PRICE_FIELDS.includes(key) && !COST_FIELDS.includes(key)) result[key] = strip(value);
+      }
+      return result;
+    }
+    return obj;
+  }
+  return strip(obj) as T;
+}
+
+/** X 层执行判定: ex/exx/dxx 及其请求 (DEU 分身豁免 — DU 保留经营决策权) */
+export function isXExecutor(user?: { roleKey?: string; actingAs?: string } | null): boolean {
+  if (!user) return false;
+  if (user.actingAs === 'deu') return false; // DEU=DU 分身, 保留价格与决策权
+  return ['ex', 'exx', 'dxx'].includes(user.roleKey || '');
+}
+
 /* ─────────────────────────── 登录代理 ─────────────────────────── */
 
 export interface OASLoginResult {
@@ -299,6 +328,7 @@ export interface BoothUser {
   edition: string | null;
   ms_access: string[];
   source: 'oas';
+  actingAs?: string; // [BOOTH-PRD-002] DEU=DU 履约铺分身 (会话级身份, 非独立角色)
 }
 
 /** OAS payload → Booth 会话用户 (角色映射 + 帽子兜底) */

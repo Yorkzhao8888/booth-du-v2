@@ -25,6 +25,7 @@ import {
   ApartmentOutlined,
   CalendarOutlined,
   HeatMapOutlined,
+  DeliveredProcedureOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -33,7 +34,7 @@ const { Header, Sider, Content } = Layout;
 // 五大供给功能域菜单结构
 // MKT 铺子管理 / FAB 制造铺 / WH 仓管铺 / DL 物流铺 / SVC 服务铺
 
-const getMenuItemsByRole = (role: string) => {
+const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   const canSeePrice = ['du', 'dx', 'dm'].includes(role);
   const canWrite = ['du', 'dx', 'dxx', 'ex', 'exx'].includes(role);
   const isReadOnly = role === 'dm';
@@ -55,6 +56,9 @@ const getMenuItemsByRole = (role: string) => {
         { key: '/du/suppliers', label: '供应商管理' },
         { key: '/du/fulfillment-track', label: '履约追踪' },
         { key: '/du/production-orders', label: '生产单全链路' },
+        { key: '/du/supply-shops', label: '供应铺管理' }, // [BOOTH-PRD-002 PM-001]
+        { key: '/du/order-types', label: '订单类型配置' }, // [BOOTH-PRD-002 PM-002]
+        ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/roles', label: '角色权限' }] : []), // [BOOTH-PRD-002 PM-004]
         { key: '/du/inventory-transfer', label: '库存调拨' },
         { key: '/du/realtime-dashboard', label: '实时大屏' },
         { key: '/du/org-chart', label: '组织架构' },
@@ -227,8 +231,15 @@ const getMenuItemsByRole = (role: string) => {
   // 按角色过滤菜单
   const items = [];
 
+  // [BOOTH-PRD-002 PM-004] DEU = DU 履约铺分身 (非独立角色): 分身态菜单 = DEX(ex) 执行视图 + DU 经营决策项
+  if (role === 'du' && actingDeuMode) {
+    items.push(mktItems, fabItems, whItems, dlItems, svcItems);
+    items.push({ key: 'deu-decision', icon: <ShoppingCartOutlined />, label: '经营决策 (DEU)', children: [
+      { key: '/du/production-orders', label: '生产单全链路' },
+    ] });
+  }
   // EM 角色：EM 供应链 + 产线只读监控 (FAB-MES-04-FIX4) + Market
-  if (role === 'em') {
+  else if (role === 'em') {
     items.push(emItems, fabItems, marketItems);
   }
   // DM/DU/DX 可以看到所有五个域 + Market
@@ -241,7 +252,7 @@ const getMenuItemsByRole = (role: string) => {
       // dxx 守卫仅放行 /dxx 与 /exx；收敛后 mkt/wh/dl/svc 对 dxx 均为空组，会被末尾 filter 移除
       { key: 'dxx-home', icon: <DashboardOutlined />, label: '一线经营', children: [{ key: '/dxx', label: '经营首页' }] },
       { ...mktItems, label: 'MKT 铺子（只读）' },
-      { ...whItems, children: whItems.children.filter(i => !['/du/wh/warehouse-dashboard'].includes(i.key)) },
+      { ...whItems, children: whItems.children.filter(i => i.key && !['/du/wh/warehouse-dashboard'].includes(i.key)) },
       dlItems,
       svcItems,
     );
@@ -263,7 +274,11 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const menuItems = getMenuItemsByRole(user?.role || 'du');
+  // [BOOTH-PRD-002] DEU 分身状态 (会话期 localStorage; 菜单与 Header 共用)
+  const actingDeu = user?.role === 'du' && !!localStorage.getItem('booth-acting-deu');
+  const setActingDeu = (v: boolean) => { if (v) localStorage.setItem('booth-acting-deu', '1'); else localStorage.removeItem('booth-acting-deu'); };
+
+  const menuItems = getMenuItemsByRole(user?.role || 'du', actingDeu);
 
   // 找到当前选中的菜单项
   const findSelectedKey = (items: any[]): string => {
@@ -359,7 +374,22 @@ const AppLayout: React.FC = () => {
             Booth 供给履约系统
           </div>
           <Space>
-            <span style={{ color: '#6B7280', fontSize: '13px' }}>{roleLabels[user?.role || 'du']}</span>
+            {/* [BOOTH-PRD-002 PM-004] DEU 分身入口: DU 可切换进入履约铺后台 (保留经营决策权) */}
+            {user?.role === 'du' && (
+              <Button
+                size="small"
+                type={actingDeu ? 'primary' : 'default'}
+                icon={<DeliveredProcedureOutlined />}
+                onClick={() => {
+                  const next = !actingDeu;
+                  setActingDeu(next);
+                                    navigate(next ? '/dex' : '/du');
+                }}
+              >
+                {actingDeu ? '退出履约铺 (回 DU)' : '进入履约铺后台 (DEU)'}
+              </Button>
+            )}
+            <span style={{ color: '#6B7280', fontSize: '13px' }}>{actingDeu && user?.role === 'du' ? 'DEU · DU 分身' : roleLabels[user?.role || 'du']}</span>
             <Dropdown menu={userMenu}>
               <Button type="text" icon={<UserOutlined />} style={{ color: '#1F3A5F' }}>
                 {user?.name || '用户'}

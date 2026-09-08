@@ -326,6 +326,36 @@ CREATE INDEX IF NOT EXISTS idx_production_tasks_order ON booth_production_tasks 
 CREATE INDEX IF NOT EXISTS idx_production_tasks_status ON booth_production_tasks (org_id, status);
 CREATE INDEX IF NOT EXISTS idx_production_tasks_wo ON booth_production_tasks (work_order_id) WHERE work_order_id IS NOT NULL;
 
+-- ====== [BOOTH-PRD-002] 铺面管理+权限（阶段一）：供应铺 / 订单类型字典 / 生产单类型列 ======
+ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'self_made';
+CREATE TABLE IF NOT EXISTS booth_supply_shops (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  shop_type TEXT NOT NULL CHECK (shop_type IN ('rd','manufacture','delivery','supply')),
+  shop_name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+  capabilities JSONB NOT NULL DEFAULT '[]'::jsonb,
+  contact TEXT,
+  remark TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (org_id, shop_type, shop_name)
+);
+CREATE INDEX IF NOT EXISTS idx_supply_shops_org ON booth_supply_shops (org_id, status);
+CREATE TABLE IF NOT EXISTS booth_order_types (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  type_code TEXT NOT NULL,
+  type_name TEXT NOT NULL,
+  default_target_shop_type TEXT CHECK (default_target_shop_type IN ('rd','manufacture','delivery','supply')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  remark TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (org_id, type_code)
+);
+
 -- 工单 D：供应商管理 + 结算
 CREATE TABLE IF NOT EXISTS booth_suppliers (
   id SERIAL PRIMARY KEY,
@@ -1240,6 +1270,34 @@ export async function migrate() {
           [hash]
         );
         console.log('[migrate] Added dx user: 店长 / 13800000004.');
+      }
+
+      // [BOOTH-PRD-002] 订单类型字典种子（MVP 三类: 外发/自制/研发, 类型驱动派发 BDD-01）
+      const otSeed = [
+        { code: 'outsource', name: '外发', target: 'supply', sort: 1 },
+        { code: 'self_made', name: '自制', target: 'manufacture', sort: 2 },
+        { code: 'rd_dev', name: '研发', target: 'rd', sort: 3 },
+      ];
+      for (const t of otSeed) {
+        await client.query(
+          `INSERT INTO booth_order_types (org_id, type_code, type_name, default_target_shop_type, sort_order)
+           VALUES (1, $1, $2, $3, $4) ON CONFLICT (org_id, type_code) DO NOTHING`,
+          [t.code, t.name, t.target, t.sort]
+        );
+      }
+      // [BOOTH-PRD-002] 四铺供应铺种子（研发/制造/配送/供给, PM-001 能力展示数据源 BDD-16）
+      const ssSeed = [
+        { type: 'rd', name: '研发铺' },
+        { type: 'manufacture', name: '制造铺' },
+        { type: 'delivery', name: '配送铺' },
+        { type: 'supply', name: '供给铺' },
+      ];
+      for (const s of ssSeed) {
+        await client.query(
+          `INSERT INTO booth_supply_shops (org_id, shop_type, shop_name)
+           VALUES (1, $1, $2) ON CONFLICT (org_id, shop_type, shop_name) DO NOTHING`,
+          [s.type, s.name]
+        );
       }
 
       // Update exx hats to include all modules

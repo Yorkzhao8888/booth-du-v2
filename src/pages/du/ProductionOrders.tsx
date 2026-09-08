@@ -70,10 +70,15 @@ interface DetailResp {
   tasks: TaskRow[];
 }
 
+// [PM-002] MVP 订单类型三类
+const ORDER_TYPE_LABEL: Record<string, string> = { outsource: '外发', self_made: '自制', rd_dev: '研发' };
+
 export default function ProductionOrders() {
   const [rows, setRows] = useState<ProductionOrderRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string>(''); // [G-006] 任务级筛选
+  const [woStatusFilter, setWoStatusFilter] = useState<string>(''); // [G-006] 工单级筛选
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<DetailResp | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -81,7 +86,11 @@ export default function ProductionOrders() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
+      const ps = new URLSearchParams();
+      if (statusFilter) ps.set('status', statusFilter);
+      if (taskStatusFilter) ps.set('taskStatus', taskStatusFilter); // [G-006]
+      if (woStatusFilter) ps.set('workOrderStatus', woStatusFilter); // [G-006]
+      const qs = ps.toString() ? `?${ps.toString()}` : '';
       const data = await apiGet<ProductionOrderRow[]>(`/production-orders${qs}`);
       setRows(Array.isArray(data) ? data : []);
     } catch (e: unknown) {
@@ -89,7 +98,7 @@ export default function ProductionOrders() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, taskStatusFilter, woStatusFilter]);
 
   useEffect(() => {
     load();
@@ -128,6 +137,7 @@ export default function ProductionOrders() {
       ),
     },
     { title: 'Shop 订单号', dataIndex: 'shop_order_id', width: 170 },
+    { title: '类型', dataIndex: 'order_type', width: 90, render: (v: string | null) => v ? ORDER_TYPE_LABEL[v] || v : '-' },
     { title: '波次', dataIndex: 'wave_no', width: 130, render: (v: string | null) => v || '-' },
     { title: '点位', dataIndex: 'plaz_point', width: 110, render: (v: string | null) => v || '-' },
     {
@@ -230,6 +240,22 @@ export default function ProductionOrders() {
         {['', 'pending_dispatch', 'dispatched', 'in_progress', 'completed', 'exception'].map((s) => (
           <Tag.CheckableTag key={s || 'all'} checked={statusFilter === s} onChange={() => setStatusFilter(s)}>
             {s === '' ? '全部' : PROD_STATUS_META[s]?.label || s}
+          </Tag.CheckableTag>
+        ))}
+      </Space>
+      <Space style={{ marginBottom: 12 }} wrap>
+        {/* [G-006] 三级状态筛选: 任务级 */}
+        <span style={{ color: '#999' }}>任务状态:</span>
+        {['', 'pending_split', 'in_progress', 'completed', 'exception'].map((s2) => (
+          <Tag.CheckableTag key={s2 || 'all-t'} checked={taskStatusFilter === s2} onChange={() => setTaskStatusFilter(s2)}>
+            {s2 === '' ? '全部' : s2 === 'pending_split' ? '待拆分' : s2 === 'in_progress' ? '执行中' : s2 === 'completed' ? '已完成' : '异常'}
+          </Tag.CheckableTag>
+        ))}
+        {/* [G-006] 三级状态筛选: 工单级 */}
+        <span style={{ color: '#999' }}>工单状态:</span>
+        {['', 'in_progress', 'completed', 'exception'].map((s2) => (
+          <Tag.CheckableTag key={s2 || 'all-w'} checked={woStatusFilter === s2} onChange={() => setWoStatusFilter(s2)}>
+            {s2 === '' ? '全部' : s2 === 'in_progress' ? '进行中' : s2 === 'completed' ? '已完成' : '异常'}
           </Tag.CheckableTag>
         ))}
       </Space>

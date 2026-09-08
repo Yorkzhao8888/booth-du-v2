@@ -98,6 +98,15 @@ src/
 - **恢复（内测）**：部署 env 移除 `OAS_AUTH_ENABLED=false`（或改 true）并重启即恢复 RS256 认证，前端匿名入口自动消失，零代码改动
 - **不受影响**：dev-token PROD 404 红线、`/events/*` 事件签名验签、SSE/health
 
+## 铺面管理与权限（BOOTH-PRD-002，阶段一 P0）
+- **四铺枚举（裁定）**：研发(rd)/制造(manufacture)/配送(delivery)/供给(supply)；供应铺表 `booth_supply_shops`（UNIQUE(org,shop_type,shop_name)+capabilities JSONB 为 PM-008 能力展示数据源，GET /:id/capabilities）
+- **订单类型字典**：`booth_order_types`（type_code/type_name/default_target_shop_type/enabled，MVP 三类 outsource外发→supply / self_made自制→manufacture / rd_dev研发→rd）；BDD-01 类型驱动派发：dispatch 缺省 tasks 时按字典映射建主铺任务；`booth_production_orders.order_type` 列随单透传
+- **角色口径（修正）**：链 dm→du→dx→ex(DEX 店-铺长)→exx(DEXX 铺员)；**DEU=DU 履约铺分身**（非独立角色）：请求头 `X-Acting-As: deu` 且 roleKey=du 时挂 actingAs，requireRole('ex') 调用点放行（auth.ts），前端 DU 用户 Header「进入履约铺后台」切换（localStorage booth-acting-deu + api.ts 全链路带 X-Acting-As）
+- **价格红线（BDD-17）**：M 层(dm/du)+X 层管理(dx) 可见价格；X 层执行（ex/exx/dxx）不可见任何售价——`stripSalePriceFields`（oas-client，SALE_PRICE_FIELDS+COST_FIELDS 递归剥离）+ `stripXExecutorPrices` 中间件（index.ts 挂 /api/booth/ex、/api/booth/exx 全部路由，DEU 分身豁免）+ 前端 store canSeeSalePrice=['du','dx','dm']（dxx 已移出）；DEX 建单价格硬编码 0（ex.ts 既有）；dexx 路由价格零输出
+- **RBAC API**：GET /api/booth/rbac/roles（角色链+价格矩阵+DEU 说明）、GET /api/booth/rbac/me（roleKey/isDeuShadow/priceVisible/xExecutorStripped/menuScope）
+- **G-006 三级状态筛选**：GET /api/booth/production-orders?status=&taskStatus=&workOrderStatus=（EXISTS 子查询）
+- **前端**：/du/supply-shops（PM-001）、/du/order-types（PM-002）、/du/roles（PM-004 矩阵）+ ProductionOrders 增强（类型列+三级筛选）
+
 ## 统一登录与事件契约（BOOTH-R7）
 - **统一登录 [R7-01]**：Booth 仅信任 OAS AMS 签发的 RS256 JWT（iss=ziway-oas）。公钥来源两级：`OAS_PUBLIC_KEY`（SPKI PEM，支持 \n 转义）**显式配置优先**；未配置时启动自动从 `${OAS_BASE_URL}/.well-known/jwks.json` **JWKS 发现**（日志 `[AUTH] OAS public key discovered via JWKS`）。两者皆无 → **fail-closed**：启动 FATAL 日志 + 所有需登录接口 503 `AUTH_NOT_READY`（health 不受影响）。legacy 本地账号/jwt 自签/test-mode 全部移除，138 本地测试账号不可用（OAS AMS 未同步），验收口径为 OAS 五角色 admin/operator/customer/viewer/em × test123，映射 SU→du / AU→dx / CU→exx / GU→dxx / EM→em，exx 依赖角色默认帽子（CU→[FAB]）。登录返回 user 含 orgMode（du 价格可见性依赖）
 - **DEV 临时令牌 [AUTH-02]**：`POST /api/booth/auth/dev-token`（`COZE_PROJECT_ENV=PROD` 时 404）→ 代理 OAS `POST /api/v1/auth/dev-token`（body: username?/role?/expires_minutes?，默认 30min 上限 60）→ **生成立即本地 RS256 验签 + toBoothUser 角色映射** → 返回 `{token, user, expires_at, oas}`。前端 Login 页 DEV-only 入口（`import.meta.env.DEV`，生产构建 tree-shake 移除），生成成功写入本地登录态免复制。Booth 侧不自行实现签发逻辑。OAS 平台=62j75kfyn3.coze.site（`OAS_BASE_URL` 部署配置需同步）

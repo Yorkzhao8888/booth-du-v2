@@ -8,12 +8,17 @@ export interface AuthUser {
   hats: string[];
   orgId: number;
   orgMode: string;
+  /** [BOOTH-PRD-002] DEU 分身标记: DU 以分身身份进入履约铺后台 (会话级, 保留经营决策权) */
+  actingAs?: string;
 }
 
 interface AuthState {
   token: string | null;
   user: AuthUser | null;
   loading: boolean;
+  /** [BOOTH-PRD-002] DU 履约铺分身切换 (前端视图层; 后端以 X-Acting-As 头同步) */
+  actingAsDeu: boolean;
+  setActingAsDeu: (on: boolean) => void;
   login: (phone: string, password: string) => Promise<void>;
   logout: () => void;
   hasHat: (hat: string) => boolean;
@@ -32,6 +37,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return raw ? JSON.parse(raw) as AuthUser : null;
   })(),
   loading: false,
+  actingAsDeu: false,
+
+  setActingAsDeu: (on) => set({ actingAsDeu: on }),
 
   login: async (phone: string, password: string) => {
     set({ loading: true });
@@ -65,12 +73,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   canSeePrice: () => {
     const user = get().user;
+    if (!!user && user.actingAs === 'deu') return true; // DEU 分身保留经营决策权
     return !!user && (user.role === 'du' || user.role === 'dx' || user.role === 'dm') && user.orgMode === 'du';
   },
 
   canSeeSalePrice: () => {
     const user = get().user;
-    return !!user && ['du', 'dx', 'dm', 'dxx'].includes(user.role);
+    // [PM-004 红线修正] 仅 M 层(dm/du)+X 层管理(dx) 可见售价; DEX(ex)/DEXX(exx)/dxx 一律不可见; DEU 分身豁免
+    if (!!user && user.actingAs === 'deu') return true;
+    return !!user && ['du', 'dx', 'dm'].includes(user.role);
   },
 
   isReadOnly: () => {

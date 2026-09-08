@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { migrate } from './migrate.js';
 import { startOutboxPoller } from './services/outbox-service.js';
 import { addClient, removeClient, startHeartbeat } from './sse.js';
-import { requireAuth } from './auth.js';
+import { requireAuth, stripXExecutorPrices } from './auth.js';
 import type { JwtPayload } from './auth.js';
 
 import authRoutes from './routes/auth.js';
@@ -23,6 +23,7 @@ import marketRoutes from './routes/market.js';
 import jobRoutes from './routes/job.js';
 import { supplyOrdersRouter, deliveriesRouter } from './routes/supply-order.js'; // BOOTH-PK-02 SupplyOrder 显式契约
 import productionRoutes from './routes/production.js'; // [BOOTH-PRD-001] 契约地基: 生产单聚合实体 + G-007 状态机
+import pmMgmtRoutes from './routes/pm.js'; // [BOOTH-PRD-002] 铺面管理+权限
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,10 +74,11 @@ app.use('/api/booth/du', duRoutes);
 app.use('/api/booth/ex', exRoutes);
 // FIX3: modules 前置(带独立 requireAuth) — exx.ts 的 router.use(requireRole('exx'))
 // 会全局拦截同前缀请求, du/dx/dex 的产线只读 GET 需先经 exx-modules 的 requireFabRead 放行
-app.use('/api/booth/exx', requireAuth, exxModulesRoutes); // /api/booth/exx/fab/*, /wh/*, /dl/*, /svc/*
+app.use('/api/booth/exx', requireAuth, stripXExecutorPrices, exxModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价 // /api/booth/exx/fab/*, /wh/*, /dl/*, /svc/*
 // New module routes
-app.use('/api/booth/ex', exModulesRoutes);  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
-app.use('/api/booth/exx', exxRoutes);
+app.use('/api/booth/ex', stripXExecutorPrices, exModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价
+// DEU 分身入口: DU 以分身身份进入履约铺后台 (仅挂分身标记, 不重复挂 DEX 路由 — 数据权限随用户身份)  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
+app.use('/api/booth/exx', requireAuth, stripXExecutorPrices, exxRoutes); // [BOOTH-PRD-002] X 层执行剥售价
 app.use('/api/booth/em', emRoutes);
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
 app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型)
@@ -85,6 +87,7 @@ app.use('/api/booth/supply-orders', requireAuth, supplyOrdersRouter);
 app.use('/api/booth/deliveries', requireAuth, deliveriesRouter);
 // [BOOTH-PRD-001] 契约地基: 生产单(幂等创建/四铺拆单挂接/G-007 三级状态联动/超期自动判定)
 app.use('/api/booth/production-orders', requireAuth, productionRoutes);
+app.use('/api/booth', requireAuth, pmMgmtRoutes); // [BOOTH-PRD-002] 供应铺/订单类型/RBAC
 
 // Production: serve static files and SPA fallback
 if (process.env.NODE_ENV === 'production') {
