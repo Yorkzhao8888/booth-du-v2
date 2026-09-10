@@ -82,14 +82,15 @@ router.get('/timeline', requireAuth, async (req, res, next) => {
     const user = (req as unknown as { user?: unknown }).user;
     const orgId = resolveOrgId(user);
     const actor = maskContainer(user);
-    const r = await pool.query(
-      `SELECT id, shop_order_id, status, contract_status, source, created_at, completed_at, wave_no
+    // [BOOTH-CONN-02] orderNo 精确过滤 (Market 代理匹配规则 boothOrderNo===order.code): 传参只返回对齐单, 避免全量; 无参数保持全量 (向后兼容)
+    const orderNoFilter =
+      typeof req.query.orderNo === 'string' && req.query.orderNo.trim().length > 0 ? req.query.orderNo.trim() : '';
+    const baseSelect = `SELECT id, shop_order_id, status, contract_status, source, created_at, completed_at, wave_no
          FROM booth_fulfillments
-        WHERE org_id = $1
-        ORDER BY id DESC
-        LIMIT 20`,
-      [orgId],
-    );
+        WHERE org_id = $1`;
+    const r = orderNoFilter
+      ? await pool.query(`${baseSelect} AND shop_order_id = $2 ORDER BY id DESC LIMIT 20`, [orgId, orderNoFilter])
+      : await pool.query(`${baseSelect} ORDER BY id DESC LIMIT 20`, [orgId]);
     const orders: TimelineOrder[] = r.rows.map((row: Record<string, unknown>) => {
       const contractStatus = String(row.contract_status ?? '');
       const status = String(row.status ?? '');

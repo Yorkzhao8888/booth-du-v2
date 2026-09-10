@@ -179,3 +179,5 @@ src/
 - **前端**：components/FulfillmentTimeline.tsx（EventSource 断线自动重连+初始 timeline 拉取+实时追加，variant enterprise/personal 双视角）；工作台嵌入时间线卡
 - **红线遵守**：单向交易隔离未动；价格字段隔离保持（时间线/观察窗无价格字段）；契约单 v1.1 协议未改（本单仅体验层）
 - **验证证据**：V3 SSE 连通+模拟事件 19ms 到达（<3s 阈值）+15s 心跳；timeline 真实回写数据渲染（M2026 订单四节点）；V4 观察窗 iframe 路由 200
+- **timeline orderNo 过滤 [BOOTH-CONN-02]**：`GET /api/booth/fulfillment/timeline?orderNo=xxx` 精确过滤（Market 代理匹配规则 boothOrderNo===order.code，MARKET-CONN-01 消费侧），无参数保持全量向后兼容；新参数不绕过 requireAuth（PROD 模拟无 token 401 已验）
+- **Market 单号对齐样板 [BOOTH-CONN-02]**：migrate 两分支（存量库 NOT EXISTS 幂等/新库初始化）seed `EX-2026-0020` 履约样板（status=in_progress fulfilling 态、contract_status=Created、source=mall），Market 订单详情 matched 端到端四节点；XBUS 真实入站同号单被 idx_fulfillments_org_shop_order 唯一索引+入站查重幂等承接不冲突

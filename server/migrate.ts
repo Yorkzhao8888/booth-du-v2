@@ -1703,6 +1703,23 @@ export async function migrate() {
         console.log(`[migrate] Seeded sku_cost for ${skus.rows.length} SKUs.`);
       }
 
+      // ===== [BOOTH-CONN-02] Market 单号对齐履约样板 (EX-2026-0020: EU→EDU 链路实跑单号, fulfilling 态) =====
+      // Market 订单详情页 (MARKET-CONN-01) 以 boothOrderNo===order.code 匹配 timeline, 需一条与 Market 采购单号
+      // 对齐的 Booth 履约样板才能 matched 展示端到端四节点。幂等 seed: 已存在 (含 XBUS 真实入站同号单) 则跳过。
+      const connSampleCheck = await client.query(
+        `SELECT 1 FROM booth_fulfillments WHERE org_id = 1 AND shop_order_id = $1 LIMIT 1`,
+        ['EX-2026-0020'],
+      );
+      if (connSampleCheck.rowCount === 0) {
+        await client.query(
+          `INSERT INTO booth_fulfillments
+             (org_id, shop_order_id, status, contract_status, source, items, wave_no, created_at)
+           VALUES (1, $1, 'in_progress', 'Created', 'mall', $2::jsonb, NULL, NOW())`,
+          ['EX-2026-0020', JSON.stringify([{ product_name: '知味臻选礼盒 (Market 履约样板)', qty: 2 }])],
+        );
+        console.log('[migrate] BOOTH-CONN-02: seeded EX-2026-0020 fulfillment sample (fulfilling).');
+      }
+
       await client.query('COMMIT');
       console.log('[migrate] Tables verified, seed data already exists.');
       return;
@@ -1809,6 +1826,14 @@ export async function migrate() {
     }
 
     orgModes.set(1, 'du');
+
+    // ===== [BOOTH-CONN-02] 新库初始化分支同样落 Market 单号对齐履约样板 (fulfilling 态) =====
+    await client.query(
+      `INSERT INTO booth_fulfillments
+         (org_id, shop_order_id, status, contract_status, source, items, wave_no, created_at)
+       VALUES (1, 'EX-2026-0020', 'in_progress', 'Created', 'mall',
+               '[{"product_name":"知味臻选礼盒 (Market 履约样板)","qty":2}]'::jsonb, NULL, NOW())`,
+    );
 
     await client.query('COMMIT');
     console.log('[migrate] All tables created and seed data inserted.');
