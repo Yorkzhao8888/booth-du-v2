@@ -12,9 +12,9 @@
  * - 合同/客户完整信息不落 Booth（数据最小化，仅保留必要业务键）
  * - F1 透传失败: 入站异常 → DLQ + 审计; F2 回写失败: outbox 重试→dead+last_error; F3 交付失败: 回执重发端点 + 审计
  */
-import { pool } from '../db';
-import { TOPIC } from './event-topics';
-import { emitAudit } from './audit-service';
+import { pool } from '../db.js';
+import { TOPIC } from './event-topics.js';
+import { emitAudit } from './audit-service.js';
 
 /* ---------- 内部工具 ---------- */
 
@@ -80,7 +80,7 @@ async function createTaskAndSplit(client: any, orgId: number, poId: number, po: 
     [orgId, poId, 'manufacture', 'in_progress', null, null],
   );
   const task = taskRes.rows[0];
-  const { splitTaskToWorkOrders } = await import('./split-service');
+  const { splitTaskToWorkOrders } = await import('./split-service.js');
   const workOrders = await splitTaskToWorkOrders(client, orgId, task, po);
   return { task, workOrders };
 }

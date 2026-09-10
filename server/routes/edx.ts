@@ -8,13 +8,13 @@
  * 组合 2: 交付 XU — 经 X-Market 渠道回执，XU 收货确认后闭环
  */
 import { Router, Request, Response, NextFunction } from 'express';
-import { requireRole } from '../auth';
+import { requireRole } from '../auth.js';
 import {
   issueDeliveryReceipt,
   listDeliveryReceipts,
   listXfactoryProductionOrders,
   resendDeliveryReceipt,
-} from '../services/xfactory-service';
+} from '../services/xfactory-service.js';
 
 const router = Router();
 

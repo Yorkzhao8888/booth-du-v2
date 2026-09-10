@@ -1602,6 +1602,22 @@ export async function migrate() {
       `);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_equipment_log_equip ON booth_equipment_status_log(equipment_id, started_at);`);
 
+      // 存量防御: 早期 MES 建表为旧 schema(next_date/scope/owner), 与现查询(next_due_at/plan_name)漂移 — 检测到旧列则归档重建
+      const mpLegacy = await client.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='booth_maintenance_plans'`
+      );
+      if ((mpLegacy.rowCount ?? 0) > 0) {
+        const mpCols = await client.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='booth_maintenance_plans'`
+        );
+        const colNames = mpCols.rows.map((r: { column_name: string }) => r.column_name);
+        if (colNames.includes('next_date') && !colNames.includes('next_due_at')) {
+          await client.query(`ALTER TABLE booth_maintenance_plans RENAME TO booth_maintenance_plans_legacy_v0`);
+          await client.query(`ALTER INDEX IF EXISTS idx_maintenance_plans_org_status RENAME TO idx_maintenance_plans_legacy_v0`);
+          console.log('[migrate] MES-LEGACY: booth_maintenance_plans 旧 schema 已归档为 booth_maintenance_plans_legacy_v0, 重建新 schema');
+        }
+      }
+
       await client.query(`
         CREATE TABLE IF NOT EXISTS booth_maintenance_plans (
           id SERIAL PRIMARY KEY,

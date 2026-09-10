@@ -6,8 +6,8 @@
  * 边界: 仅登记+可见+可确认下单，不做撮合/合同/结算（P2/P3 边界）
  */
 import { Router, Request, Response, NextFunction } from 'express';
-import { requireRole } from '../auth';
-import { confirmSupplyPurchase, listSupplyPurchases } from '../services/xfactory-service';
+import { requireRole } from '../auth.js';
+import { confirmSupplyPurchase, listSupplyPurchases } from '../services/xfactory-service.js';
 
 const router = Router();
 
