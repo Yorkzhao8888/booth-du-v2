@@ -11,6 +11,7 @@ import { requireAuth, stripXExecutorPrices } from './auth.js';
 import type { JwtPayload } from './auth.js';
 
 import authRoutes from './routes/auth.js';
+import fulfillmentRoutes from './routes/fulfillment.js';
 import internalRoutes from './routes/internal.js';
 import { aliasRouter as internalAliasRoutes } from './routes/internal.js'; // [BOOTH-LINK-01] 根级别名 router (Shop XBUS 直调 /events/*)
 import duRoutes from './routes/du/index.js';   // /api/booth/du 聚合入口 (TECH-DEBT-4)
@@ -72,6 +73,8 @@ app.get('/api/booth/stream', requireAuth, (req, res) => {
 
 // Mount routes
 app.use('/api/booth/auth', authRoutes);
+// [BOOTH-CONN-01] Market 观察窗配套: SSE 履约推送 + 全链路时间线
+app.use('/api/booth/fulfillment', fulfillmentRoutes);
 app.use('/api/booth/internal', internalRoutes);
 app.use('/events', internalAliasRoutes);         // [BOOTH-LINK-01] 根级别名: Shop XBUS 直调 /events/order-confirmed (与 /api/booth/internal/events 等价)
 // /api/booth/du 聚合挂载: suppliers(前置)/核心看板/purchase-orders/dl+svc+profit+wh+fabqc/supply

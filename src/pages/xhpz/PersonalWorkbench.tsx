@@ -1,12 +1,19 @@
 import React from 'react';
 import { Card, Col, Row, Tag, Typography, message } from 'antd';
 import {
+  EyeOutlined,
+  ExportOutlined,
   ArrowRightOutlined,
   ShoppingOutlined,
   ShopOutlined,
   UserSwitchOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { PortalShell } from '../../components/PortalShell';
+import { FulfillmentTimeline } from '../../components/FulfillmentTimeline';
+
+/** X-Market 线上地址 (BOOTH-CONN-01 观察窗目标) */
+export const MARKET_URL = 'https://fhrrxb4t8g.coze.site';
 
 /**
  * [DUAL-PORTAL-P0 工单三] booth 个人台框架 (#xhpz)
@@ -45,10 +52,11 @@ const MODULES = [
 ];
 
 const PersonalWorkbench: React.FC = () => {
+  const navigate = useNavigate();
   return (
     <PortalShell container="xhpz">
       <Typography.Title level={5} style={{ color: '#fff', margin: '0 0 10px' }}>
-        个人工作台
+        个人工作台 · 客户视图
       </Typography.Title>
       <Row gutter={[12, 12]}>
         {MODULES.map((mod) => (
@@ -77,6 +85,40 @@ const PersonalWorkbench: React.FC = () => {
           </Col>
         ))}
       </Row>
+
+      {/* [BOOTH-CONN-01] CU 消费视角: 浏览货品(内嵌 Market) + 下单入口 */}
+      <Typography.Title level={5} style={{ color: '#fff', margin: '20px 0 10px' }}>
+        逛集市 · X-Market
+      </Typography.Title>
+      <Card
+        style={{ borderRadius: 14, overflow: 'hidden' }}
+        styles={{ body: { padding: 0 } }}
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <EyeOutlined />
+            浏览货品 · Market 集市
+          </span>
+        }
+        extra={
+          <a href={MARKET_URL} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <ExportOutlined /> 新窗口下单
+          </a>
+        }
+      >
+        <iframe
+          src={MARKET_URL}
+          title="X-Market 集市"
+          style={{ width: '100%', height: '58vh', minHeight: 420, border: 'none', display: 'block', background: '#fafafa' }}
+        />
+      </Card>
+
+      {/* [BOOTH-CONN-01] 我的交付: 全链路履约时间线 (客户视角脱敏) */}
+      <Typography.Title level={5} style={{ color: '#fff', margin: '20px 0 10px' }}>
+        我的交付
+      </Typography.Title>
+      <Card style={{ borderRadius: 14 }} styles={{ body: { padding: '14px 16px' } }}>
+        <FulfillmentTimeline variant="personal" title="我的交付时间线" />
+      </Card>
     </PortalShell>
   );
 };

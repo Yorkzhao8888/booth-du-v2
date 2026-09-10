@@ -169,3 +169,11 @@ src/
 - **页面**：components/PortalShell.tsx（轻量顶栏：#容器徽标+帽徽章+切换角色/切换端/退出，375px 友好）、portal/ContainerPortal.tsx、portal/HatSelect.tsx、portal/ForbiddenPage.tsx、xhpz/PersonalWorkbench.tsx（我的消费/我的接单/我的小铺三模块骨架）、xepz/EnterpriseWorkbench.tsx（我的铺子卡片网格+ERP/Space/Station 经营入口占位+X-Supply 采购入口占位）
 - **Login**：goHome → /containers；DEV-only 一键测试登录（dev-token 默认 admin）
 - **已知缺口**：《Booth_双端定义_20260910_v1.0.md》未投递本窗口——容器判定规则/checkPower 端点契约按 P0 合理实现，待契约单校准；企业台铺子网格/个人台三模块为 P0 静态骨架，数据接口 P1 接六版本实例
+
+## Booth↔Market 体验打通（BOOTH-CONN-01，2026-09-10）
+- **容器身份贯穿**：PortalShell 身份卡升级（容器号 #XEPZ/#XHPZ+当前角色帽+产品定位"Booth 履约端"）；企业台=DU 经营视角（供给铺管理 /du/supply-shops、订单履约 /du/production-orders、Market 观察窗入口组）；个人台=CU 客户视图（逛集市内嵌 Market/新窗下单/我的交付）
+- **Market 观察窗**：`/xepz/market-watch`（xepz/MarketWatch.tsx）——iframe 拉取 https://fhrrxb4t8g.coze.site（Tab 切集市首页/订单列表+oas_token 参数透传+新窗兜底），只读观察不改 Market
+- **SSE 履约推送**（server/routes/fulfillment.ts，挂 /api/booth/fulfillment）：GET /stream（EventSource，复用 sse.ts org 总线，15s 专属心跳 : heartbeat-15s，query token 验签支持）+ GET /timeline（booth_fulfillments 回写数据→四节点时间线 Market 下单/供给铺接单(Booth-E)/DU 履约/交付确认，操作方容器号脱敏 XEPZ-****xxxx）+ POST /simulate-event（requireAuth du 系，V3 验收模拟事件源）
+- **前端**：components/FulfillmentTimeline.tsx（EventSource 断线自动重连+初始 timeline 拉取+实时追加，variant enterprise/personal 双视角）；工作台嵌入时间线卡
+- **红线遵守**：单向交易隔离未动；价格字段隔离保持（时间线/观察窗无价格字段）；契约单 v1.1 协议未改（本单仅体验层）
+- **验证证据**：V3 SSE 连通+模拟事件 19ms 到达（<3s 阈值）+15s 心跳；timeline 真实回写数据渲染（M2026 订单四节点）；V4 观察窗 iframe 路由 200

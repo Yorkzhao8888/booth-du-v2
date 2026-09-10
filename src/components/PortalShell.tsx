@@ -10,8 +10,8 @@ import {
 import { useAuthStore } from '../store';
 
 const CONTAINER_META: Record<'xhpz' | 'xepz', { label: string; sub: string; color: string }> = {
-  xhpz: { label: 'Booth 个人版', sub: '个人消费 · 接单 · 小铺', color: 'purple' },
-  xepz: { label: 'Booth 企业版', sub: '铺子经营 · 供给协同', color: 'geekblue' },
+  xhpz: { label: 'Booth 个人版', sub: '客户视图 · 消费与交付 · Booth 履约端', color: 'purple' },
+  xepz: { label: 'Booth 企业版', sub: '经营者视角 · 铺子履约 · Booth 履约端', color: 'geekblue' },
 };
 
 const HAT_LABELS: Record<string, string> = {
@@ -66,6 +66,9 @@ export const PortalShell: React.FC<{
           </div>
         </div>
         <Space wrap size={8} style={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="产品定位: Booth 履约端">
+            <Tag color="gold" style={hatTagStyle}>Booth 履约端</Tag>
+          </Tooltip>
           {hat ? (
             <Tooltip title={`当前视角: ${HAT_LABELS[hat] || hat} (${hat})`}>
               <Tag color="processing" icon={<UserOutlined />} style={hatTagStyle}>
