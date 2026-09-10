@@ -97,6 +97,15 @@ import MarketDashboard from './pages/market/Dashboard';
 import OrgChart from './pages/common/OrgChart';
 import EmployeeManagement from './pages/du/EmployeeManagement';
 import WarehouseDashboard from './pages/du/WarehouseDashboard';
+// [DUAL-PORTAL-P0] 双端容器分流 + 个人台/企业台
+import { ContainerPortal } from './pages/portal/ContainerPortal';
+import { HatSelect } from './pages/portal/HatSelect';
+import { ForbiddenPage } from './pages/portal/ForbiddenPage';
+import { PortalShell } from './components/PortalShell';
+import PersonalWorkbench from './pages/xhpz/PersonalWorkbench';
+import EnterpriseWorkbench from './pages/xepz/EnterpriseWorkbench';
+
+const CONTAINER_PATHS = ['/containers', '/xhpz', '/xepz'];
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user, applySession } = useAuthStore();
@@ -135,6 +144,11 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const role = user.role;
     const path = location.pathname;
 
+    // [DUAL-PORTAL-P0] 容器层路由放行: 分流/帽选择/双端工作台不做角色 home 强制跳转 (容器+帽守卫自行处理)
+    if (CONTAINER_PATHS.some((p) => path.startsWith(p))) {
+      return <>{children}</>;
+    }
+
     // dm can access all routes (read-only)
     if (role === 'dm') {
       // DM can access any route, no redirect needed
@@ -165,6 +179,52 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
   }
 
+  return <>{children}</>;
+};
+
+// [DUAL-PORTAL-P0] 容器层守卫: 单容器账号跨端访问 → 无权限友好页 (不白屏); containers 结果会话内缓存
+const RequireContainer: React.FC<{ container: 'xhpz' | 'xepz'; children: React.ReactNode }> = ({ container, children }) => {
+  const { containers, setContainers } = useAuthStore();
+  const [checked, setChecked] = useState<boolean>(!!containers);
+
+  useEffect(() => {
+    if (containers) {
+      setChecked(true);
+      return;
+    }
+    let alive = true;
+    fetch('/api/booth/auth/containers', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('booth_token') || ''}` },
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const body = d?.data ?? d;
+        if (alive) {
+          setContainers({ xhpz: body?.xhpz !== false, xepz: body?.xepz !== false });
+          setChecked(true);
+        }
+      })
+      .catch(() => {
+        // containers 接口不可达: 会话真实存在则放行, 细粒度权限由后端各接口兜底
+        if (alive) {
+          setContainers({ xhpz: true, xepz: true });
+          setChecked(true);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [containers, setContainers]);
+
+  if (!checked) return null;
+  if (!containers?.[container]) return <ForbiddenPage container={container} />;
+  return <>{children}</>;
+};
+
+// [DUAL-PORTAL-P0] 视角层守卫: 有 token 未选帽 → 角色选择页 (切换角色=回此页重进, 视角状态清空重建)
+const RequireHat: React.FC<{ container: 'xhpz' | 'xepz'; children: React.ReactNode }> = ({ container, children }) => {
+  const hat = useAuthStore((s) => s.hat);
+  if (!hat) return <Navigate to={`/${container}/hats`} replace />;
   return <>{children}</>;
 };
 
@@ -411,6 +471,74 @@ const App: React.FC = () => {
         >
           <Route index element={<ErrorBoundary><MarketDashboard /></ErrorBoundary>} />
         </Route>
+
+        {/* [DUAL-PORTAL-P0] 双端容器: 一键登录后分流页 (#xhpz 个人 / #xepz 企业 / #xopz+#xgpz 预留置灰) */}
+        <Route
+          path="/containers"
+          element={
+            <RequireAuth>
+              <ErrorBoundary>
+                <ContainerPortal />
+              </ErrorBoundary>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/xhpz"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xhpz">
+                <RequireHat container="xhpz">
+                  <PortalShell container="xhpz">
+                    <ErrorBoundary>
+                      <PersonalWorkbench />
+                    </ErrorBoundary>
+                  </PortalShell>
+                </RequireHat>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/xhpz/hats"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xhpz">
+                <ErrorBoundary>
+                  <HatSelect container="xhpz" />
+                </ErrorBoundary>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/xepz"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xepz">
+                <RequireHat container="xepz">
+                  <PortalShell container="xepz">
+                    <ErrorBoundary>
+                      <EnterpriseWorkbench />
+                    </ErrorBoundary>
+                  </PortalShell>
+                </RequireHat>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/xepz/hats"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xepz">
+                <ErrorBoundary>
+                  <HatSelect container="xepz" />
+                </ErrorBoundary>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
 
         <Route path="*" element={<RoleRedirect />} />
       </Routes>

@@ -376,3 +376,72 @@ export function getOASConfigStatus() {
     roleMapping: { SU: 'du', AU: 'dx', CU: 'edxx', GU: 'emxx', EM: 'em' },
   };
 }
+
+// ============ [DUAL-PORTAL-P0] OAS 三权 checkPower 帽列表探测 (X-Market 登入端同款链路) ============
+
+export interface OASCheckPowerResult {
+  ok: boolean;
+  status: number;
+  source?: 'oas-checkpower';
+  hats?: string[];
+  defaultHat?: string | null;
+  error?: string;
+}
+
+/**
+ * 探测 OAS check-power 端点动态帽列表 (双端登入角色层)。
+ * 多候选端点+多鉴权风格逐一尝试; 全部失败返回 ok:false, 由调用方降级到登录态组装 (错误处理路径, 非 mock)。
+ */
+export async function oasCheckPower(token: string): Promise<OASCheckPowerResult> {
+  if (!isOASEnabled()) return { ok: false, status: 503, error: 'OAS not configured' };
+  const base = OAS_BASE_URL.replace(/\/$/, '');
+  const candidates = [
+    `${base}/api/v1/os/${OAS_PROXY_APP}/proxy/ams/auth/check-power`,
+    `${base}/api/v1/auth/check-power`,
+  ];
+  let lastStatus = 502;
+  let lastError = 'unreachable';
+  for (const url of candidates) {
+    for (const authStyle of ['bearer', 'body'] as const) {
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authStyle === 'bearer' ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(authStyle === 'body' ? { token } : {}),
+          signal: AbortSignal.timeout(3000),
+        });
+        lastStatus = resp.status;
+        const text = await resp.text();
+        let data: Record<string, unknown> = {};
+        try { data = JSON.parse(text) as Record<string, unknown>; } catch { /* 非 JSON 响应保留空对象 */ }
+        const payload = (typeof data.code === 'number' && data.data && typeof data.data === 'object')
+          ? (data.data as Record<string, unknown>)
+          : data;
+        const rawHats = payload.hats ?? payload.power_list ?? payload.powers;
+        if (resp.ok && Array.isArray(rawHats) && rawHats.length > 0) {
+          const hats = rawHats
+            .map((h) => {
+              if (typeof h === 'string') return h;
+              const obj = h as Record<string, unknown>;
+              return String(obj.hat ?? obj.key ?? obj.name ?? '');
+            })
+            .filter((s) => s.length > 0)
+            .map((s) => s.toUpperCase());
+          if (hats.length > 0) {
+            const def = typeof payload.default_hat === 'string' ? payload.default_hat
+              : typeof payload.defaultHat === 'string' ? payload.defaultHat : null;
+            return { ok: true, status: resp.status, source: 'oas-checkpower', hats, defaultHat: def ? def.toUpperCase() : null };
+          }
+        }
+        lastError = (data.message as string) || (data.error as string) || text.slice(0, 120) || `HTTP ${resp.status}`;
+      } catch (err) {
+        lastStatus = 502;
+        lastError = `OAS check-power unreachable: ${(err as Error).message}`;
+      }
+    }
+  }
+  return { ok: false, status: lastStatus, error: lastError };
+}

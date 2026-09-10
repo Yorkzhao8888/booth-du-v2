@@ -27,9 +27,9 @@ const Login: React.FC = () => {
   const login = useAuthStore((s) => s.login);
   const applySession = useAuthStore((s) => s.applySession);
 
-  const goHome = (role: string) => {
-    const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', emxx: '/emxx', ex: '/ex', edxx: '/edxx', em: '/em' };
-    navigate(home[role] || '/login', { replace: true });
+  // [DUAL-PORTAL-P0] 登录成功统一进容器分流页 (#xhpz 个人 / #xepz 企业), 由用户选择端
+  const goHome = (_role: string) => {
+    navigate('/containers', { replace: true });
   };
 
   const onFinish = async (values: { phone: string; password: string }) => {
@@ -43,6 +43,22 @@ const Login: React.FC = () => {
       message.error(e.error || '登录失败，请检查手机号和密码');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // [DUAL-PORTAL-P0] 一键测试登录: 默认 admin 角色直接生成 dev-token 并进分流页 (开发版验收要求)
+  const onQuickLogin = async () => {
+    setDevLoading(true);
+    try {
+      const res = await apiPost<DevTokenResp>('/auth/dev-token', { role: 'admin', expires_minutes: devMinutes });
+      applySession(res.token, res.user);
+      message.success('一键测试登录成功，进入容器分流');
+      navigate('/containers', { replace: true });
+    } catch (err: unknown) {
+      const e = err as { error?: string };
+      message.error(e.error || '一键测试登录失败');
+    } finally {
+      setDevLoading(false);
     }
   };
 
@@ -129,8 +145,18 @@ const Login: React.FC = () => {
               />
             </Space.Compact>
             <Button
-              type="dashed"
+              type="primary"
+              ghost
               icon={<ThunderboltOutlined />}
+              block
+              style={{ marginTop: 10 }}
+              loading={devLoading}
+              onClick={onQuickLogin}
+            >
+              一键测试登录（DEV）
+            </Button>
+            <Button
+              type="dashed"
               block
               style={{ marginTop: 10 }}
               loading={devLoading}

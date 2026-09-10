@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { oasLogin, verifyOASToken, toBoothUser, getOASConfigStatus, isOASAuthReady, oasDevToken, type BoothUser } from '../services/oas-client.js';
+import { oasLogin, verifyOASToken, toBoothUser, getOASConfigStatus, isOASAuthReady, oasDevToken, oasCheckPower, type BoothUser } from '../services/oas-client.js';
 import { emitAudit } from '../services/audit-service.js';
-import { AUTH_OPEN, buildAnonymousUser } from '../auth.js';
+import { AUTH_OPEN, buildAnonymousUser, requireAuth } from '../auth.js';
 
 const router = Router();
 
@@ -205,6 +205,97 @@ router.get('/oas-status', (_req, res) => {
  */
 router.post('/logout', (_req, res) => {
   res.json({ success: true, data: { message: 'Logged out successfully' } });
+});
+
+// ============ [DUAL-PORTAL-P0] 双端容器分流 + 帽(角色)层 (与 X-Market 登入端链路一致) ============
+
+/** 个人容器专属 OAS 原角色 (仅 #xhpz, 无 #xepz 企业容器) */
+const PERSONAL_ONLY_ROLES = new Set(['CUSTOMER', 'VIEWER', 'CU', 'GU']);
+/** 帽中文展示名 (checkPower/降级组装共用) */
+const HAT_LABELS: Record<string, string> = {
+  FAB: '制作工坊',
+  WH: '智慧仓储',
+  DL: '即时配送',
+  SVC: '到家服务',
+  MKT: '市场经营',
+  OPS: '平台运营',
+};
+
+/** OAS 角色串解析 (支持 'SU+AU' 组合 / '13U' 数字角色) */
+function parseOASRole(raw: unknown): string[] {
+  return String(raw ?? '')
+    .trim()
+    .toUpperCase()
+    .split(/[+|,;/\s]+/)
+    .filter(Boolean);
+}
+
+/** 容器可进性: 企业系角色双容器; 个人专属角色(CUSTOMER/VIEWER)仅 #xhpz; 无角色信息(开发匿名态)双容器演示 */
+function resolveContainers(subRole: string | null): { xhpz: boolean; xepz: boolean } {
+  const parts = parseOASRole(subRole ?? '');
+  if (parts.length === 0) return { xhpz: true, xepz: true };
+  const personalOnly = parts.every((p) => PERSONAL_ONLY_ROLES.has(p));
+  return { xhpz: true, xepz: !personalOnly };
+}
+
+/** 从会话提取 OAS 原角色与帽列表 (token 重验优先, 降级会话字段) */
+function sessionPortalContext(req: { headers: { authorization?: unknown }; user?: { roleKey?: string; hats?: unknown; subRole?: string; oasRole?: string } }): {
+  subRole: string | null;
+  boothRoleKey: string | null;
+  hats: string[];
+} {
+  const user = req.user;
+  const authHeader = String(req.headers.authorization ?? '');
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  let subRole: string | null = null;
+  if (token && token !== 'dev-open') {
+    const v = verifyOASToken(token);
+    if (v.ok) subRole = String(v.payload.role ?? '') || null;
+  }
+  if (!subRole) subRole = String(user?.subRole ?? user?.oasRole ?? '') || null;
+  const hats = Array.isArray(user?.hats) ? (user?.hats as unknown[]).filter((h): h is string => typeof h === 'string') : [];
+  return { subRole, boothRoleKey: user?.roleKey ?? null, hats };
+}
+
+/**
+ * GET /containers —— 容器分流数据: 一键登录后分流页渲染可进/置灰卡片
+ */
+router.get('/containers', requireAuth, (req, res) => {
+  const ctx = sessionPortalContext(req);
+  const containers = resolveContainers(ctx.subRole);
+  res.json({ success: true, data: { ...containers, roleKey: ctx.boothRoleKey, subRole: ctx.subRole } });
+});
+
+/**
+ * GET /hats —— 帽(角色)层: OAS 三权 checkPower 动态帽列表+默认帽标记优先;
+ * check-power 端点不可达时降级为登录态真实帽数据组装 (source=session-fallback, 错误处理路径非 mock)。
+ */
+router.get('/hats', requireAuth, async (req, res, next) => {
+  try {
+    const ctx = sessionPortalContext(req);
+    const authHeader = String(req.headers.authorization ?? '');
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (token && token !== 'dev-open') {
+      const cp = await oasCheckPower(token);
+      if (cp.ok && cp.hats && cp.hats.length > 0) {
+        const hats = cp.hats.map((key, idx) => ({
+          key,
+          name: HAT_LABELS[key] || key,
+          isDefault: cp.defaultHat ? key === cp.defaultHat : idx === 0,
+        }));
+        return res.json({ success: true, data: { hats, source: 'oas-checkpower' } });
+      }
+    }
+    const sessionHats = ctx.hats.length > 0 ? ctx.hats : ['FAB'];
+    const hats = sessionHats.map((key, idx) => ({
+      key,
+      name: HAT_LABELS[key] || key,
+      isDefault: idx === 0,
+    }));
+    return res.json({ success: true, data: { hats, source: 'session-fallback' } });
+  } catch (err) {
+    return next(err);
+  }
 });
 
 export default router;

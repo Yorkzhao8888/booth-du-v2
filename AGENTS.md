@@ -159,3 +159,13 @@ src/
 - **存量 1139 补发**：scripts/backfill-delivery-receipts.cjs（--limit/--dry-run；production_no 回退 COALESCE(work_order_no, shop_order_id)——存量 fulfillments 无 work_order_no 为 SHOP-CONT-BOOTH 前历史行）；已完成全量补发 1108 条 MARKET/XU 回执（outbox pending 待 XMARKET_CALLBACK_URL 配置后投递）
 - **环境变量新增**：ERP_CALLBACK_URL / XMARKET_CALLBACK_URL / DDU_CALLBACK_URL
 - **已知遗留**：edxx/ 前端 tsc 存量错误（res unknown，sed 改名暴露非本单引入）；Booth↔Market 契约单 v1.1 文件未获取（按工单正文落地）
+
+## Booth 双端 P0（DUAL-PORTAL-P0，2026-09-10）
+- **双端登入框架**：OAS 登录成功 → `navigate('/containers')` 容器分流页（4 卡：#xhpz 个人 / #xepz 企业可进，#xopz 生态主体 / #xgpz 政府置灰 Tooltip"预留"）→ 帽卡片选择页 `/xhpz/hats` `/xepz/hats`（GET /api/booth/auth/hats）→ 视角工作台 `/xhpz` `/xepz`
+- **API**：GET /api/booth/auth/containers（token 重验 OAS 原角色→PERSONAL_ONLY_ROLES=[CUSTOMER,VIEWER,CU,GU] 仅 #xhpz，其余双容器；匿名态双容器演示）；GET /api/booth/auth/hats（oasCheckPower 候选端点探测优先 source=oas-checkpower，不可达降级登录态组装 source=session-fallback）
+- **oas-client.ts**：新增 `oasCheckPower(token)`——OAS check-power 多候选端点（proxy/ams/auth/check-power → /api/v1/auth/check-power）×（Bearer/body）探测，3s 超时；端点契约待契约单校准
+- **守卫**：RequireAuth 放行 /containers /xhpz /xepz 前缀（容器层路由不按 booth role 弹回）；RequireContainer（containers 数据判定+ForbiddenPage 友好页）→ RequireHat（无帽→重定向 /{container}/hats）→ 工作台
+- **store 扩展**：container/hat/containers 状态（localStorage booth_container/booth_hat）+ setContainer/setHat/resetPerspective（切换角色=视角状态清空重建）；logout 同步清理
+- **页面**：components/PortalShell.tsx（轻量顶栏：#容器徽标+帽徽章+切换角色/切换端/退出，375px 友好）、portal/ContainerPortal.tsx、portal/HatSelect.tsx、portal/ForbiddenPage.tsx、xhpz/PersonalWorkbench.tsx（我的消费/我的接单/我的小铺三模块骨架）、xepz/EnterpriseWorkbench.tsx（我的铺子卡片网格+ERP/Space/Station 经营入口占位+X-Supply 采购入口占位）
+- **Login**：goHome → /containers；DEV-only 一键测试登录（dev-token 默认 admin）
+- **已知缺口**：《Booth_双端定义_20260910_v1.0.md》未投递本窗口——容器判定规则/checkPower 端点契约按 P0 合理实现，待契约单校准；企业台铺子网格/个人台三模块为 P0 静态骨架，数据接口 P1 接六版本实例
