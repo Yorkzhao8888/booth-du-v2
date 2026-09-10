@@ -98,3 +98,146 @@ aliasRouter.post('/order-cancelled', validateEventKey, verifySignature, orderCan
 
 export { aliasRouter };
 export default router;
+
+// ============================================================
+// [XFACTORY-P1] 组合 1/2 入站端点
+//   POST /events/supply-purchase   — X-Supply 采购单登记（组合 1, source=SUPPLY, EMX 确认后生产）
+//   POST /events/market-demand     — X-Market 需求入站（组合 2, source=MARKET, 入站即建单拆单）
+//   POST /events/receipt-confirmed — 交付回执收货确认（XU/DDU 收货 → Xfactory 闭环）
+// 幂等: event_id 唯一约束；F1 透传失败 → 4xx/5xx + booth_event_dlq + 审计留痕
+// ============================================================
+import {
+  registerSupplyPurchase,
+  registerMarketDemand,
+  confirmDeliveryReceipt,
+} from '../services/xfactory-service.js';
+
+async function recordInboundDlq(orgId: number, eventId: string | undefined, topic: string, reason: string, raw: unknown) {
+  try {
+    await pool.query(
+      `INSERT INTO booth_event_dlq (org_id, event_id, topic, reason, payload)
+       VALUES ($1, $2, $3, $4, $5::jsonb)`,
+      [orgId ?? null, eventId ?? null, topic, reason, JSON.stringify(raw ?? {})],
+    );
+  } catch {
+    // DLQ 自身失败仅日志, 不阻断响应
+  }
+}
+
+router.post('/events/supply-purchase', validateEventKey, verifySignature, async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const eventId = body.eventId as string | undefined;
+  try {
+    if (!body.supplyPurchaseNo || !body.waveNo) {
+      await recordInboundDlq(1, eventId, TOPIC.SUPPLY_PURCHASE_REGISTERED, 'F1 missing supplyPurchaseNo/waveNo', body);
+      return res.status(400).json({ success: false, error: 'INVALID_PAYLOAD', message: 'supplyPurchaseNo/waveNo required' });
+    }
+    const out = await registerSupplyPurchase(1, {
+      eventId,
+      supplyPurchaseNo: String(body.supplyPurchaseNo),
+      waveNo: String(body.waveNo),
+      items: Array.isArray(body.items) ? body.items : [],
+      supplier: (body.supplier as string) ?? null,
+    });
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    await recordInboundDlq(1, eventId, TOPIC.SUPPLY_PURCHASE_REGISTERED, `F1 ${(err as Error)?.message ?? 'register failed'}`, body);
+    return res.status(500).json({ success: false, error: 'REGISTER_FAILED', message: (err as Error)?.message });
+  }
+});
+
+router.post('/events/market-demand', validateEventKey, verifySignature, async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const eventId = body.eventId as string | undefined;
+  try {
+    if (!body.marketDemandNo || !body.waveNo) {
+      await recordInboundDlq(1, eventId, TOPIC.MARKET_DEMAND_REGISTERED, 'F1 missing marketDemandNo/waveNo', body);
+      return res.status(400).json({ success: false, error: 'INVALID_PAYLOAD', message: 'marketDemandNo/waveNo required' });
+    }
+    const out = await registerMarketDemand(1, {
+      eventId,
+      marketDemandNo: String(body.marketDemandNo),
+      waveNo: String(body.waveNo),
+      items: Array.isArray(body.items) ? body.items : [],
+    });
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    await recordInboundDlq(1, eventId, TOPIC.MARKET_DEMAND_REGISTERED, `F1 ${(err as Error)?.message ?? 'register failed'}`, body);
+    return res.status(500).json({ success: false, error: 'REGISTER_FAILED', message: (err as Error)?.message });
+  }
+});
+
+router.post('/events/receipt-confirmed', validateEventKey, verifySignature, async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const eventId = body.eventId as string | undefined;
+  try {
+    if (!body.receiptNo) {
+      await recordInboundDlq(1, eventId, TOPIC.DELIVERY_RECEIPT_CONFIRMED, 'F1 missing receiptNo', body);
+      return res.status(400).json({ success: false, error: 'INVALID_PAYLOAD', message: 'receiptNo required' });
+    }
+    const out = await confirmDeliveryReceipt(1, String(body.receiptNo), eventId);
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    await recordInboundDlq(1, eventId, TOPIC.DELIVERY_RECEIPT_CONFIRMED, `F1 ${(err as Error)?.message ?? 'confirm failed'}`, body);
+    return res.status(500).json({ success: false, error: 'CONFIRM_FAILED', message: (err as Error)?.message });
+  }
+});
+
+aliasRouter.post('/supply-purchase', validateEventKey, verifySignature, async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const eventId = body.eventId as string | undefined;
+  try {
+    if (!body.supplyPurchaseNo || !body.waveNo) {
+      await recordInboundDlq(1, eventId, TOPIC.SUPPLY_PURCHASE_REGISTERED, 'F1 missing supplyPurchaseNo/waveNo', body);
+      return res.status(400).json({ success: false, error: 'INVALID_PAYLOAD', message: 'supplyPurchaseNo/waveNo required' });
+    }
+    const out = await registerSupplyPurchase(1, {
+      eventId,
+      supplyPurchaseNo: String(body.supplyPurchaseNo),
+      waveNo: String(body.waveNo),
+      items: Array.isArray(body.items) ? body.items : [],
+      supplier: (body.supplier as string) ?? null,
+    });
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    await recordInboundDlq(1, eventId, TOPIC.SUPPLY_PURCHASE_REGISTERED, `F1 ${(err as Error)?.message ?? 'register failed'}`, body);
+    return res.status(500).json({ success: false, error: 'REGISTER_FAILED', message: (err as Error)?.message });
+  }
+});
+
+aliasRouter.post('/market-demand', validateEventKey, verifySignature, async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const eventId = body.eventId as string | undefined;
+  try {
+    if (!body.marketDemandNo || !body.waveNo) {
+      await recordInboundDlq(1, eventId, TOPIC.MARKET_DEMAND_REGISTERED, 'F1 missing marketDemandNo/waveNo', body);
+      return res.status(400).json({ success: false, error: 'INVALID_PAYLOAD', message: 'marketDemandNo/waveNo required' });
+    }
+    const out = await registerMarketDemand(1, {
+      eventId,
+      marketDemandNo: String(body.marketDemandNo),
+      waveNo: String(body.waveNo),
+      items: Array.isArray(body.items) ? body.items : [],
+    });
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    await recordInboundDlq(1, eventId, TOPIC.MARKET_DEMAND_REGISTERED, `F1 ${(err as Error)?.message ?? 'register failed'}`, body);
+    return res.status(500).json({ success: false, error: 'REGISTER_FAILED', message: (err as Error)?.message });
+  }
+});
+
+aliasRouter.post('/receipt-confirmed', validateEventKey, verifySignature, async (req: Request, res: Response) => {
+  const body = req.body as Record<string, unknown>;
+  const eventId = body.eventId as string | undefined;
+  try {
+    if (!body.receiptNo) {
+      await recordInboundDlq(1, eventId, TOPIC.DELIVERY_RECEIPT_CONFIRMED, 'F1 missing receiptNo', body);
+      return res.status(400).json({ success: false, error: 'INVALID_PAYLOAD', message: 'receiptNo required' });
+    }
+    const out = await confirmDeliveryReceipt(1, String(body.receiptNo), eventId);
+    return res.json({ success: true, data: out });
+  } catch (err) {
+    await recordInboundDlq(1, eventId, TOPIC.DELIVERY_RECEIPT_CONFIRMED, `F1 ${(err as Error)?.message ?? 'confirm failed'}`, body);
+    return res.status(500).json({ success: false, error: 'CONFIRM_FAILED', message: (err as Error)?.message });
+  }
+});

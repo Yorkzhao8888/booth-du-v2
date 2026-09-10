@@ -151,7 +151,7 @@ export function stripCostFields<T>(obj: T): T {
   return strip(obj) as T;
 }
 
-/** [BOOTH-PRD-002 价格红线] X 层执行 (DEX=ex / DEXX=exx / 游客 dxx) 不可见任何售价 — 剥离售价字段 */
+/** [BOOTH-PRD-002 价格红线] X 层执行 (EDX=ex / EDXX=edxx / 游客 emxx) 不可见任何售价 — 剥离售价字段 */
 const SALE_PRICE_FIELDS = [
   'sale_price', 'salePrice', 'selling_price', 'sellingPrice', 'retail_price', 'retailPrice',
   'list_price', 'listPrice', 'unit_price', 'unitPrice', 'total_price', 'totalPrice',
@@ -173,11 +173,12 @@ export function stripSalePriceFields<T>(obj: T): T {
   return strip(obj) as T;
 }
 
-/** X 层执行判定: ex/exx/dxx 及其请求 (DEU 分身豁免 — DU 保留经营决策权) */
+/** X 层执行判定: ex/edxx/emxx 及其请求 (DEU 分身豁免 — DU 保留经营决策权) */
 export function isXExecutor(user?: { roleKey?: string; actingAs?: string } | null): boolean {
   if (!user) return false;
   if (user.actingAs === 'deu') return false; // DEU=DU 分身, 保留价格与决策权
-  return ['ex', 'exx', 'dxx'].includes(user.roleKey || '');
+  // [执行帽 v1.2] X 执行线全剥价格: ex(存量) + EDX/EDXX/EMX/EMXX 全线
+  return ['ex', 'edx', 'edxx', 'emx', 'emxx'].includes(user.roleKey || '');
 }
 
 /* ─────────────────────────── 登录代理 ─────────────────────────── */
@@ -276,24 +277,24 @@ export function verifyOASToken(token: string): OASTokenVerifyOk | OASTokenVerify
  * 五角色 (OAS test-accounts):
  *   SU (admin)    → du   (店主, M 层知价, 经营全权)   [原 'su'→'dm' 只读穿透与 SU 权限语义冲突, 收口修正]
  *   AU (operator) → dx   (店长, M 层知价, 运营操作)
- *   CU (customer) → exx  (铺员执行位, X 层无价, FAB 帽)
- *   GU (viewer)   → dxx  (只读店员, 穿透视图)
+ *   CU (customer) → edxx  (业务执行线执行位 EDXX, X 层无价, FAB 帽)  [执行帽 v1.2: 原 exx→edxx]
+ *   GU (viewer)   → emxx  (运营线执行位 EMXX, 穿透视图)              [执行帽 v1.2: 原 dxx→emxx]
  *   EM            → em   (供给运营平台位, 直通)
- * 12U 历史角色直通兼容: dm/du/dx/dxx/ex/exx/em
+ * 12U 历史角色直通兼容 (OAS 侧角色名不变): dm/du/dx/dxx→emxx/ex/exx→edxx/em
  */
 const ROLE_TO_BOOTH: Record<string, string> = {
   SU: 'du',
   AU: 'dx',
-  CU: 'exx',
-  GU: 'dxx',
+  CU: 'edxx',
+  GU: 'emxx',
   EM: 'em',
-  // 12U 直通
+  // 12U 直通 (键为 OAS 平台历史角色名, 不随 Booth v1.2 改名; 值为 Booth 新命名)
   DM: 'dm',
   DU: 'du',
   DX: 'dx',
-  DXX: 'dxx',
+  DXX: 'emxx',
   EX: 'ex',
-  EXX: 'exx',
+  EXX: 'edxx',
   EM_OLD: 'em', // 占位防重名, 实际 EM 已映射
 };
 
@@ -302,8 +303,10 @@ const ROLE_DEFAULT_HATS: Record<string, string[]> = {
   du: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
   dx: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
   ex: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
-  exx: ['FAB'],
-  dxx: [],
+  edx: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
+  emx: [],
+  edxx: ['FAB'],
+  emxx: [],
   dm: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
   em: ['FAB', 'WH', 'DL', 'SVC', 'MKT'],
 };
@@ -334,7 +337,7 @@ export interface BoothUser {
 /** OAS payload → Booth 会话用户 (角色映射 + 帽子兜底) */
 export function toBoothUser(payload: OASTokenPayload, orgId: number): BoothUser {
   const activeRole = String(payload.active_role || payload.role || payload.roles?.[0] || '').toUpperCase();
-  const roleKey = ROLE_TO_BOOTH[activeRole] || 'dxx';
+  const roleKey = ROLE_TO_BOOTH[activeRole] || 'emxx';
   const derived = deriveHats(payload.ms_access);
   const hats = derived.length > 0 ? derived : ROLE_DEFAULT_HATS[roleKey] || [];
   return {
@@ -370,6 +373,6 @@ export function getOASConfigStatus() {
     publicKeyConfigured: OAS_PUBLIC_KEY !== null,
     issuer: OAS_ISSUER,
     eventSigning: process.env.OAS_EVENT_SIGNING_KEY ? 'enabled' : 'disabled', // [R7-DEF-3]
-    roleMapping: { SU: 'du', AU: 'dx', CU: 'exx', GU: 'dxx', EM: 'em' },
+    roleMapping: { SU: 'du', AU: 'dx', CU: 'edxx', GU: 'emxx', EM: 'em' },
   };
 }

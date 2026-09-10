@@ -17,6 +17,9 @@ import { OAS_BASE_URL } from './oas-client.js';
 const MATE_DISPATCH_URL = process.env.MATE_DISPATCH_URL || '';
 const SHOP_CALLBACK_URL = process.env.SHOP_CALLBACK_URL || '';
 const OAS_AUDIT_URL = process.env.OAS_AUDIT_URL || (OAS_BASE_URL ? `${OAS_BASE_URL}/api/v1/admin/audit-logs` : '');
+const ERP_CALLBACK_URL = process.env.ERP_CALLBACK_URL || '';
+const XMARKET_CALLBACK_URL = process.env.XMARKET_CALLBACK_URL || '';
+const DDU_CALLBACK_URL = process.env.DDU_CALLBACK_URL || '';
 // OAS 服务账号 (审计上报登录态; 401 自动刷新)
 const OAS_SERVICE_USER = process.env.OAS_SERVICE_USER || 'admin';
 const OAS_SERVICE_PASS = process.env.OAS_SERVICE_PASS || 'test123';
@@ -24,11 +27,14 @@ const OAS_EVENT_SIGNING_KEY = process.env.OAS_EVENT_SIGNING_KEY || '';
 const MAX_RETRIES = 10;
 const POLL_MS = 5000;
 
-type TargetKind = 'mate' | 'audit' | 'shop';
+type TargetKind = 'mate' | 'audit' | 'shop' | 'erp' | 'xmarket' | 'ddu';
 
 function routeUrl(kind: TargetKind): string {
   if (kind === 'mate') return MATE_DISPATCH_URL;
   if (kind === 'audit') return OAS_AUDIT_URL;
+  if (kind === 'erp') return ERP_CALLBACK_URL;
+  if (kind === 'xmarket') return XMARKET_CALLBACK_URL;
+  if (kind === 'ddu') return DDU_CALLBACK_URL;
   return SHOP_CALLBACK_URL;
 }
 
@@ -154,10 +160,36 @@ async function processOutbox() {
       );
       batches.push({ rows: a.rows, kind: 'audit' });
     }
+    if (ERP_CALLBACK_URL) {
+      const e = await client.query(
+        `SELECT id, event_type, payload, retry_count FROM booth_outbox
+         WHERE status = 'pending' AND event_type LIKE '%.stock.%.v1'
+         ORDER BY created_at ASC LIMIT 10`
+      );
+      batches.push({ rows: e.rows, kind: 'erp' });
+    }
+    // [XFACTORY-P1] 交付回执按 payload.source 分渠 (责任转移单据, 幂等由接收端按 receiptNo 保证)
+    if (XMARKET_CALLBACK_URL) {
+      const xm = await client.query(
+        `SELECT id, event_type, payload, retry_count FROM booth_outbox
+         WHERE status = 'pending' AND event_type LIKE '%.delivery_receipt.%.v1' AND payload->>'source' = 'MARKET'
+         ORDER BY created_at ASC LIMIT 10`
+      );
+      batches.push({ rows: xm.rows, kind: 'xmarket' });
+    }
+    if (DDU_CALLBACK_URL) {
+      const ddu = await client.query(
+        `SELECT id, event_type, payload, retry_count FROM booth_outbox
+         WHERE status = 'pending' AND event_type LIKE '%.delivery_receipt.%.v1' AND payload->>'source' = 'SUPPLY'
+         ORDER BY created_at ASC LIMIT 10`
+      );
+      batches.push({ rows: ddu.rows, kind: 'ddu' });
+    }
     if (SHOP_CALLBACK_URL) {
       const sh = await client.query(
         `SELECT id, event_type, payload, retry_count FROM booth_outbox
          WHERE status = 'pending' AND event_type NOT LIKE '%.mate.%.v1' AND event_type NOT LIKE '%.audit.%.v1'
+           AND event_type NOT LIKE '%.stock.%.v1' AND event_type NOT LIKE '%.delivery_receipt.%.v1'
          ORDER BY created_at ASC LIMIT 10`
       );
       batches.push({ rows: sh.rows, kind: 'shop' });
@@ -188,6 +220,9 @@ export function startOutboxPoller() {
   const targets = [
     MATE_DISPATCH_URL && `mate→${MATE_DISPATCH_URL}`,
     OAS_AUDIT_URL && `audit→${OAS_AUDIT_URL}`,
+    ERP_CALLBACK_URL && `erp→${ERP_CALLBACK_URL}`,
+    XMARKET_CALLBACK_URL && `xmarket→${XMARKET_CALLBACK_URL}`,
+    DDU_CALLBACK_URL && `ddu→${DDU_CALLBACK_URL}`,
     SHOP_CALLBACK_URL && `shop→${SHOP_CALLBACK_URL}`,
   ].filter(Boolean);
   if (targets.length === 0) {

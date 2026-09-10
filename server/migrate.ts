@@ -33,7 +33,7 @@ import { pool, query } from './db.js';
 //   [O3]   ALTERS      工单 BOOTH-OPT-03: 供给报价三层价格
 //   [M1]   migrate()   工单 FAB-MES-01: booth_equipment/状态流水/保养计划
 //   [M3]   migrate()   工单 FAB-MES-03: 安灯 events/escalation/知识库候选
-//   [SEED] migrate()   种子数据 + 角色迁移(eu→du等) + 账号补种(dx/dm/dxx/em)
+//   [SEED] migrate()   种子数据 + 角色迁移(eu→du等) + 账号补种(dx/dm/emxx/em)
 //                      + Station 编码回填 + sku_cost 播种
 //
 // 新增迁移操作规程: schema 变更追加到 ALTERS 尾部（新表也可入 DDL 尾部），
@@ -373,6 +373,58 @@ CREATE TABLE IF NOT EXISTS booth_stock_docs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_stock_docs_org ON booth_stock_docs (org_id, doc_type);
+
+-- ====== [XFACTORY-P1] Xfactory(Booth-DE 供给版)：执行帽 v1.2 命名落地 + 组合1供给主线 + 组合2市场链路 ======
+-- 执行帽 v1.2 命名(角色存量数据迁移, 幂等): DEX→EDX / EXX→EDXX / DXX→EMXX (EDX→EDXX 业务执行线, EMX→EMXX 运营线; D*X 系废弃 0 引用)
+UPDATE booth_users SET role = 'edx' WHERE role = 'dex';
+UPDATE booth_users SET role = 'edxx' WHERE role = 'exx';
+UPDATE booth_users SET role = 'emxx' WHERE role = 'dxx';
+
+-- 生产单来源与订单族 (契约单 3.1): source=SUPPLY(组合1)/MARKET(组合2)/INTERNAL; Order-T 订单族随组合标注透传
+ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'INTERNAL';
+ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS order_family TEXT;
+UPDATE booth_production_orders SET order_family = 'T' WHERE source IN ('SUPPLY','MARKET') AND order_family IS NULL;
+
+-- 组合1 X-Supply 采购桩接 (R6): 采购单号↔waveNo 透传, EMX 中可见可确认; 不做撮合/合同/结算
+CREATE TABLE IF NOT EXISTS booth_supply_purchases (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  event_id TEXT UNIQUE,                        -- 入站幂等(X-Event-Key)
+  supply_purchase_no TEXT NOT NULL UNIQUE,     -- X-Supply 采购单号(桩)
+  wave_no TEXT,
+  supplier_name TEXT,                          -- 供应商(*U)名称快照; 合同/客户完整信息不落 Booth(数据最小化)
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,    -- [{name,qty}]
+  status TEXT NOT NULL DEFAULT 'registered' CHECK (status IN ('registered','confirmed')),
+  confirmed_by TEXT,
+  confirmed_at TIMESTAMPTZ,
+  production_order_id BIGINT REFERENCES booth_production_orders(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_supply_purchases_org ON booth_supply_purchases (org_id, status);
+
+-- 交付回执 (契约单 3.1): 回执生成即责任转移至接收方(DDU/XU); XU 收货确认后 Xfactory 侧闭环
+CREATE TABLE IF NOT EXISTS booth_delivery_receipts (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  receipt_no TEXT NOT NULL UNIQUE,             -- DLV-yyyyMMdd-NNNN
+  production_order_id BIGINT REFERENCES booth_production_orders(id), -- 存量 backfill 回执可无 PO 实体(NULL)
+  production_no TEXT NOT NULL,                 -- 与 Order-T waveNo/productionNo 一致透传
+  wave_no TEXT,
+  source TEXT NOT NULL DEFAULT 'SUPPLY',       -- SUPPLY(组合1→DDU) / MARKET(组合2→XU)
+  qty INTEGER NOT NULL DEFAULT 0,
+  evidence_nos JSONB NOT NULL DEFAULT '[]'::jsonb, -- G-005 凭证号集合
+  delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  delivered_by TEXT NOT NULL DEFAULT 'EDX',    -- 交付方(EDX)
+  receiver_type TEXT NOT NULL CHECK (receiver_type IN ('DDU','XU')),
+  receiver_name TEXT,
+  status TEXT NOT NULL DEFAULT 'delivered' CHECK (status IN ('delivered','confirmed')),
+  confirmed_at TIMESTAMPTZ,
+  confirm_event_id TEXT UNIQUE,                -- 入站收货确认事件幂等
+  confirmed_by TEXT,                           -- 确认方(DDU/XU)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (org_id, production_order_id)         -- 一生产单一回执(幂等, 重复提交不重复完成)
+);
+CREATE INDEX IF NOT EXISTS idx_delivery_receipts_org ON booth_delivery_receipts (org_id, status);
 
 -- ====== [BOOTH-PRD-002] 铺面管理+权限（阶段一）：供应铺 / 订单类型字典 / 生产单类型列 ======
 ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'self_made';
@@ -1264,7 +1316,7 @@ export const orgModes = new Map<number, string>();
 // migrate() 执行流程（单事务，幂等）:
 //   1. 执行三大 schema 基线: DDL([V1][V2]) → INDEXES → ALTERS([E0]~[O3])
 //   2. 库非空(已有组织)路径: 加载 orgModes → Outbox 死信清理 → 角色迁移
-//      → 账号补种(dx/dm/dxx/em) → Station-OS 升级与编码回填
+//      → 账号补种(dx/dm/emxx/em) → Station-OS 升级与编码回填
 //      → [M1]设备台账 → [M3]安灯三表 → 工序.equipment_id → sku_cost 播种
 //   3. 库空路径(首次): 全量种子(组织/用户/SKU/BOM/库存)并回拨序列
 //   任何一步失败整体 ROLLBACK，下次启动重放（幂等约定见文件头）。
@@ -1296,10 +1348,13 @@ export async function migrate() {
         console.log(`[migrate] Marked ${staleResult.rowCount} stale outbox events as dead.`);
       }
 
-      // Role migration: dex→ex (BOOTH-ROLE-CLEAN-01 C1 裁定 DEX 废弃，铺长线统一 EX)；exx→exx 铺员线另单处理 (idempotent)
+      // Role migration [执行帽 v1.2 2026-09-10]: Booth 内部铺长线回归 EDX（推翻 BOOTH-ROLE-CLEAN-01 dex→ex 旧裁定）
+      // ex→edx（含历史 dex→ex 存量）、exx→edxx、dxx→emxx（idempotent）；EX 角色名保留给 P3 供应商版，Booth 内部用户全迁 EDX 线
       const roleUpdates = [
-        { from: 'dex', to: 'ex' },
-        { from: 'dexx', to: 'exx' },
+        { from: 'ex', to: 'edx' }, // v1.2 反转 CLEAN-01: ex 存量回归 edx
+        { from: 'dex', to: 'edx' }, // 残留兜底
+        { from: 'exx', to: 'edxx' },
+        { from: 'dxx', to: 'emxx' },
       ];
       for (const { from, to } of roleUpdates) {
         const r = await client.query(`UPDATE booth_users SET role = $1 WHERE role = $2`, [to, from]);
@@ -1348,9 +1403,9 @@ export async function migrate() {
         );
       }
 
-      // Update exx hats to include all modules
+      // Update edxx hats to include all modules
       await client.query(
-        `UPDATE booth_users SET hats = '{FAB,WH,DL,SVC}' WHERE role = 'exx' AND org_id = 1`
+        `UPDATE booth_users SET hats = '{FAB,WH,DL,SVC}' WHERE role = 'edxx' AND org_id = 1`
       );
 
       // Add DM (运营) user if not exists
@@ -1365,16 +1420,16 @@ export async function migrate() {
         console.log('[migrate] Added dm user: 运营 / 13800000000.');
       }
 
-      // Add DXX (店员) user if not exists
+      // Add EMXX (店员) user if not exists
       const dxxCheck = await client.query(`SELECT id FROM booth_users WHERE phone = '13800000005'`);
       if (dxxCheck.rowCount === 0) {
         const dxxHash = bcrypt.hashSync('123456', 10);
         await client.query(
           `INSERT INTO booth_users (org_id, name, phone, password_hash, role, hats)
-           VALUES (1, '店员', '13800000005', $1, 'dxx', '{}')`,
+           VALUES (1, '店员', '13800000005', $1, 'emxx', '{}')`,
           [dxxHash]
         );
-        console.log('[migrate] Added dxx user: 店员 / 13800000005.');
+        console.log('[migrate] Added emxx user: 店员 / 13800000005.');
       }
 
       // Add EM (供给运营长) user if not exists
@@ -1662,7 +1717,7 @@ export async function migrate() {
     );
     await client.query(
       `INSERT INTO booth_users (id, org_id, name, phone, password_hash, role, hats)
-       VALUES (4, 1, '铺员', '13800000003', $1, 'exx', '{FAB,WH,DL,SVC}')`,
+       VALUES (4, 1, '铺员', '13800000003', $1, 'edxx', '{FAB,WH,DL,SVC}')`,
       [passwordHash]
     );
 

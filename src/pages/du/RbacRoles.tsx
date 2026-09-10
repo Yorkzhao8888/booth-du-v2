@@ -1,7 +1,7 @@
 /**
- * [BOOTH-PRD-002 PM-004] 角色管理 (修正口径): 生态角色链 dm→du→dx→dex→dexx
- * DEU = DU 履约铺分身 (非独立角色, 保留经营决策权); DEX=dex(店-铺长) / DEXX=dexx(铺员)
- * 价格红线: M 层(dm/du)+X 层管理(dx) 可见价格; X 层执行(DEX/DEXX) 不可见任何价格
+ * [BOOTH-PRD-002 PM-004] 角色管理 (修正口径): 生态角色链 dm→du→dx→edx→edxx
+ * DEU = DU 履约铺分身 (非独立角色, 保留经营决策权); EDX=edx(店-铺长) / EDXX=edxx(铺员)
+ * 价格红线: M 层(dm/du)+X 层管理(dx) 可见价格; X 层执行(EDX/EDXX) 不可见任何价格
  */
 import { useEffect, useState, useCallback } from 'react';
 import { Alert, Card, Space, Spin, Table, Tag, Typography } from 'antd';

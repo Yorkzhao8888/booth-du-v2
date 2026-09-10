@@ -356,6 +356,45 @@ export async function completeWorkOrder(id: number, userId: number) {
         if (poId) {
           const { refreshAggregation } = await import('./state-machine.js');
           await refreshAggregation(wo.org_id, poId);
+          // [XFACTORY-P1] 完工入库: 组合 1 供给主线 — 生产单全部完工后自动登记入库单并投递 ERP（F4 补偿: outbox 重试）
+          try {
+            const poRow = await pool.query(
+              `SELECT id, production_no, wave_no, source, status,
+                      (SELECT COALESCE(SUM((it->>'qty')::int), 0) FROM jsonb_array_elements(items) it) AS total_qty
+                 FROM booth_production_orders WHERE id = $1`,
+              [poId]
+            );
+            const po = poRow.rows[0];
+            if (po && po.status === 'completed' && po.source === 'SUPPLY') {
+              const dup = await pool.query(
+                `SELECT 1 FROM booth_stock_docs WHERE org_id = $1 AND doc_type = 'inbound' AND payload->>'productionNo' = $2 LIMIT 1`,
+                [wo.org_id, po.production_no]
+              );
+              if (dup.rowCount === 0) {
+                const payload = {
+                  productionNo: po.production_no,
+                  waveNo: po.wave_no ?? null,
+                  qty: po.total_qty ?? null,
+                  source: po.source,
+                  refType: 'production_order',
+                  refId: po.id,
+                };
+                await pool.query(
+                  `INSERT INTO booth_stock_docs (org_id, work_order_id, doc_type, payload, created_by)
+                   VALUES ($1, NULL, 'inbound', $2::jsonb, 'system')`,
+                  [wo.org_id, JSON.stringify(payload)]
+                );
+                await pool.query(
+                  `INSERT INTO booth_outbox (org_id, event_type, payload)
+                   VALUES ($1, $2, $3::jsonb)`,
+                  [wo.org_id, 'cmd.booth.stock.inbound.v1', JSON.stringify({ ...payload, occurredAt: new Date().toISOString() })]
+                );
+                console.log('[XFACTORY-P1] finish-goods inbound registered', { productionNo: po.production_no, waveNo: po.wave_no });
+              }
+            }
+          } catch (inboundErr) {
+            console.error('[XFACTORY-P1] finish-goods inbound failed', { workOrderId: id, error: (inboundErr as Error)?.message });
+          }
         }
       } catch (aggErr) {
         console.error('[work-order-service] aggregation refresh failed', { workOrderId: id, taskId: wo.production_task_id, error: (aggErr as Error)?.message });

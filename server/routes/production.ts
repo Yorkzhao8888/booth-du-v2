@@ -51,7 +51,7 @@ function orgOf(req: AuthedReq): number {
 // body: { shopOrderId*, orderNo?, dxCaseNo?, waveNo?, expectedDeliveryAt?, plazPoint?, items? }
 // 同 shop_order_id 重复创建仅返回既有 productionNo
 // ---------------------------------------------------------------------------
-router.post('/', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const body: any = req.body || {};
@@ -196,7 +196,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response, next: NextFu
 // 幂等: 同 (production_order_id, task_type) 已有活跃任务不重复创建
 // 工单实际创建归 IMPL-001 dispatchFulfillment; 任务经 work_order_id 挂接既有工单
 // ---------------------------------------------------------------------------
-router.post('/:id/dispatch', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/:id/dispatch', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const id = Number(req.params.id);
@@ -297,7 +297,7 @@ router.post('/:id/dispatch', requireAuth, requireRole('du', 'dx', 'dex'), async 
 // POST /:id/status — 生产单状态流转 (canTransition 校验 + 自动聚合刷新)
 // body: { status*, exceptionReason? }
 // ---------------------------------------------------------------------------
-router.post('/:id/status', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/:id/status', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const id = Number(req.params.id);
@@ -344,7 +344,7 @@ router.post('/:id/status', requireAuth, requireRole('du', 'dx', 'dex'), async (r
 // POST /tasks/:id/link-work-order — 任务↔工单挂接 (BDD-19 拆单挂接点)
 // body: { workOrderId*, workOrderNo? }
 // ---------------------------------------------------------------------------
-router.post('/tasks/:id/link-work-order', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/tasks/:id/link-work-order', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const orgId = orgOf(req as AuthedReq);
     const id = Number(req.params.id);

@@ -68,7 +68,7 @@ export default function RealtimeDashboard() {
       }
 
       // Fetch production stats
-      const productionRes = await api.get<any>('/exx/fab/dashboard');
+      const productionRes = await api.get<any>('/edxx/fab/dashboard');
       if (productionRes) {
         const orders = productionRes.orders || [];
         const inProgress = orders.filter((o: any) => o.status === 'in_progress').length;

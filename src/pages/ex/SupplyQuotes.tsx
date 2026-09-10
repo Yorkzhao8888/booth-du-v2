@@ -57,7 +57,7 @@ export default function ExSupplyQuotes() {
 
   useEffect(() => { fetchQuotes(); }, [page]);
 
-  // DEX sees NO price fields - only quote metadata
+  // EDX sees NO price fields - only quote metadata
   // This is enforced by the backend which strips all price fields
   const columns = [
     {
@@ -145,7 +145,7 @@ export default function ExSupplyQuotes() {
           <Space>
             <LockOutlined style={{ color: '#8c8c8c' }} />
             <span>供给报价单</span>
-            <Tag color="warning" style={{ fontSize: 11 }}>DEX 执行管理 · 价格已脱敏</Tag>
+            <Tag color="warning" style={{ fontSize: 11 }}>EDX 执行管理 · 价格已脱敏</Tag>
           </Space>
         }
       >

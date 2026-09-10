@@ -7,7 +7,7 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-// ====== DU/DX/DM/DXX: 按角色权限访问（exx 只允许 GET /transfers） ======
+// ====== DU/DX/DM/EMXX: 按角色权限访问（edxx 只允许 GET /transfers） ======
 const duRouter = Router();
 duRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
@@ -16,16 +16,16 @@ duRouter.use(requireAuth, (req, res, next) => {
   // Debug log for troubleshooting
   console.log(`[du-modules guard] ENTER: path=${req.path}, method=${req.method}, role=${user.role}, userId=${user.userId || 'N/A'}`);
   
-  // EXX 特殊处理：只允许 GET /transfers，其他一律 403
-  if (user.role === 'exx') {
+  // EDXX 特殊处理：只允许 GET /transfers，其他一律 403
+  if (user.role === 'edxx') {
     const isTransferRead = req.path === '/transfers' && req.method === 'GET';
-    console.log(`[du-modules guard] exx branch: path=${req.path}, method=${req.method}, isTransferRead=${isTransferRead}`);
+    console.log(`[du-modules guard] edxx branch: path=${req.path}, method=${req.method}, isTransferRead=${isTransferRead}`);
     if (!isTransferRead) {
-      console.log(`[du-modules guard] exx REJECT: not transfer read`);
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员只能查看调拨列表' });
+      console.log(`[du-modules guard] edxx REJECT: not transfer read`);
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EDXX 铺员只能查看调拨列表' });
     }
-    // exx 可以 GET /transfers，strip cost fields
-    console.log(`[du-modules guard] exx ALLOW: transfer read`);
+    // edxx 可以 GET /transfers，strip cost fields
+    console.log(`[du-modules guard] edxx ALLOW: transfer read`);
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));
@@ -34,7 +34,7 @@ duRouter.use(requireAuth, (req, res, next) => {
   }
   
   // 基础角色列表（可访问 du 路由）
-  const baseRoles = ['du', 'dx', 'dm', 'dxx'];
+  const baseRoles = ['du', 'dx', 'dm', 'emxx'];
   
   // 其他角色检查
   if (!baseRoles.includes(user.role)) {
@@ -47,8 +47,8 @@ duRouter.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DXX：拦截 res.json 以 stripCostFields（价格隔离）
-  if (user.role === 'dxx') {
+  // EMXX：拦截 res.json 以 stripCostFields（价格隔离）
+  if (user.role === 'emxx') {
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));

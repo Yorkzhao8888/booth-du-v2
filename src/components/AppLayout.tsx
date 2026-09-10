@@ -36,7 +36,7 @@ const { Header, Sider, Content } = Layout;
 
 const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   const canSeePrice = ['du', 'dx', 'dm'].includes(role);
-  const canWrite = ['du', 'dx', 'dxx', 'ex', 'exx'].includes(role);
+  const canWrite = ['du', 'dx', 'emxx', 'ex', 'edxx'].includes(role);
   const isReadOnly = role === 'dm';
 
   // MKT 铺子管理
@@ -45,7 +45,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
     icon: <ShopOutlined />,
     label: 'MKT 铺子管理',
     children: [
-      // /du/* 管理项仅对决策/管理层展示（dex 守卫仅放行 /dex，dex/exx 点 /du/* 会被 RequireAuth 弹回）
+      // /du/* 管理项仅对决策/管理层展示（edx 守卫仅放行 /edx，edx/edxx 点 /du/* 会被 RequireAuth 弹回）
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du', label: '经营看板' },
         { key: '/du/orders', label: '订单管理' },
@@ -65,7 +65,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
         { key: '/du/org-chart', label: '组织架构' },
         ...(['du', 'dm'].includes(role) ? [{ key: '/du/employees', label: '员工管理' }] : []),
       ] : []),
-      // dex 自有路由项（/dex/skus、/dex/boms 已在 App.tsx 注册）
+      // edx 自有路由项（/edx/skus、/edx/boms 已在 App.tsx 注册）
       ...(role === 'ex' ? [{ key: '/ex/skus', label: 'SKU管理' }] : []),
       ...(role === 'ex' ? [{ key: '/ex/crafts', label: '工艺管理' }] : []), // [BOOTH-PRD-003 RD-005]
       ...(role === 'ex' ? [{ key: '/ex/boms', label: 'BOM管理' }] : []),
@@ -86,16 +86,16 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
       ...(role === 'ex' ? [
         { key: '/ex/work-orders', label: '工单调度' },
       ] : []),
-      ...(role === 'exx' ? [
-        { key: '/exx/fab/queue', label: '待接单' },
-        { key: '/exx/fab/active', label: '制作中' },
-        { key: '/exx/fab/operations', label: '工序报工' },
-        { key: '/exx/fab/dashboard', label: '产线看板' },
-        { key: '/exx/fab/yield', label: '良品率追踪' },
-        { key: '/exx/qc', label: '质检任务' },
-        { key: '/exx/fab/trace', label: '追溯查询' },
-        { key: '/exx/fab/defects', label: '不良分析' },
-        { key: '/exx/fab/history', label: '历史工单' },
+      ...(role === 'edxx' ? [
+        { key: '/edxx/fab/queue', label: '待接单' },
+        { key: '/edxx/fab/active', label: '制作中' },
+        { key: '/edxx/fab/operations', label: '工序报工' },
+        { key: '/edxx/fab/dashboard', label: '产线看板' },
+        { key: '/edxx/fab/yield', label: '良品率追踪' },
+        { key: '/edxx/qc', label: '质检任务' },
+        { key: '/edxx/fab/trace', label: '追溯查询' },
+        { key: '/edxx/fab/defects', label: '不良分析' },
+        { key: '/edxx/fab/history', label: '历史工单' },
       ] : []),
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du/work-orders', label: '工单管理' },
@@ -104,8 +104,8 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   };
 
   // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（FAB-MES-03-FIX3: 保留可见+可进入+只读）
-  // key 前缀按角色: du/dx/dm→/du/fab, dex→/dex/fab, exx→/exx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
-  const fabBase = role === 'exx' ? '/exx/fab' : role === 'ex' ? '/ex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
+  // key 前缀按角色: du/dx/dm→/du/fab, edx→/edx/fab, edxx→/edxx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
+  const fabBase = role === 'edxx' ? '/edxx/fab' : role === 'ex' ? '/ex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
   const fabZoneItems = {
     key: 'fab-zones',
     icon: <ApartmentOutlined />,
@@ -135,7 +135,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
       { key: `${fabBase}/score`, label: '供给信用' },
       { key: `${fabBase}/maintenance`, label: '保养日历' },
       { key: `${fabBase}/andon`, label: '安灯异常中心' },
-      ...(role === 'exx'
+      ...(role === 'edxx'
         ? [
             { type: 'divider' as const },
             { key: `${fabBase}/plugins`, label: '能力市场' },
@@ -150,7 +150,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
     icon: <HomeOutlined />,
     label: 'WH 供给铺',
     children: [
-      // 管理视角仅 du/dx/dm（守卫放行 /du）；dex/exx 点 /du/* 会被 RequireAuth 弹回首页
+      // 管理视角仅 du/dx/dm（守卫放行 /du）；edx/edxx 点 /du/* 会被 RequireAuth 弹回首页
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du/batches', label: '批次库存' },
         { key: '/du/inventory', label: '库存总览' },
@@ -161,16 +161,16 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
         { key: '/du/supply-orders', label: '供给订单' },
       ] : []),
       ...(role === 'ex' ? [{ key: '/ex/stocktakes', label: '盘点审批' }, { key: '/ex/capacity', label: '产能查询' }, { key: '/ex/supply-quotes', label: '供给报价' }] : []),
-      ...(role === 'exx' ? [
-        { key: '/exx/stocktake', label: '盘点执行' },
-        { key: '/exx/wh/inbound', label: '入库' },
-        { key: '/exx/wh/outbound', label: '出库' },
+      ...(role === 'edxx' ? [
+        { key: '/edxx/stocktake', label: '盘点执行' },
+        { key: '/edxx/wh/inbound', label: '入库' },
+        { key: '/edxx/wh/outbound', label: '出库' },
         { type: 'divider' },
         { key: 'wh-supply-group', label: '供给执行', type: 'group', children: [
-          { key: '/exx/wh/supply-orders', label: '供给单' },
-          { key: '/exx/wh/supply-line-feed', label: '补给产线' },
-          { key: '/exx/wh/device-supply', label: '设备供给' },
-          { key: '/exx/wh/plaza-supply', label: '场地供给' },
+          { key: '/edxx/wh/supply-orders', label: '供给单' },
+          { key: '/edxx/wh/supply-line-feed', label: '补给产线' },
+          { key: '/edxx/wh/device-supply', label: '设备供给' },
+          { key: '/edxx/wh/plaza-supply', label: '场地供给' },
         ]},
       ] : []),
     ],
@@ -184,7 +184,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
     children: [
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/dl', label: '配送任务' }] : []),
       ...(role === 'ex' ? [{ key: '/ex/dl-dispatch', label: '配送派单' }] : []),
-      ...(role === 'exx' ? [{ key: '/exx/dl', label: '配送执行' }] : []),
+      ...(role === 'edxx' ? [{ key: '/edxx/dl', label: '配送执行' }] : []),
     ],
   };
 
@@ -197,7 +197,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/svc', label: '服务任务' }] : []),
       ...(['du', 'dx'].includes(role) ? [{ key: '/du/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'ex' ? [{ key: '/ex/svc-dispatch', label: '服务派单' }] : []),
-      ...(role === 'exx' ? [{ key: '/exx/svc', label: '服务执行' }] : []),
+      ...(role === 'edxx' ? [{ key: '/edxx/svc', label: '服务执行' }] : []),
     ],
   };
 
@@ -233,7 +233,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   // 按角色过滤菜单
   const items = [];
 
-  // [BOOTH-PRD-002 PM-004] DEU = DU 履约铺分身 (非独立角色): 分身态菜单 = DEX(ex) 执行视图 + DU 经营决策项
+  // [BOOTH-PRD-002 PM-004] DEU = DU 履约铺分身 (非独立角色): 分身态菜单 = EDX(ex) 执行视图 + DU 经营决策项
   if (role === 'du' && actingDeuMode) {
     items.push(mktItems, fabItems, whItems, dlItems, svcItems);
     items.push({ key: 'deu-decision', icon: <ShoppingCartOutlined />, label: '经营决策 (DEU)', children: [
@@ -248,23 +248,43 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   else if (['dm', 'du', 'dx'].includes(role)) {
     items.push(mktItems, fabItems, whItems, dlItems, svcItems, marketItems);
   }
-  // DXX 一线经营：MKT（只读）+ WH + DL + SVC
-  else if (role === 'dxx') {
+  // EMXX 一线经营：MKT（只读）+ WH + DL + SVC
+  else if (role === 'emxx') {
     items.push(
-      // dxx 守卫仅放行 /dxx 与 /exx；收敛后 mkt/wh/dl/svc 对 dxx 均为空组，会被末尾 filter 移除
-      { key: 'dxx-home', icon: <DashboardOutlined />, label: '一线经营', children: [{ key: '/dxx', label: '经营首页' }] },
+      // emxx 守卫仅放行 /emxx 与 /edxx；收敛后 mkt/wh/dl/svc 对 emxx 均为空组，会被末尾 filter 移除
+      { key: 'emxx-home', icon: <DashboardOutlined />, label: '一线经营', children: [{ key: '/emxx', label: '经营首页' }] },
       { ...mktItems, label: 'MKT 铺子（只读）' },
       { ...whItems, children: whItems.children.filter(i => i.key && !['/du/wh/warehouse-dashboard'].includes(i.key)) },
       dlItems,
       svcItems,
     );
   }
+  // [XFACTORY-P1] EDX 业务执行线（供给生产管理 + 交付回执 DDU/XU）
+  else if (role === 'edx') {
+    items.push(
+      { key: 'edx-exec', icon: <ToolOutlined />, label: '业务执行线', children: [
+        { key: '/edx/production-orders', label: '供给生产单' },
+        { key: '/edx/receipts', label: '交付回执 (DDU/XU)' },
+      ] },
+      { ...mktItems, label: 'MKT 铺子（只读）' },
+      fabItems, whItems, dlItems, svcItems,
+    );
+  }
+  // [XFACTORY-P1] EMX 运营线（X-Supply 采购商城桩接）
+  else if (role === 'emx') {
+    items.push(
+      { key: 'emx-ops', icon: <ShoppingCartOutlined />, label: '运营线', children: [
+        { key: '/emx/purchase-requests', label: 'X-Supply 采购请求' },
+        { key: '/emx/production-orders', label: '供给生产单' },
+      ] },
+    );
+  }
   // EX 铺长：MKT + WH（盘点）+ DL + SVC
   else if (role === 'ex') {
     items.push(mktItems, fabItems, whItems, dlItems, svcItems);
   }
-  // EXX 铺员：FAB + WH + DL + SVC（四帽）
-  else if (role === 'exx') {
+  // EDXX 铺员：FAB + WH + DL + SVC（四帽）
+  else if (role === 'edxx') {
     items.push(fabItems, whItems, dlItems, svcItems);
   }
 
@@ -316,8 +336,8 @@ const AppLayout: React.FC = () => {
 
   const userMenu = {
     items: [
-      // dex/exx 无 /{role}/org-chart 路由（点击会落 '*' 弹回首页），仅对有路由的角色展示
-      ...(user?.role !== 'ex' && user?.role !== 'exx' ? [
+      // edx/edxx 无 /{role}/org-chart 路由（点击会落 '*' 弹回首页），仅对有路由的角色展示
+      ...(user?.role !== 'ex' && user?.role !== 'edxx' ? [
         { key: 'org', icon: <AppstoreOutlined />, label: '组织架构', onClick: () => navigate(`/${user?.role}/org-chart`) },
       ] : []),
       { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', onClick: logout },
@@ -328,9 +348,9 @@ const AppLayout: React.FC = () => {
     dm: 'DM 运营',
     du: 'DU 店主',
     dx: 'DX 店长',
-    dxx: 'DXX 店员',
+    emxx: 'EMXX 店员',
     ex: 'EX 铺长',
-    exx: 'EXX 铺员',
+    edxx: 'EDXX 铺员',
   };
 
   return (
@@ -385,7 +405,7 @@ const AppLayout: React.FC = () => {
                 onClick={() => {
                   const next = !actingDeu;
                   setActingDeu(next);
-                                    navigate(next ? '/dex' : '/du');
+                                    navigate(next ? '/edx' : '/du');
                 }}
               >
                 {actingDeu ? '退出履约铺 (回 DU)' : '进入履约铺后台 (DEU)'}

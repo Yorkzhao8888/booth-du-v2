@@ -2,8 +2,8 @@
  * [BOOTH-PRD-002] 铺面管理 + 权限（阶段一 P0 核心）
  * - PM-001 供应铺管理: 四铺(研发 rd/制造 manufacture/配送 delivery/供给 supply)建改停用列表 + 能力展示数据源(BDD-16, PM-008 预留)
  * - PM-002 订单类型配置: 字典化(MVP 三类=外发/自制/研发) + 派发映射(default_target_shop_type, BDD-01)
- * - PM-004 角色管理(口径修正): 生态角色链 dm→du→dx→dex→dexx; DEU=DU 履约铺分身(非独立角色, 保留经营决策权)
- *   价格边界红线: M 层(dm/du)+X 层管理(dx)可见价格; X 层执行(ex=DEX/exx=DEXX/dxx)不可见任何价格; DEXX 不可见售价
+ * - PM-004 角色管理(口径修正): 生态角色链 dm→du→dx→edx→edxx; DEU=DU 履约铺分身(非独立角色, 保留经营决策权)
+ *   价格边界红线: M 层(dm/du)+X 层管理(dx)可见价格; X 层执行(ex=EDX/edxx=EDXX/emxx)不可见任何价格; EDXX 不可见售价
  */
 import { Router, Request, Response, NextFunction } from 'express';
 import { pool } from '../db.js';
@@ -191,8 +191,8 @@ router.get('/rbac/roles', requireAuth, async (req: AuthedReq, res: Response, nex
       { roleKey: 'dm', ecoName: 'DM', layer: 'M-层', priceVisible: true, description: '生态管理 (M 层上游, 只读)' },
       { roleKey: 'du', ecoName: 'DU', layer: 'M-层', priceVisible: true, description: '店主/履约铺主' },
       { roleKey: 'dx', ecoName: 'DX', layer: 'X-管理', priceVisible: true, description: '店长' },
-      { roleKey: 'ex', ecoName: 'DEX', layer: 'X-执行', priceVisible: false, description: 'DEX = ex (店-铺长), 全链路不可见售价' },
-      { roleKey: 'exx', ecoName: 'DEXX', layer: 'X-执行', priceVisible: false, description: 'DEXX = exx (铺员), 全链路不可见售价' },
+      { roleKey: 'ex', ecoName: 'EDX', layer: 'X-执行', priceVisible: false, description: 'EDX = ex (店-铺长), 全链路不可见售价' },
+      { roleKey: 'edxx', ecoName: 'EDXX', layer: 'X-执行', priceVisible: false, description: 'EDXX = edxx (铺员), 全链路不可见售价' },
     ];
     const roleKey = user?.roleKey || 'du';
     const self = chain.find((c) => c.roleKey === roleKey);
@@ -201,7 +201,7 @@ router.get('/rbac/roles', requireAuth, async (req: AuthedReq, res: Response, nex
     const hatScope: Record<string, string> = { FAB: 'fab', WH: 'wh', DL: 'dl', SVC: 'svc' };
     const hats = user?.hats || [];
     const menuScope =
-      roleKey === 'exx'
+      roleKey === 'edxx'
         ? hats.map((h) => hatScope[h]).filter(Boolean)
         : roleKey === 'ex'
           ? ['fab', 'wh', 'dl', 'svc']
@@ -209,8 +209,8 @@ router.get('/rbac/roles', requireAuth, async (req: AuthedReq, res: Response, nex
     const dataScope = ['du', 'dx', 'dm'].includes(roleKey)
       ? `org#${user?.orgId ?? 1} 全域 (M/X 管理层)`
       : roleKey === 'ex'
-        ? `org#${user?.orgId ?? 1} 履约铺执行域 (DEX, 无价格)`
-        : `org#${user?.orgId ?? 1} 帽子域 [${hats.join('/') || '无'}] (DEXX, 无价格)`;
+        ? `org#${user?.orgId ?? 1} 履约铺执行域 (EDX, 无价格)`
+        : `org#${user?.orgId ?? 1} 帽子域 [${hats.join('/') || '无'}] (EDXX, 无价格)`;
     res.json({
       success: true,
       data: {
@@ -233,7 +233,7 @@ router.get('/rbac/roles', requireAuth, async (req: AuthedReq, res: Response, nex
 router.get('/rbac/me', requireAuth, async (req: AuthedReq, res: Response, next: NextFunction) => {
   try {
     const user = req.user as { roleKey?: string; actingAs?: string; orgMode?: string; hats?: string[] } | undefined;
-    const roleKey = user?.roleKey || 'exx';
+    const roleKey = user?.roleKey || 'edxx';
     const actingAs = user?.actingAs; // 'deu' | undefined
     const priceVisible = canSeePrice(user as never);
     const isXExec = isXExecutor(user as never);
@@ -247,7 +247,7 @@ router.get('/rbac/me', requireAuth, async (req: AuthedReq, res: Response, next: 
         xExecutorStripped: isXExec,
         hats: user?.hats || [],
         menuScope: roleKey === 'dm' ? ['du'] : [roleKey], // dm 复用 du 菜单视图
-        note: '前端按 priceVisible 渲染价格列; 后端 ex/exx 路由已挂 stripXExecutorPrices 数据权限层',
+        note: '前端按 priceVisible 渲染价格列; 后端 ex/edxx 路由已挂 stripXExecutorPrices 数据权限层',
       },
     });
   } catch (e) { next(e); }

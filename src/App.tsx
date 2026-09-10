@@ -31,7 +31,7 @@ import SupplyShops from './pages/du/SupplyShops'; // [BOOTH-PRD-002] PM-001 供�
 import OrderTypes from './pages/du/OrderTypes'; // [BOOTH-PRD-002] PM-002 订单类型配置
 import RbacRoles from './pages/du/RbacRoles'; // [BOOTH-PRD-002] PM-004 角色权限矩阵
 import Crafts from './pages/du/Crafts'; // [BOOTH-PRD-003] RD-005 工艺管理
-// DEX pages
+// EDX pages
 import ExDashboard from './pages/ex/Dashboard';
 import ExWorkOrders from './pages/ex/WorkOrders';
 import ExBoms from './pages/ex/Boms';
@@ -41,43 +41,43 @@ import ExDlDispatch from './pages/ex/DlDispatch';
 import ExSvcDispatch from './pages/ex/SvcDispatch';
 import ExStocktakeApproval from './pages/ex/StocktakeApproval';
 import ExCapacityQuery from './pages/ex/CapacityQuery';
-// EXX pages
-import ExxModuleEntry from './pages/exx/ModuleEntry';
-import ExxFabQueue from './pages/exx/FabQueue';
-import ExxFabActive from './pages/exx/FabActive';
-import ExxFabHistory from './pages/exx/FabHistory';
-import ExxWhInventory from './pages/exx/WhInventory';
-import ExxWhInbound from './pages/exx/WhInbound';
-import ExxWhOutbound from './pages/exx/WhOutbound';
-import ExxWhTxns from './pages/exx/WhTxns';
-import ExxFabOperations from './pages/exx/FabOperations';
-import ExxFabAndon from './pages/exx/FabAndon';
-import ExxQcExecute from './pages/exx/QcExecute';
-import ExxFabTrace from './pages/exx/FabTrace';
-import ExxFabPlugins from './pages/exx/FabPlugins';
-import ExxFabTelemetry from './pages/exx/FabTelemetry';
-import ExxFabSupplierScore from './pages/exx/FabSupplierScore';
-import ExxFabDefects from './pages/exx/FabDefects';
-import ExxStocktakeExec from './pages/exx/StocktakeExec';
-import ExxDlExec from './pages/exx/DlExec';
-import ExxSvcExec from './pages/exx/SvcExec';
-import ExxProductionDashboard from './pages/exx/ProductionDashboard';
-import ExxYieldTracking from './pages/exx/YieldTracking';
-import ExxFabZoneView from './pages/exx/FabZoneView';
-import ExxFabStations from './pages/exx/FabStations';
-import ExxFabStationDetail from './pages/exx/FabStationDetail';
-import ExxFabEquipment from './pages/exx/FabEquipment';
-import ExxFabEquipmentOee from './pages/exx/FabEquipmentOee';
-import ExxFabOeeDashboard from './pages/exx/FabOeeDashboard';
-import ExxFabMaintenance from './pages/exx/FabMaintenance';
-import ExxSupplyOrders from './pages/exx/SupplyOrders';
-import ExxSupplyLineFeed from './pages/exx/SupplyLineFeed';
-import ExxDeviceSupply from './pages/exx/DeviceSupply';
-import ExxPlazaSupply from './pages/exx/PlazaSupply';
+// EDXX pages
+import ExxModuleEntry from './pages/edxx/ModuleEntry';
+import ExxFabQueue from './pages/edxx/FabQueue';
+import ExxFabActive from './pages/edxx/FabActive';
+import ExxFabHistory from './pages/edxx/FabHistory';
+import ExxWhInventory from './pages/edxx/WhInventory';
+import ExxWhInbound from './pages/edxx/WhInbound';
+import ExxWhOutbound from './pages/edxx/WhOutbound';
+import ExxWhTxns from './pages/edxx/WhTxns';
+import ExxFabOperations from './pages/edxx/FabOperations';
+import ExxFabAndon from './pages/edxx/FabAndon';
+import ExxQcExecute from './pages/edxx/QcExecute';
+import ExxFabTrace from './pages/edxx/FabTrace';
+import ExxFabPlugins from './pages/edxx/FabPlugins';
+import ExxFabTelemetry from './pages/edxx/FabTelemetry';
+import ExxFabSupplierScore from './pages/edxx/FabSupplierScore';
+import ExxFabDefects from './pages/edxx/FabDefects';
+import ExxStocktakeExec from './pages/edxx/StocktakeExec';
+import ExxDlExec from './pages/edxx/DlExec';
+import ExxSvcExec from './pages/edxx/SvcExec';
+import ExxProductionDashboard from './pages/edxx/ProductionDashboard';
+import ExxYieldTracking from './pages/edxx/YieldTracking';
+import ExxFabZoneView from './pages/edxx/FabZoneView';
+import ExxFabStations from './pages/edxx/FabStations';
+import ExxFabStationDetail from './pages/edxx/FabStationDetail';
+import ExxFabEquipment from './pages/edxx/FabEquipment';
+import ExxFabEquipmentOee from './pages/edxx/FabEquipmentOee';
+import ExxFabOeeDashboard from './pages/edxx/FabOeeDashboard';
+import ExxFabMaintenance from './pages/edxx/FabMaintenance';
+import ExxSupplyOrders from './pages/edxx/SupplyOrders';
+import ExxSupplyLineFeed from './pages/edxx/SupplyLineFeed';
+import ExxDeviceSupply from './pages/edxx/DeviceSupply';
+import ExxPlazaSupply from './pages/edxx/PlazaSupply';
 // DM pages
 import DmDashboard from './pages/dm/Dashboard';
-// DXX pages
-import DxxDashboard from './pages/dxx/Dashboard';
+// EMXX pages
+import DxxDashboard from './pages/emxx/Dashboard';
 // EM pages
 import EmDashboard from './pages/em/Dashboard';
 import EmSupplierAdmissions from './pages/em/SupplierAdmissions';
@@ -147,15 +147,21 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     else if ((role === 'du' || role === 'dx') && !path.startsWith('/du') && !path.startsWith('/market')) {
       return <Navigate to="/du" replace />;
     }
-    // dxx shares /dxx routes with exx
-    else if (role === 'dxx' && !path.startsWith('/dxx') && !path.startsWith('/exx')) {
-      return <Navigate to="/dxx" replace />;
+    // emxx shares /emxx routes with edxx
+    else if (role === 'emxx' && !path.startsWith('/emxx') && !path.startsWith('/edxx')) {
+      return <Navigate to="/emxx" replace />;
     }
     else if (role === 'ex' && !path.startsWith('/ex')) {
       return <Navigate to="/ex" replace />;
     }
-    else if (role === 'exx' && !path.startsWith('/exx')) {
-      return <Navigate to="/exx" replace />;
+    else if (role === 'edx' && !path.startsWith('/edx') && !path.startsWith('/du')) {
+      return <Navigate to="/edx" replace />;
+    }
+    else if (role === 'emx' && !path.startsWith('/emx') && !path.startsWith('/du')) {
+      return <Navigate to="/emx" replace />;
+    }
+    else if (role === 'edxx' && !path.startsWith('/edxx')) {
+      return <Navigate to="/edxx" replace />;
     }
   }
 
@@ -165,7 +171,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const RoleRedirect: React.FC = () => {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
-  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', ex: '/ex', exx: '/exx', em: '/em' };
+  const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', emxx: '/emxx', ex: '/ex', edxx: '/edxx', em: '/em' };
   return <Navigate to={home[user.role] || '/login'} replace />;
 };
 
@@ -222,7 +228,7 @@ const App: React.FC = () => {
           <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
-          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 exx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
+          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 edxx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
@@ -266,7 +272,7 @@ const App: React.FC = () => {
           <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
         </Route>
         <Route
-          path="/dxx"
+          path="/emxx"
           element={
             <RequireAuth>
               <AppLayout />
@@ -275,7 +281,7 @@ const App: React.FC = () => {
         >
           <Route index element={<ErrorBoundary><DxxDashboard /></ErrorBoundary>} />
           <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
-          {/* DXX can access EXX execution routes */}
+          {/* EMXX can access EDXX execution routes */}
           <Route path="dl" element={<ErrorBoundary><ExxDlExec /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><ExxSvcExec /></ErrorBoundary>} />
         </Route>
@@ -299,8 +305,8 @@ const App: React.FC = () => {
           <Route path="stocktakes" element={<ErrorBoundary><ExStocktakeApproval /></ErrorBoundary>} />
           <Route path="capacity" element={<ErrorBoundary><ExCapacityQuery /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><ExSupplyQuotes /></ErrorBoundary>} />
-          <Route path="crafts" element={<ErrorBoundary><Crafts /></ErrorBoundary>} /> {/* [BOOTH-PRD-003] DEX 工艺管理 */}
-          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): dex 复用 exx 组件 */}
+          <Route path="crafts" element={<ErrorBoundary><Crafts /></ErrorBoundary>} /> {/* [BOOTH-PRD-003] EDX 工艺管理 */}
+          {/* FAB 产线只读监控 (FAB-MES-03-FIX3): edx 复用 edxx 组件 */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
@@ -315,9 +321,9 @@ const App: React.FC = () => {
           <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
         </Route>
 
-        {/* EXX routes */}
+        {/* EDXX routes */}
         <Route
-          path="/exx"
+          path="/edxx"
           element={
             <RequireAuth>
               <MobileLayout />
@@ -379,7 +385,7 @@ const App: React.FC = () => {
           <Route path="sgu-listings" element={<ErrorBoundary><EmSguListings /></ErrorBoundary>} />
           <Route path="sgu-pending" element={<ErrorBoundary><EmSguPending /></ErrorBoundary>} />
           <Route path="supply-quotes" element={<ErrorBoundary><EmSupplyQuotes /></ErrorBoundary>} />
-          {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 exx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
+          {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 edxx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
           <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />

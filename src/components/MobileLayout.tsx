@@ -32,67 +32,67 @@ type ModuleType = 'fab' | 'station' | 'fab-zone' | 'fab-eq' | 'wh' | 'wh-supply'
 
 // 工单视角 tabs
 const fabTabs = [
-  { key: '/exx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
-  { key: '/exx/fab/active', label: '制作中', icon: <SyncOutlined /> },
-  { key: '/exx/fab/operations', label: '报工', icon: <ToolOutlined /> },
-  { key: '/exx/fab/dashboard', label: '看板', icon: <DashboardOutlined /> },
-  { key: '/exx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
-  { key: '/exx/qc', label: '质检', icon: <CheckSquareOutlined /> },
-  { key: '/exx/fab/history', label: '历史', icon: <HistoryOutlined /> },
-  { key: '/exx/fab/andon', label: '安灯', icon: <AlertOutlined /> },
+  { key: '/edxx/fab/queue', label: '待接单', icon: <ClockCircleOutlined /> },
+  { key: '/edxx/fab/active', label: '制作中', icon: <SyncOutlined /> },
+  { key: '/edxx/fab/operations', label: '报工', icon: <ToolOutlined /> },
+  { key: '/edxx/fab/dashboard', label: '看板', icon: <DashboardOutlined /> },
+  { key: '/edxx/fab/yield', label: '良品率', icon: <LineChartOutlined /> },
+  { key: '/edxx/qc', label: '质检', icon: <CheckSquareOutlined /> },
+  { key: '/edxx/fab/history', label: '历史', icon: <HistoryOutlined /> },
+  { key: '/edxx/fab/andon', label: '安灯', icon: <AlertOutlined /> },
 ];
 
 // Station 视角 tabs（站列表为一级入口; 站详情由列表进入; 遥测/安灯归设备/产线域留原处）
 const stationTabs = [
-  { key: '/exx/station', label: '站列表', icon: <ClusterOutlined /> },
+  { key: '/edxx/station', label: '站列表', icon: <ClusterOutlined /> },
 ];
 
 // 设备视角 tabs（设备台账 / OEE / 保养）
 const fabEqTabs = [
-  { key: '/exx/fab/equipment', label: '设备台账', icon: <ToolOutlined /> },
-  { key: '/exx/fab/equipment/oee', label: 'OEE', icon: <DashboardOutlined /> },
-  { key: '/exx/fab/maintenance', label: '保养', icon: <CalendarOutlined /> },
+  { key: '/edxx/fab/equipment', label: '设备台账', icon: <ToolOutlined /> },
+  { key: '/edxx/fab/equipment/oee', label: 'OEE', icon: <DashboardOutlined /> },
+  { key: '/edxx/fab/maintenance', label: '保养', icon: <CalendarOutlined /> },
 ];
 
 // 产线视角 tabs（四大生产区只读看板）
 const fabZoneTabs = [
-  { key: '/exx/fab/zone/preprocessing', label: '前置', icon: <ApartmentOutlined /> },
-  { key: '/exx/fab/zone/production', label: '制作', icon: <ApartmentOutlined /> },
-  { key: '/exx/fab/zone/packaging', label: '包装', icon: <ApartmentOutlined /> },
-  { key: '/exx/fab/zone/sorting', label: '分拣', icon: <ApartmentOutlined /> },
+  { key: '/edxx/fab/zone/preprocessing', label: '前置', icon: <ApartmentOutlined /> },
+  { key: '/edxx/fab/zone/production', label: '制作', icon: <ApartmentOutlined /> },
+  { key: '/edxx/fab/zone/packaging', label: '包装', icon: <ApartmentOutlined /> },
+  { key: '/edxx/fab/zone/sorting', label: '分拣', icon: <ApartmentOutlined /> },
 ];
 
 const whTabs = [
-  { key: '/exx/wh/inventory', label: '库存', icon: <InboxOutlined /> },
-  { key: '/exx/wh/inbound', label: '入库', icon: <LoginOutlined /> },
-  { key: '/exx/wh/outbound', label: '出库', icon: <LogoutOutlined /> },
-  { key: '/exx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
-  { key: '/exx/stocktake', label: '盘点', icon: <AuditOutlined /> },
+  { key: '/edxx/wh/inventory', label: '库存', icon: <InboxOutlined /> },
+  { key: '/edxx/wh/inbound', label: '入库', icon: <LoginOutlined /> },
+  { key: '/edxx/wh/outbound', label: '出库', icon: <LogoutOutlined /> },
+  { key: '/edxx/wh/txns', label: '流水', icon: <UnorderedListOutlined /> },
+  { key: '/edxx/stocktake', label: '盘点', icon: <AuditOutlined /> },
 ];
 
 // 供给视角 tabs
 const whSupplyTabs = [
-  { key: '/exx/wh/supply-orders', label: '供给单', icon: <SendOutlined /> },
-  { key: '/exx/wh/supply-line-feed', label: '补给线', icon: <NodeIndexOutlined /> },
-  { key: '/exx/wh/device-supply', label: '设备', icon: <SettingOutlined /> },
-  { key: '/exx/wh/plaza-supply', label: '场地', icon: <HomeOutlined /> },
+  { key: '/edxx/wh/supply-orders', label: '供给单', icon: <SendOutlined /> },
+  { key: '/edxx/wh/supply-line-feed', label: '补给线', icon: <NodeIndexOutlined /> },
+  { key: '/edxx/wh/device-supply', label: '设备', icon: <SettingOutlined /> },
+  { key: '/edxx/wh/plaza-supply', label: '场地', icon: <HomeOutlined /> },
 ];
 
 const dlTabs = [
-  { key: '/exx/dl', label: '配送', icon: <CarOutlined /> },
+  { key: '/edxx/dl', label: '配送', icon: <CarOutlined /> },
 ];
 
 const svcTabs = [
-  { key: '/exx/svc', label: '服务', icon: <CustomerServiceOutlined /> },
+  { key: '/edxx/svc', label: '服务', icon: <CustomerServiceOutlined /> },
 ];
 
 const stocktakeTabs = [
-  { key: '/exx/stocktake', label: '盘点', icon: <AuditOutlined /> },
+  { key: '/edxx/stocktake', label: '盘点', icon: <AuditOutlined /> },
 ];
 
 /** 根据 pathname 推断当前所属模块 */
 const resolveModule = (pathname: string): ModuleType => {
-  if (pathname.startsWith('/exx/station') || pathname.includes('/fab/station')) return 'station';
+  if (pathname.startsWith('/edxx/station') || pathname.includes('/fab/station')) return 'station';
   if (pathname.includes('/fab/zone/')) return 'fab-zone';
   if (pathname.includes('/fab/equipment') || pathname.includes('/fab/maintenance')) return 'fab-eq';
   if (pathname.includes('/wh/supply') || pathname.includes('/wh/device') || pathname.includes('/wh/plaza')) return 'wh-supply';
@@ -155,15 +155,15 @@ const MobileLayout: React.FC = () => {
   };
 
   const moduleDefaultPath: Record<ModuleType, string> = {
-    fab: '/exx/fab/queue',
-    'station': '/exx/station',
-    'fab-zone': '/exx/fab/zone/preprocessing',
-    'fab-eq': '/exx/fab/equipment',
-    wh: '/exx/wh/inventory',
-    'wh-supply': '/exx/wh/supply-orders',
-    dl: '/exx/dl',
-    svc: '/exx/svc',
-    stocktake: '/exx/stocktake',
+    fab: '/edxx/fab/queue',
+    'station': '/edxx/station',
+    'fab-zone': '/edxx/fab/zone/preprocessing',
+    'fab-eq': '/edxx/fab/equipment',
+    wh: '/edxx/wh/inventory',
+    'wh-supply': '/edxx/wh/supply-orders',
+    dl: '/edxx/dl',
+    svc: '/edxx/svc',
+    stocktake: '/edxx/stocktake',
   };
 
   const handleModuleChange = (val: ModuleType) => {

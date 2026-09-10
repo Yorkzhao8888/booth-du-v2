@@ -13,16 +13,16 @@ Booth-DU 铺子供给执行系统（经营版），单包全栈架构。
 |------|------|------|----------|----------|
 | 店主 | du | 经营看板、订单、工单、库存、BOM | ✅ 全可见 | /du |
 | 店长 | dx | 与 du 相同视图 | ✅ 全可见 | /du |
-| 交付长 | dex | 工作台、拆单、BOM/SKU 管理 | ❌ 无价格 | /dex |
-| 铺员 | exx | FAB 制作 + WH 仓储（帽子权限） | ❌ 无价格 | /exx |
+| 交付长 | edx | 工作台、拆单、BOM/SKU 管理 | ❌ 无价格 | /edx |
+| 铺员 | edxx | FAB 制作 + WH 仓储（帽子权限） | ❌ 无价格 | /edxx |
 
 ## 测试账号
 | 手机号 | 密码 | 角色 | 姓名 |
 |--------|------|------|------|
 | 13800000001 | 123456 | du | 店主 |
 | 13800000004 | 123456 | dx | 店长 |
-| 13800000002 | 123456 | dex | 交付长 |
-| 13800000003 | 123456 | exx | 铺员 (FAB+WH) |
+| 13800000002 | 123456 | edx | 交付长 |
+| 13800000003 | 123456 | edxx | 铺员 (FAB+WH) |
 
 ## 构建命令
 ```bash
@@ -42,8 +42,8 @@ server/
   routes/
     auth.ts         # 登录 ([R7-01] 纯 OAS 代理) + oas-status
     du.ts           # 经营看板 (du+dx)
-    dex.ts          # 交付工作台 (dex)
-    exx.ts          # 执行端 FAB/WH (exx)
+    edx.ts          # 交付工作台 (edx)
+    edxx.ts          # 执行端 FAB/WH (edxx)
     internal.ts     # 内部事件接收 ([R7-DEF] 签名验证 + DLQ + 主题规范化)
     supply-order.ts # [PK-02] 契约 quote/confirm/settle ([R7-03] 审计+GMBS)
   services/
@@ -65,8 +65,8 @@ src/
   store.ts          # Zustand 状态
   pages/
     du/             # 店主/店长页面
-    dex/            # 交付长页面
-    exx/           # 铺员页面
+    edx/            # 交付长页面
+    edxx/           # 铺员页面
   components/
     AppLayout.tsx   # 桌面端布局
     MobileLayout.tsx # 移动端布局
@@ -77,16 +77,16 @@ src/
 - `/api/booth/auth/login` — 登录（[R7-01] 纯 OAS AMS 代理透传，无本地签发）
 - `/api/booth/auth/oas-status` — OAS 配置状态（authReady/failClosed/signing）
 - `/api/booth/du/*` — 经营端 (du+dx)
-- `/api/booth/dex/*` — 交付端 (dex)
-- `/api/booth/exx/*` — 执行端 (exx)
+- `/api/booth/edx/*` — 交付端 (edx)
+- `/api/booth/edxx/*` — 执行端 (edxx)
 - `/api/booth/supply-orders/*` — [PK-02] SupplyOrder 显式契约（quote/confirm/settle 带审计+GMBS）
 - `/api/booth/internal/events/*` — 内部事件
 - `/api/booth/stream` — SSE 实时推送
 - `/api/booth/health` — 健康检查
 - `/events/*` — [LINK-01] 内部事件根级别名（与 `/api/booth/internal/events/*` 等价，Shop XBUS 直调）
 - `PUT /api/booth/job/stations/:id/plaz-mapping` — [LINK-01 任务B] Booth↔X-Dyard(Plaz) 站位映射绑定/解绑（du/ex/dx）
-- `/api/booth/crafts` — [PRD-003 RD-005] 工艺管理 CRUD（du/dx/dex；前端 /du/crafts 与 /ex/crafts）
-- `POST /api/booth/exx/fab/work-orders/:id/evidences` — [PRD-003 G-005] 凭证上传→工单自动完成联动（FAB 帽）
+- `/api/booth/crafts` — [PRD-003 RD-005] 工艺管理 CRUD（du/dx/edx；前端 /du/crafts 与 /ex/crafts）
+- `POST /api/booth/edxx/fab/work-orders/:id/evidences` — [PRD-003 G-005] 凭证上传→工单自动完成联动（FAB 帽）
 
 ## 订单族编码同步（ORDER-T，2026-09-05 定义 LOCKED）
 六订单族统一编码：Order-C 对客经营 / Order-D 履约经营 / Order-Y 智场工程 / Order-H 人事伙伴 / Order-E 通货供给 / Order-T 技研支撑（技术订单已由 Order-D 重名修正为 **Order-T**，D 仅指履约）。
@@ -103,8 +103,8 @@ src/
 ## 铺面管理与权限（BOOTH-PRD-002，阶段一 P0）
 - **四铺枚举（裁定）**：研发(rd)/制造(manufacture)/配送(delivery)/供给(supply)；供应铺表 `booth_supply_shops`（UNIQUE(org,shop_type,shop_name)+capabilities JSONB 为 PM-008 能力展示数据源，GET /:id/capabilities）
 - **订单类型字典**：`booth_order_types`（type_code/type_name/default_target_shop_type/enabled，MVP 三类 outsource外发→supply / self_made自制→manufacture / rd_dev研发→rd）；BDD-01 类型驱动派发：dispatch 缺省 tasks 时按字典映射建主铺任务；`booth_production_orders.order_type` 列随单透传
-- **角色口径（修正）**：链 dm→du→dx→ex(DEX 店-铺长)→exx(DEXX 铺员)；**DEU=DU 履约铺分身**（非独立角色）：请求头 `X-Acting-As: deu` 且 roleKey=du 时挂 actingAs，requireRole('ex') 调用点放行（auth.ts），前端 DU 用户 Header「进入履约铺后台」切换（localStorage booth-acting-deu + api.ts 全链路带 X-Acting-As）
-- **价格红线（BDD-17）**：M 层(dm/du)+X 层管理(dx) 可见价格；X 层执行（ex/exx/dxx）不可见任何售价——`stripSalePriceFields`（oas-client，SALE_PRICE_FIELDS+COST_FIELDS 递归剥离）+ `stripXExecutorPrices` 中间件（index.ts 挂 /api/booth/ex、/api/booth/exx 全部路由，DEU 分身豁免）+ 前端 store canSeeSalePrice=['du','dx','dm']（dxx 已移出）；DEX 建单价格硬编码 0（ex.ts 既有）；dexx 路由价格零输出
+- **角色口径（修正）**：链 dm→du→dx→ex(EDX 店-铺长)→edxx(EDXX 铺员)；**DEU=DU 履约铺分身**（非独立角色）：请求头 `X-Acting-As: deu` 且 roleKey=du 时挂 actingAs，requireRole('ex') 调用点放行（auth.ts），前端 DU 用户 Header「进入履约铺后台」切换（localStorage booth-acting-deu + api.ts 全链路带 X-Acting-As）
+- **价格红线（BDD-17）**：M 层(dm/du)+X 层管理(dx) 可见价格；X 层执行（ex/edxx/emxx）不可见任何售价——`stripSalePriceFields`（oas-client，SALE_PRICE_FIELDS+COST_FIELDS 递归剥离）+ `stripXExecutorPrices` 中间件（index.ts 挂 /api/booth/ex、/api/booth/edxx 全部路由，DEU 分身豁免）+ 前端 store canSeeSalePrice=['du','dx','dm']（emxx 已移出）；EDX 建单价格硬编码 0（ex.ts 既有）；edxx 路由价格零输出
 - **RBAC API**：GET /api/booth/rbac/roles（角色链+价格矩阵+DEU 说明）、GET /api/booth/rbac/me（roleKey/isDeuShadow/priceVisible/xExecutorStripped/menuScope）
 - **G-006 三级状态筛选**：GET /api/booth/production-orders?status=&taskStatus=&workOrderStatus=（EXISTS 子查询）
 - **前端**：/du/supply-shops（PM-001）、/du/order-types（PM-002）、/du/roles（PM-004 矩阵）+ ProductionOrders 增强（类型列+三级筛选）
@@ -117,15 +117,15 @@ src/
   - **配送铺 DL-001**：items[].point（缺省'默认点'）分组 × 分拣/配送两维度（dimension=sorting/delivery，step_name=分拣/配送）→ 每点 2 工单
   - **供给铺 SP-001/002**：简化拆单一任务一工单 + 拆单即登记出库单骨架（`booth_stock_docs` doc_type=outbound，P2 边界仅登记不开发流）
 - **工单挂接**：`booth_work_orders` 新列 production_task_id（反挂多工单）/split_source/step_name/dimension；任务溯源快列 work_order_no=首张工单号；工单号 PROD-yyyyMMdd-NNNN 与 IMPL-001 同序列
-- **G-005 凭证联动（BDD-07）**：`booth_work_order_evidences` 表 + `POST /api/booth/exx/fab/work-orders/:id/evidences`（FAB 帽）→ 凭证入库后轻量推进 pending→preparing → `completeWorkOrder` 走完整回传链（completed+packed.v1+聚合刷新），**无需人工二次确认**；operator_id 带 EXISTS guard（匿名 userId=0 不写 FK）
+- **G-005 凭证联动（BDD-07）**：`booth_work_order_evidences` 表 + `POST /api/booth/edxx/fab/work-orders/:id/evidences`（FAB 帽）→ 凭证入库后轻量推进 pending→preparing → `completeWorkOrder` 走完整回传链（completed+packed.v1+聚合刷新），**无需人工二次确认**；operator_id 带 EXISTS guard（匿名 userId=0 不写 FK）
 - **完成回传（BDD-11/BDD-05）**：completeWorkOrder 双链路——fulfillment_id（IMPL-001 口径不变）/production_task_id（productionNo=生产单真实 production_no，dxCaseNo=dx_case_no||shop_order_id，waveNo 透传）+ workOrderId/workOrderNo/stepName/packedAt；COMMIT 后自动 `refreshAggregation`（工单→任务→生产单）
 - **dispatch 增强**：POST /api/booth/production-orders/:id/dispatch 默认 autoSplit=true（新建任务按铺型规则自动拆单；重放幂等——任务 skipped 不重复拆）；详情 GET /:id 返回 workOrdersByTask 三级链路树
-- **工艺管理 API**：/api/booth/crafts CRUD（GET 列表/POST 创建/PUT /:id/DELETE /:id 停用），角色 du/dx/dex；/du/crafts 与 /ex/crafts 双路由（DEX 工艺管理菜单）
+- **工艺管理 API**：/api/booth/crafts CRUD（GET 列表/POST 创建/PUT /:id/DELETE /:id 停用），角色 du/dx/edx；/du/crafts 与 /ex/crafts 双路由（EDX 工艺管理菜单）
 - **前端**：/du/crafts（/ex/crafts）工艺管理（工序步骤编辑）；ProductionOrders 详情 Drawer 三级链路（订单→任务→工单树+凭证上传入口）
 - **幂等三层**：dispatch 任务级幂等 → splitTaskToWorkOrders 任务已有工单跳过 → 工单号当日序列唯一索引兜底
 
 ## 统一登录与事件契约（BOOTH-R7）
-- **统一登录 [R7-01]**：Booth 仅信任 OAS AMS 签发的 RS256 JWT（iss=ziway-oas）。公钥来源两级：`OAS_PUBLIC_KEY`（SPKI PEM，支持 \n 转义）**显式配置优先**；未配置时启动自动从 `${OAS_BASE_URL}/.well-known/jwks.json` **JWKS 发现**（日志 `[AUTH] OAS public key discovered via JWKS`）。两者皆无 → **fail-closed**：启动 FATAL 日志 + 所有需登录接口 503 `AUTH_NOT_READY`（health 不受影响）。legacy 本地账号/jwt 自签/test-mode 全部移除，138 本地测试账号不可用（OAS AMS 未同步），验收口径为 OAS 五角色 admin/operator/customer/viewer/em × test123，映射 SU→du / AU→dx / CU→exx / GU→dxx / EM→em，exx 依赖角色默认帽子（CU→[FAB]）。登录返回 user 含 orgMode（du 价格可见性依赖）
+- **统一登录 [R7-01]**：Booth 仅信任 OAS AMS 签发的 RS256 JWT（iss=ziway-oas）。公钥来源两级：`OAS_PUBLIC_KEY`（SPKI PEM，支持 \n 转义）**显式配置优先**；未配置时启动自动从 `${OAS_BASE_URL}/.well-known/jwks.json` **JWKS 发现**（日志 `[AUTH] OAS public key discovered via JWKS`）。两者皆无 → **fail-closed**：启动 FATAL 日志 + 所有需登录接口 503 `AUTH_NOT_READY`（health 不受影响）。legacy 本地账号/jwt 自签/test-mode 全部移除，138 本地测试账号不可用（OAS AMS 未同步），验收口径为 OAS 五角色 admin/operator/customer/viewer/em × test123，映射 SU→du / AU→dx / CU→edxx / GU→emxx / EM→em，edxx 依赖角色默认帽子（CU→[FAB]）。登录返回 user 含 orgMode（du 价格可见性依赖）
 - **DEV 临时令牌 [AUTH-02]**：`POST /api/booth/auth/dev-token`（`COZE_PROJECT_ENV=PROD` 时 404）→ 代理 OAS `POST /api/v1/auth/dev-token`（body: username?/role?/expires_minutes?，默认 30min 上限 60）→ **生成立即本地 RS256 验签 + toBoothUser 角色映射** → 返回 `{token, user, expires_at, oas}`。前端 Login 页 DEV-only 入口（`import.meta.env.DEV`，生产构建 tree-shake 移除），生成成功写入本地登录态免复制。Booth 侧不自行实现签发逻辑。OAS 平台=62j75kfyn3.coze.site（`OAS_BASE_URL` 部署配置需同步）
 - **事件契约 [R7-02]**：主题统一 `cmd.<domain>.<action>.v1`（常量见 `server/services/event-topics.ts`），登记表 `docs/event-contract-registry.md`；入站 Shop 事件规范化为 `cmd.shop.order.confirmed.v1` / `cmd.shop.order.cancelled.v1`
 - **审计埋点 [R7-03]**：`emitAudit()`（audit-service.ts）五要素 actor/action/resource+resourceId/occurred_at/result + GMBS 标记（资金类操作 flag+category+amount），写入 outbox `cmd.booth.audit.log.v1` 投递至 `OAS_AUDIT_URL`
@@ -147,3 +147,15 @@ src/
 - **波次**：`booth_fulfillments.wave_no` 入站建单透传落库，出站原样回传
 - **幂等**：拆单/完成复用既有状态机（重复 complete 400 INVALID_STATE、重复 dispatch 不重复拆单）；Shop 按 productionNo 幂等
 - **迁移**：老库增量跑 `scripts/dev-shop-cont-migrate.cjs`（回滚 `dev-shop-cont-rollback.cjs`）；migrate 主流程 DDL 块已同步（含 booth_stations 补列 type/capacity、booth_equipment 补列 station_id 三处历史存量修复）
+
+## Xfactory(Booth-DE 供给版) P1（XFACTORY-P1，2026-09-10）
+- **执行帽 v1.2 命名**：DEX→**EDX**、EXX→**EDXX**（业务执行线）、DXX→**EMXX**（运营线）、新增 **EMX**（运营线采购确认）；旧 D*X 系（DYX/DHX/DTX/DEX/DCX/DEXX/DXX）全量废弃 0 引用；OAS 五角色映射 SU→du/AU→dx/CU→edxx/GU→emxx/EM→em（OAS 平台角色名键不变仅映射值改）；`isXExecutor=['ex','edx','edxx','emx','emxx']` 执行线全量剥价（stripXExecutorPrices 挂 /api/booth/edx /emx /edxx）
+- **新表**（migrate.ts [XFACTORY-P1] 块 + scripts/dev-xfactory-migrate.cjs / rollback.cjs）：`booth_supply_purchases`（event_id UNIQUE 幂等 + supply_purchase_no UNIQUE + wave_no + items JSONB + confirmed_by/at + production_order_id）、`booth_delivery_receipts`（receipt_no UNIQUE + production_order_id 可 NULL（存量 backfill 无 PO 实体）+ source SUPPLY/MARKET + evidence_nos JSONB + receiver_type DDU/XU + confirm_event_id UNIQUE + confirmed_by；UNIQUE(org,production_order_id) 一单一回执）、booth_production_orders 加 source/order_family 列
+- **组合 1 供给主线**：`POST /events/supply-purchase`（X-Supply 入站，event_id 幂等，缺 waveNo 400）→ EMX 页可见（GET /api/booth/emx/purchase-requests）→ `POST /:id/confirm`（confirmSupplyPurchase 事务：建 PO(source=SUPPLY,order_family='T')→manufacture 任务→四铺拆单）→ 作业 G-005 凭证自动完成 → **完工入库**（completeWorkOrder 聚合后 hook：booth_stock_docs inbound + outbox `cmd.booth.stock.inbound.v1` → ERP，F4=outbox 重试）→ `POST /api/booth/edx/production-orders/:id/delivery-receipt` 交付 DDU 回执（productionNo+qty+G-005 凭证号+deliveredBy=EDX+receiver DDU，生成即责任转移）
+- **组合 2 市场链路**：`POST /events/market-demand`（X-Market 入站，shop_order_id 幂等）→ 直接建单(source=MARKET)+拆单 → 交付 XU 回执（payload source=MARKET）→ `POST /events/receipt-confirmed`（confirm_event_id 幂等）confirmed 闭环
+- **outbox 三渠扩展**（outbox-service.ts）：`.stock.`→ERP_CALLBACK_URL、`.receipt.`+payload source=MARKET→XMARKET_CALLBACK_URL、source=SUPPLY→DDU_CALLBACK_URL；未配置类别保留 pending 不阻塞
+- **F1/F2/F3**：F1 入站失败→booth_event_dlq（internal.ts recordInboundDlq）+400；F2 回写失败→outbox 重试 10 次 dead+last_error；F3 交付失败→`POST /api/booth/edx/delivery-receipts/:receiptNo/resend` 重发+审计
+- **响应映射**：xfactory-service.ts 全部出口 mapXxx snake→camel（幂等分支同样映射）
+- **存量 1139 补发**：scripts/backfill-delivery-receipts.cjs（--limit/--dry-run；production_no 回退 COALESCE(work_order_no, shop_order_id)——存量 fulfillments 无 work_order_no 为 SHOP-CONT-BOOTH 前历史行）；已完成全量补发 1108 条 MARKET/XU 回执（outbox pending 待 XMARKET_CALLBACK_URL 配置后投递）
+- **环境变量新增**：ERP_CALLBACK_URL / XMARKET_CALLBACK_URL / DDU_CALLBACK_URL
+- **已知遗留**：edxx/ 前端 tsc 存量错误（res unknown，sed 改名暴露非本单引入）；Booth↔Market 契约单 v1.1 文件未获取（按工单正文落地）

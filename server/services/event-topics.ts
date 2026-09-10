@@ -27,6 +27,13 @@ export const TOPIC = {
   // pub (SHOP-CONT-BOOTH 预订日配契约: Shop 事件名 PO_ISSUED / PROD_PACKED)
   PROD_ORDER_ISSUED: 'cmd.booth.prod_order.issued.v1',
   PROD_ORDER_PACKED: 'cmd.booth.prod_order.packed.v1',
+  // pub (Xfactory P1: 组合 1 供给主线 / 组合 2 市场组合)
+  SUPPLY_PURCHASE_REGISTERED: 'cmd.booth.supply_purchase.registered.v1',
+  SUPPLY_PURCHASE_CONFIRMED: 'cmd.booth.supply_purchase.confirmed.v1',
+  MARKET_DEMAND_REGISTERED: 'cmd.booth.market_demand.registered.v1',
+  STOCK_INBOUND: 'cmd.booth.stock.inbound.v1',
+  DELIVERY_RECEIPT_ISSUED: 'cmd.booth.delivery_receipt.issued.v1',
+  DELIVERY_RECEIPT_CONFIRMED: 'cmd.booth.delivery_receipt.confirmed.v1',
   // sub (Shop 域)
   SHOP_ORDER_CONFIRMED: 'cmd.shop.order.confirmed.v1',
   SHOP_ORDER_CANCELLED: 'cmd.shop.order.cancelled.v1',

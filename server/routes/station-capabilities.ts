@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { requireHat, requireRole, type JwtPayload } from '../auth.js';
-import { requireFabRead } from './exx-fab-mes.js';
+import { requireFabRead } from './edxx-fab-mes.js';
 
 const router = Router();
 
@@ -23,7 +23,7 @@ const RUNTIME_META = {
   note: '能力为执行能力登记层, 执行仍走 booth_fab_operations 工序表; 插件热插拔运行时为 P1 跟踪项, 尚未实现',
 };
 
-// 能力编排写权限: EX/DEX(du/dx/dex) 或持 FAB 帽(exx) —— 依工单红线"写操作 requireHat('FAB')"取并集。
+// 能力编排写权限: EX/EDX(du/dx/edx) 或持 FAB 帽(edxx) —— 依工单红线"写操作 requireHat('FAB')"取并集。
 // 必须先于写路由注册(Express 顺序匹配)。
 router.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -31,7 +31,7 @@ router.use((req, res, next) => {
     const isManager = user && ['du', 'dx', 'ex'].includes(user.role);
     const isFabHat = user?.hats?.includes('FAB');
     if (user && !isManager && !isFabHat) {
-      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: '能力编排仅 EX/DEX 或 FAB 帽持有者可用' });
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: '能力编排仅 EX/EDX 或 FAB 帽持有者可用' });
     }
   }
   next();

@@ -150,7 +150,7 @@ export default function ProductionOrders() {
     }
     setUploading(true);
     try {
-      await apiPost(`/exx/fab/work-orders/${evidenceModal.wo.id}/evidences`, {
+      await apiPost(`/edxx/fab/work-orders/${evidenceModal.wo.id}/evidences`, {
         url: evidenceModal.url.trim(),
         evidenceType: evidenceModal.evidenceType,
         note: 'PRD-003 走查凭证',

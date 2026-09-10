@@ -261,7 +261,7 @@ router.get('/users', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
     const r = await pool.query(
-      `SELECT id, name, phone, hats, role FROM booth_users WHERE org_id = $1 AND role = 'exx' AND is_active = true ORDER BY name`,
+      `SELECT id, name, phone, hats, role FROM booth_users WHERE org_id = $1 AND role = 'edxx' AND is_active = true ORDER BY name`,
       [user.orgId]
     );
     res.json({ success: true, data: { items: r.rows, total: r.rows.length } });
@@ -336,7 +336,7 @@ router.get('/capacity/overview', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ATP 快速查询（供 dex 调度时参考）
+// ATP 快速查询（供 edx 调度时参考）
 router.post('/capacity/atp-check', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
@@ -392,7 +392,7 @@ router.post('/capacity/atp-check', async (req, res, next) => {
 
 // ====== BOOTH-OPT-03: Supply Quotes (EX 执行管理只读，价格脱敏) ======
 
-// List supply quotes (DEX can see quote_no, status, but NOT price fields)
+// List supply quotes (EDX can see quote_no, status, but NOT price fields)
 router.get('/supply-quotes', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
@@ -420,12 +420,12 @@ router.get('/supply-quotes', async (req, res, next) => {
       `SELECT COUNT(*) FROM booth_supply_quotes sq ${where}`,
       params.slice(0, -2)
     );
-    // DEX sees NO price fields - only quote metadata
+    // EDX sees NO price fields - only quote metadata
     res.json({ success: true, data: { items: result.rows, total: parseInt(countResult.rows[0].count) } });
   } catch (err) { next(err); }
 });
 
-// Get supply quote detail (DEX can see quote_no, status, but NOT price fields)
+// Get supply quote detail (EDX can see quote_no, status, but NOT price fields)
 router.get('/supply-quotes/:id', async (req, res, next) => {
   try {
     const user = (req as any).user as JwtPayload;
@@ -441,7 +441,7 @@ router.get('/supply-quotes/:id', async (req, res, next) => {
       [req.params.id, user.orgId]
     );
     if (!r.rows[0]) return res.status(404).json({ success: false, error: 'Not found', code: 'NOT_FOUND' });
-    // DEX sees NO price fields - only quote metadata
+    // EDX sees NO price fields - only quote metadata
     res.json({ success: true, data: r.rows[0] });
   } catch (err) { next(err); }
 });

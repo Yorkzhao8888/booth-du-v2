@@ -15,9 +15,11 @@ import internalRoutes from './routes/internal.js';
 import { aliasRouter as internalAliasRoutes } from './routes/internal.js'; // [BOOTH-LINK-01] 根级别名 router (Shop XBUS 直调 /events/*)
 import duRoutes from './routes/du/index.js';   // /api/booth/du 聚合入口 (TECH-DEBT-4)
 import exRoutes from './routes/ex.js';
-import exxRoutes from './routes/exx.js';
+import exxRoutes from './routes/edxx.js';
+import emxRoutes from './routes/emx.js';   // [XFACTORY-P1] EMX 采购桩接
+import edxRoutes from './routes/edx.js';   // [XFACTORY-P1] EDX 交付回执
 import exModulesRoutes from './routes/ex-modules.js';
-import exxModulesRoutes from './routes/exx-modules.js';
+import exxModulesRoutes from './routes/edxx-modules.js';
 import emRoutes from './routes/em.js';
 import marketRoutes from './routes/market.js';
 import jobRoutes from './routes/job.js';
@@ -73,13 +75,13 @@ app.use('/events', internalAliasRoutes);         // [BOOTH-LINK-01] 根级别名
 // (TECH-DEBT-4: 原 5 个分散挂载点收敛进 routes/du/index.ts, 挂载顺序不变)
 app.use('/api/booth/du', duRoutes);
 app.use('/api/booth/ex', exRoutes);
-// FIX3: modules 前置(带独立 requireAuth) — exx.ts 的 router.use(requireRole('exx'))
-// 会全局拦截同前缀请求, du/dx/dex 的产线只读 GET 需先经 exx-modules 的 requireFabRead 放行
-app.use('/api/booth/exx', requireAuth, stripXExecutorPrices, exxModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价 // /api/booth/exx/fab/*, /wh/*, /dl/*, /svc/*
+// FIX3: modules 前置(带独立 requireAuth) — edxx.ts 的 router.use(requireRole('edxx'))
+// 会全局拦截同前缀请求, du/dx/edx 的产线只读 GET 需先经 edxx-modules 的 requireFabRead 放行
+app.use('/api/booth/edxx', requireAuth, stripXExecutorPrices, exxModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价 // /api/booth/edxx/fab/*, /wh/*, /dl/*, /svc/*
 // New module routes
 app.use('/api/booth/ex', stripXExecutorPrices, exModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价
-// DEU 分身入口: DU 以分身身份进入履约铺后台 (仅挂分身标记, 不重复挂 DEX 路由 — 数据权限随用户身份)  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
-app.use('/api/booth/exx', requireAuth, stripXExecutorPrices, exxRoutes); // [BOOTH-PRD-002] X 层执行剥售价
+// DEU 分身入口: DU 以分身身份进入履约铺后台 (仅挂分身标记, 不重复挂 EDX 路由 — 数据权限随用户身份)  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
+app.use('/api/booth/edxx', requireAuth, stripXExecutorPrices, exxRoutes); // [BOOTH-PRD-002] X 层执行剥售价
 app.use('/api/booth/em', emRoutes);
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
 app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型)
@@ -89,6 +91,9 @@ app.use('/api/booth/deliveries', requireAuth, deliveriesRouter);
 // [BOOTH-PRD-001] 契约地基: 生产单(幂等创建/四铺拆单挂接/G-007 三级状态联动/超期自动判定)
 app.use('/api/booth/production-orders', requireAuth, productionRoutes);
 app.use('/api/booth/crafts', requireAuth, craftsRoutes); // [BOOTH-PRD-003 / RD-004/005] 研发铺工艺管理
+// [XFACTORY-P1] 组合 1/2: EMX 采购桩接 + EDX 交付回执 (执行线全量剥价, BDD-17/X-executor 红线)
+app.use('/api/booth/emx', requireAuth, stripXExecutorPrices, emxRoutes);
+app.use('/api/booth/edx', requireAuth, stripXExecutorPrices, edxRoutes);
 app.use('/api/booth', requireAuth, pmMgmtRoutes); // [BOOTH-PRD-002] 供应铺/订单类型/RBAC
 
 // Production: serve static files and SPA fallback

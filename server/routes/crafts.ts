@@ -66,7 +66,7 @@ router.get('/match', requireAuth, async (req: Request, res: Response, next: Next
 });
 
 // POST / — 新建工艺
-router.post('/', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const body: any = req.body || {};
@@ -96,7 +96,7 @@ router.post('/', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Reques
 });
 
 // PUT /:id — 更新工艺（全量 steps）
-router.put('/:id', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.put('/:id', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const id = Number(req.params.id);
@@ -127,7 +127,7 @@ router.put('/:id', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Requ
 });
 
 // DELETE /:id — 停用工艺（软删, 保拆单历史可溯）
-router.delete('/:id', requireAuth, requireRole('du', 'dx', 'dex'), async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/:id', requireAuth, requireRole('du', 'dx', 'edx'), async (req: Request, res: Response, next: NextFunction) => {
   const authed = req as AuthedReq;
   const orgId = orgOf(authed);
   const id = Number(req.params.id);

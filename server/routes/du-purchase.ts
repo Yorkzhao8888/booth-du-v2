@@ -7,7 +7,7 @@ import { stripPriceFields } from '../services/fulfillment-service.js';
 
 const router = Router();
 
-// 中间件：允许 du/dx/dm/dxx 访问（exx 不允许访问采购单）
+// 中间件：允许 du/dx/dm/emxx 访问（edxx 不允许访问采购单）
 router.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
@@ -16,10 +16,10 @@ router.use(requireAuth, (req, res, next) => {
   const purchasePaths = ['/purchase-orders'];
   const isPurchasePath = purchasePaths.some(p => req.path === p || req.path.startsWith(p + '/'));
   
-  // EXX 不允许访问采购单（价格敏感）- 只拦截采购路径
-  if (user.role === 'exx') {
+  // EDXX 不允许访问采购单（价格敏感）- 只拦截采购路径
+  if (user.role === 'edxx') {
     if (isPurchasePath) {
-      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员无权访问采购单' });
+      return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EDXX 铺员无权访问采购单' });
     }
     // 非采购路径（如 /transfers），交给其他路由器处理
     return next();
@@ -30,7 +30,7 @@ router.use(requireAuth, (req, res, next) => {
     return next();
   }
   
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
+  const allowedRoles = ['du', 'dx', 'dm', 'emxx'];
   if (!allowedRoles.includes(user.role)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
@@ -40,8 +40,8 @@ router.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DXX：拦截 res.json 以 stripCostFields
-  if (user.role === 'dxx') {
+  // EMXX：拦截 res.json 以 stripCostFields
+  if (user.role === 'emxx') {
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       return originalJson(stripCostFields(body));

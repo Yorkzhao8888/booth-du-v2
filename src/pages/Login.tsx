@@ -28,7 +28,7 @@ const Login: React.FC = () => {
   const applySession = useAuthStore((s) => s.applySession);
 
   const goHome = (role: string) => {
-    const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', dxx: '/dxx', ex: '/ex', exx: '/exx', em: '/em' };
+    const home: Record<string, string> = { dm: '/dm', du: '/du', dx: '/du', emxx: '/emxx', ex: '/ex', edxx: '/edxx', em: '/em' };
     navigate(home[role] || '/login', { replace: true });
   };
 

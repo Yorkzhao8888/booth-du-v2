@@ -6,18 +6,18 @@ import type { JwtPayload } from '../auth.js';
 
 const router = Router();
 
-// ====== DU/DX/DM/DXX: 按角色权限访问（exx 不允许访问供给域） ======
+// ====== DU/DX/DM/EMXX: 按角色权限访问（edxx 不允许访问供给域） ======
 const supplyRouter = Router();
 supplyRouter.use(requireAuth, (req, res, next) => {
   const user = (req as any).user as JwtPayload;
   if (!user) return next({ statusCode: 401, code: 'UNAUTHORIZED', error: 'No user' });
   
-  // EXX 不允许访问供给域（价格敏感）
-  if (user.role === 'exx') {
-    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EXX 铺员无权访问供给域' });
+  // EDXX 不允许访问供给域（价格敏感）
+  if (user.role === 'edxx') {
+    return next({ statusCode: 403, code: 'FORBIDDEN', error: 'EDXX 铺员无权访问供给域' });
   }
   
-  const allowedRoles = ['du', 'dx', 'dm', 'dxx'];
+  const allowedRoles = ['du', 'dx', 'dm', 'emxx'];
   if (!allowedRoles.includes(user.role)) {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'Insufficient role' });
   }
@@ -27,8 +27,8 @@ supplyRouter.use(requireAuth, (req, res, next) => {
     return next({ statusCode: 403, code: 'FORBIDDEN', error: 'DM 运营为只读角色，无写权限' });
   }
   
-  // DXX：拦截 res.json 以 stripCostFields + 结算字段
-  if (user.role === 'dxx') {
+  // EMXX：拦截 res.json 以 stripCostFields + 结算字段
+  if (user.role === 'emxx') {
     const originalJson = res.json.bind(res);
     res.json = (body: unknown) => {
       // 递归剔除结算相关字段

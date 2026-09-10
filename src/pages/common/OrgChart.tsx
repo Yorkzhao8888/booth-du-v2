@@ -17,9 +17,9 @@ const roleHierarchy: RoleInfo[] = [
   { key: 'dm', title: 'DM 运营', description: '运营总览，全域只读穿透', icon: <CrownOutlined />, color: '#722ed1' },
   { key: 'du', title: 'DU 店主', description: '全价决策层，经营决策', icon: <ShopOutlined />, color: '#1890ff' },
   { key: 'dx', title: 'DX 店长', description: '全价管理层，日常运营', icon: <TeamOutlined />, color: '#13c2c2' },
-  { key: 'dxx', title: 'DXX 店员', description: '一线经营，售价可见', icon: <UserOutlined />, color: '#52c41a' },
+  { key: 'emxx', title: 'EMXX 店员', description: '一线经营，售价可见', icon: <UserOutlined />, color: '#52c41a' },
   { key: 'ex', title: 'EX 铺长', description: 'MKT-DU 操作者，零价', icon: <ToolOutlined />, color: '#fa8c16' },
-  { key: 'exx', title: 'EXX 铺员', description: 'WH/FAB/DL/SVC 执行，零价', icon: <CarryOutOutlined />, color: '#eb2f96' },
+  { key: 'edxx', title: 'EDXX 铺员', description: 'WH/FAB/DL/SVC 执行，零价', icon: <CarryOutOutlined />, color: '#eb2f96' },
 ];
 
 const OrgChart: React.FC = () => {
@@ -32,7 +32,7 @@ const OrgChart: React.FC = () => {
     <div>
       <Title level={4}>组织架构</Title>
       <Paragraph type="secondary">
-        六层组织链：DM 运营 → DU 店主 → DX 店长 → DXX 店员 → EX 铺长 → EXX 铺员
+        六层组织链：DM 运营 → DU 店主 → DX 店长 → EMXX 店员 → EX 铺长 → EDXX 铺员
       </Paragraph>
 
       <Card style={{ marginBottom: 24 }}>
@@ -82,7 +82,7 @@ const OrgChart: React.FC = () => {
                   </Space>
                 </td>
                 <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                  {['dm', 'du', 'dx', 'dxx'].includes(role.key) ? <Tag color="green">可见</Tag> : <Tag color="red">不可见</Tag>}
+                  {['dm', 'du', 'dx', 'emxx'].includes(role.key) ? <Tag color="green">可见</Tag> : <Tag color="red">不可见</Tag>}
                 </td>
                 <td style={{ padding: '12px 8px', textAlign: 'center' }}>
                   {['dm', 'du', 'dx'].includes(role.key) ? <Tag color="green">可见</Tag> : <Tag color="red">不可见</Tag>}

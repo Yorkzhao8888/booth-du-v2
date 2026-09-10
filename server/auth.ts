@@ -72,9 +72,9 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
       }
     }
     req.user = buildAnonymousUser();
-    // [BOOTH-PRD-002] 开发期匿名态同样支持 DEU 分身标记 (X-Acting-As: deu, 仅 du 生效)
+    // [执行帽 v1.2] 开发期匿名态支持分身标记 (X-Acting-As: deu/edx/emx, 仅 du 生效)
     const actingOpen = String(req.headers['x-acting-as'] || '').toLowerCase();
-    if (actingOpen === 'deu' && (req.user as { roleKey?: string }).roleKey === 'du') (req.user as { actingAs?: string }).actingAs = 'deu';
+    if (['deu', 'edx', 'emx'].includes(actingOpen) && (req.user as { roleKey?: string }).roleKey === 'du') (req.user as { actingAs?: string }).actingAs = actingOpen;
     return next();
   }
 
@@ -107,14 +107,14 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   const payload = v.payload;
   const orgId = Number(payload.org_id ?? payload.orgId ?? 1) || 1;
   req.user = toBoothUser(payload, orgId);
-  // [BOOTH-PRD-002] DEU 分身: DU 携 X-Acting-As: deu 进入履约铺后台 (会话级身份, 非独立角色; 保留经营决策权/价格可见)
+  // [执行帽 v1.2] 分身: DU 携 X-Acting-As: deu/edx/emx 进入对应后台 (会话级身份, 非独立角色)
   const acting = String(req.headers['x-acting-as'] || '').toLowerCase();
-  if (acting === 'deu' && req.user.roleKey === 'du') req.user.actingAs = 'deu';
+  if (['deu', 'edx', 'emx'].includes(acting) && req.user.roleKey === 'du') req.user.actingAs = acting;
   next();
 }
 
 /** 角色 → org 绑定校验 + RBAC + 帽子 (逻辑不变, 信任源已收口为 OAS) */
-const ROLE_ORG_MAP: Record<string, number> = { dm: 1, du: 1, dx: 1, dxx: 1, ex: 1, exx: 1, em: 1 };
+const ROLE_ORG_MAP: Record<string, number> = { dm: 1, du: 1, dx: 1, emxx: 1, ex: 1, edxx: 1, em: 1, edx: 1, emx: 1 }; // [执行帽 v1.2] 新增 edx/emx
 
 export function requireRole(...allowed: string[]) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
@@ -123,8 +123,9 @@ export function requireRole(...allowed: string[]) {
     try {
       const user = req.user;
       if (!user) return res.status(401).json({ success: false, error: 'Unauthenticated', code: 'E_NO_TOKEN' });
-      const deuAsEx = allowed.includes('ex') && user.roleKey === 'du' && user.actingAs === 'deu'; // DEU 分身可入 DEX(ex) 端
-      if (!allowed.includes(user.roleKey) && !deuAsEx) {
+      // [执行帽 v1.2] 分身放行: actingAs 命中 allowed 即放行 (deu→ex 端 / edx→EDX 端 / emx→EMX 端)
+      const actingOk = !!user.actingAs && allowed.includes(user.actingAs);
+      if (!allowed.includes(user.roleKey) && !actingOk) {
         return res.status(403).json({ success: false, error: `Forbidden: requires ${allowed.join('/')}`, code: 'E_FORBIDDEN' });
       }
       // org 绑定: OAS claim 显式 org_id 优先, 否则按角色默认绑定 Booth org=1

@@ -79,7 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   canSeeSalePrice: () => {
     const user = get().user;
-    // [PM-004 红线修正] 仅 M 层(dm/du)+X 层管理(dx) 可见售价; DEX(ex)/DEXX(exx)/dxx 一律不可见; DEU 分身豁免
+    // [PM-004 红线修正] 仅 M 层(dm/du)+X 层管理(dx) 可见售价; EDX(ex)/EDXX(edxx)/emxx 一律不可见; DEU 分身豁免
     if (!!user && user.actingAs === 'deu') return true;
     return !!user && ['du', 'dx', 'dm'].includes(user.role);
   },
