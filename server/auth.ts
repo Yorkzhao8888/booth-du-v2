@@ -21,11 +21,15 @@ export interface AuthedRequest extends Request {
 /**
  * [OAS-OPEN-DEV-01] 开发期认证放行开关:
  *  - 仅当环境变量 OAS_AUTH_ENABLED 显式 = 'false' 时关闭认证 (默认 true, 安全默认: 漏配 = 认证开)
+ *  - [BOOTH-SEC-01] PROD fail-safe: 生产环境 (COZE_PROJECT_ENV=PROD) 无条件强制 RS256 认证,
+ *    即使部署 env 误带 OAS_AUTH_ENABLED=false 也不匿名裸奔 (内部事件/健康检查等匿名端点不受影响)
  *  - 关闭时: requireAuth 匿名放行 (带合法 OAS token 仍解析挂真实身份; 无/无效 token 挂开发匿名身份 du+全帽)
  *            requireRole / requireHat 全部短路放行
  *  - 内测恢复: 部署 env 移除 OAS_AUTH_ENABLED 或设为任意非 'false' 值, 重启即恢复 RS256 认证, 零代码改动
  */
-export const AUTH_OPEN = String(process.env.OAS_AUTH_ENABLED ?? 'true').trim().toLowerCase() === 'false';
+export const AUTH_OPEN =
+  String(process.env.OAS_AUTH_ENABLED ?? 'true').trim().toLowerCase() === 'false' &&
+  process.env.COZE_PROJECT_ENV !== 'PROD';
 
 /** 开发期匿名身份: 等价 du 角色 + 全帽子, 保证所有 handler 对 req.user 的读取不崩、页面开发视图完整 */
 export function buildAnonymousUser(): BoothUser {

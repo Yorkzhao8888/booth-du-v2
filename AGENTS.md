@@ -98,7 +98,9 @@ src/
 - **关闭态行为**：`requireAuth`/`requireRole`/`requireHat` 全部放行；无有效 token 的请求挂 `buildAnonymousUser()`（du 角色+全帽+orgMode='du'，`source:'oas'` 等价店主视图），带合法 OAS token 仍挂真实 user；fail-closed(503) 同步跳过
 - **前端**：`App.tsx` RequireAuth 守卫无 token 时探测 `GET /api/booth/auth/oas-status`——`authOpen:true` 则以返回的 `anonymousUser` 建立匿名会话（token 哨兵 `dev-open`）进入页面；`authOpen:false` 跳登录页
 - **恢复（内测）**：部署 env 移除 `OAS_AUTH_ENABLED=false`（或改 true）并重启即恢复 RS256 认证，前端匿名入口自动消失，零代码改动
+- **PROD fail-safe [BOOTH-SEC-01]**：`COZE_PROJECT_ENV=PROD` 时 **AUTH_OPEN 无条件为 false**——部署 env 即使误带 `OAS_AUTH_ENABLED=false` 也强制 RS256 认证（部署侧漏配不裸奔，无需改 env 即可复验 401）；DEV 沙箱匿名预览不受影响
 - **不受影响**：dev-token PROD 404 红线、`/events/*` 事件签名验签、SSE/health
+- **SSE query token [BOOTH-SEC-01]**：EventSource 无法自定义 header——`server/routes/fulfillment.ts` `sseTokenBridge` 中间件将 `?token=` 透传至 Authorization Bearer 后统一走 requireAuth 验签（无效 token 401 不建立流）；前端 FulfillmentTimeline 已带 query token
 
 ## 铺面管理与权限（BOOTH-PRD-002，阶段一 P0）
 - **四铺枚举（裁定）**：研发(rd)/制造(manufacture)/配送(delivery)/供给(supply)；供应铺表 `booth_supply_shops`（UNIQUE(org,shop_type,shop_name)+capabilities JSONB 为 PM-008 能力展示数据源，GET /:id/capabilities）

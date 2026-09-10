@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { addClient, removeClient, broadcast } from '../sse.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { pool } from '../db.js';
@@ -26,7 +26,17 @@ function maskContainer(user: unknown): string {
  * 复用全局 SSE 总线 (业务 broadcast 的履约/工单事件自动到达) + 本端点专属 15s 心跳保活;
  * 断线重连由 EventSource 原生机制承担, 服务端 close 事件清理连接与心跳。
  */
-router.get('/stream', requireAuth, (req, res) => {
+// [BOOTH-SEC-01] EventSource 无法自定义 header: query token 透传为 Authorization, 由 requireAuth 统一 RS256 验签
+// 验签失败/缺失 token → requireAuth 401 JSON, SSE 不建立流
+const sseTokenBridge = (req: Request, _res: Response, next: NextFunction): void => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader && typeof req.query.token === 'string' && req.query.token.length > 0) {
+    req.headers.authorization = `Bearer ${req.query.token}`;
+  }
+  next();
+};
+
+router.get('/stream', sseTokenBridge, requireAuth, (req, res) => {
   const user = (req as unknown as { user?: unknown }).user;
   const orgId = resolveOrgId(user);
   res.writeHead(200, {
