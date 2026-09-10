@@ -44,9 +44,12 @@ app.use(cors());
 app.use(express.json({ limit: '10mb', verify: (req: any, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); } }));
 
 // Health check
-app.get('/api/booth/health', (_req, res) => {
+const healthHandler = (_req: any, res: any) => {
   res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
-});
+};
+app.get('/api/booth/health', healthHandler);
+// [BOOTH-DEPLOY-01] 平台健康探测常用路径别名（同 handler，零 DB 依赖，任何探测路径均可命中）
+app.get(['/healthz', '/health', '/readyz', '/readiness', '/livez'], healthHandler);
 
 // SSE stream endpoint
 app.get('/api/booth/stream', requireAuth, (req, res) => {
@@ -120,17 +123,19 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 // Start server
+// [BOOTH-DEPLOY-01] 冷启动优化：listen 先行（健康探测首字节不再等迁移完成，规避平台阈值超时误判 Failed），
+// 迁移/后台组件异步就绪；migrate 失败仍 fail-closed：FATAL + exit(1)（veFaaS 自动重启），业务语义不变。
 async function start() {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[booth-du-v4] Server running on http://0.0.0.0:${PORT}`);
+  });
   try {
     await migrate();
     startOutboxPoller();
     startHeartbeat();
-
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`[booth-du-v4] Server running on http://0.0.0.0:${PORT}`);
-    });
+    console.log('[booth-du-v4] Background bootstrap ready (migrate + outbox poller + heartbeat)');
   } catch (err) {
-    console.error('[booth-du-v4] Failed to start server:', err);
+    console.error('[booth-du-v4] Failed to start server (FATAL, fail-closed):', err);
     process.exit(1);
   }
 }
