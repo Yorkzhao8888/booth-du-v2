@@ -181,3 +181,9 @@ src/
 - **验证证据**：V3 SSE 连通+模拟事件 19ms 到达（<3s 阈值）+15s 心跳；timeline 真实回写数据渲染（M2026 订单四节点）；V4 观察窗 iframe 路由 200
 - **timeline orderNo 过滤 [BOOTH-CONN-02]**：`GET /api/booth/fulfillment/timeline?orderNo=xxx` 精确过滤（Market 代理匹配规则 boothOrderNo===order.code，MARKET-CONN-01 消费侧），无参数保持全量向后兼容；新参数不绕过 requireAuth（PROD 模拟无 token 401 已验）
 - **Market 单号对齐样板 [BOOTH-CONN-02]**：migrate 两分支（存量库 NOT EXISTS 幂等/新库初始化）seed `EX-2026-0020` 履约样板（status=in_progress fulfilling 态、contract_status=Created、source=mall），Market 订单详情 matched 端到端四节点；XBUS 真实入站同号单被 idx_fulfillments_org_shop_order 唯一索引+入站查重幂等承接不冲突
+
+## 供给执行线冻结（BOOTH-FREEZE-01，2026-09-10 主人裁定）
+- **约束**：Booth 供给执行线即日起**冻结新增强，只做 bug 修复**；供给类新需求一律转 ZiwayDS（ZDS-PH1-STRUCT-01 六铺分离体系，ZiwayDS 窗口 7683893594616348715）
+- **背景**：供给执行成熟件已被 ZiwayDS 评估吸收——拆单引擎（split-service 四铺拆单）+ waveNo→productionNo 透传链路（outbox）代码平移至 ZiwayDS factory 模块；G-005 凭证/履约时间线由 ZiwayDS 按"回执=责任转移=Case结算触发"口径重写
+- **冻结范围**：split-service / fulfillment-service / work-order-service / inventory-service / outbox-service 三渠路由 / supply-orders 契约 / delivery-receipts / stock 出入库 / edxx FAB+WH 执行端 / 波次与生产单回执
+- **不受影响（照常迭代）**：双端工作台（#xhpz/#xepz 门户/帽/工作台）、Market 对接（观察窗/timeline/事件链路/XBUS 入站幂等承接）、双端帽权限基础层
