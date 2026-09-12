@@ -426,6 +426,26 @@ CREATE TABLE IF NOT EXISTS booth_delivery_receipts (
 );
 CREATE INDEX IF NOT EXISTS idx_delivery_receipts_org ON booth_delivery_receipts (org_id, status);
 
+-- ====== [ONBOARDING-P0] 快速上手包：演示数据批次登记 + 开通向导档案 ======
+CREATE TABLE IF NOT EXISTS booth_demo_datasets (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  dataset_no TEXT NOT NULL UNIQUE,             -- DEMO-DS-xxxx
+  summary JSONB NOT NULL DEFAULT '{}'::jsonb,  -- 各演示行 id 清单(审计)
+  seeded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  cleared_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_demo_datasets_org ON booth_demo_datasets (org_id, cleared_at);
+CREATE TABLE IF NOT EXISTS booth_onboarding_profile (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL UNIQUE REFERENCES booth_orgs(id),
+  factory_name TEXT NOT NULL DEFAULT '',
+  intro TEXT NOT NULL DEFAULT '',
+  venue TEXT NOT NULL DEFAULT '',
+  onboarded_at TIMESTAMPTZ,                    -- 三步完成时点(跳过时为 NULL)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ====== [BOOTH-PRD-002] 铺面管理+权限（阶段一）：供应铺 / 订单类型字典 / 生产单类型列 ======
 ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'self_made';
 CREATE TABLE IF NOT EXISTS booth_supply_shops (

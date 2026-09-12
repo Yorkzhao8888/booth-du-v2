@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AimOutlined, ArrowLeftOutlined, SafetyOutlined } from '@ant-design/icons';
 import { apiGet } from '../../api';
 import { useAuthStore } from '../../store';
+import PersonalGuideCard, { isPersonalOASRole } from '../../components/PersonalGuideCard';
 
 interface HatItem {
   key: string;
@@ -106,6 +107,12 @@ export const HatSelect: React.FC<{ container: 'xhpz' | 'xepz' }> = ({ container 
           </Card>
         ) : null}
       </div>
+      {/* [ONBOARDING] 个人类身份 (OAS 原角色 CU/GU) 在帽选择层即见 X-Mate 派岗引导 */}
+      {isPersonalOASRole() ? (
+        <div style={{ maxWidth: 720, margin: '18px auto 0' }}>
+          <PersonalGuideCard compact />
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { PortalShell } from '../../components/PortalShell';
 import { FulfillmentTimeline } from '../../components/FulfillmentTimeline';
+import PersonalGuideCard from '../../components/PersonalGuideCard';
 
 /** X-Market 线上地址 (BOOTH-CONN-01 观察窗目标) */
 export const MARKET_URL = 'https://fhrrxb4t8g.coze.site';
@@ -58,6 +59,8 @@ const PersonalWorkbench: React.FC = () => {
       <Typography.Title level={5} style={{ color: '#fff', margin: '0 0 10px' }}>
         个人工作台 · 客户视图
       </Typography.Title>
+      {/* [Xfactory-ONBOARDING] 个人引导卡: 个人参与须经 X-Mate 派岗 / 想开厂注册企业主体 */}
+      <PersonalGuideCard />
       <Row gutter={[12, 12]}>
         {MODULES.map((mod) => (
           <Col xs={24} sm={12} key={mod.key}>

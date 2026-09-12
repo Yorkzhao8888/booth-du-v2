@@ -31,6 +31,8 @@ import SupplyShops from './pages/du/SupplyShops'; // [BOOTH-PRD-002] PM-001 供�
 import OrderTypes from './pages/du/OrderTypes'; // [BOOTH-PRD-002] PM-002 订单类型配置
 import RbacRoles from './pages/du/RbacRoles'; // [BOOTH-PRD-002] PM-004 角色权限矩阵
 import Crafts from './pages/du/Crafts'; // [BOOTH-PRD-003] RD-005 工艺管理
+import OnboardingWizard from './pages/du/OnboardingWizard'; // [Xfactory-ONBOARDING] 三步开通向导
+import QuickStart from './pages/QuickStart'; // [Xfactory-ONBOARDING] 三动线帮助页
 // EDX pages
 import ExDashboard from './pages/ex/Dashboard';
 import ExWorkOrders from './pages/ex/WorkOrders';
@@ -247,6 +249,7 @@ const App: React.FC = () => {
       <SSEListener />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/quickstart" element={<QuickStart />} /> {/* [Xfactory-ONBOARDING] 三动线帮助页, 免登可达 */}
 
         {/* DU routes (du + dx share) */}
         <Route
@@ -258,6 +261,7 @@ const App: React.FC = () => {
           }
         >
           <Route index element={<ErrorBoundary><DuDashboard /></ErrorBoundary>} />
+          <Route path="onboarding" element={<ErrorBoundary><OnboardingWizard /></ErrorBoundary>} /> {/* [Xfactory-ONBOARDING] 三步开通向导 */}
           <Route path="orders" element={<ErrorBoundary><DuOrders /></ErrorBoundary>} />
           <Route path="work-orders" element={<ErrorBoundary><DuWorkOrders /></ErrorBoundary>} />
           <Route path="inventory" element={<ErrorBoundary><DuInventory /></ErrorBoundary>} />

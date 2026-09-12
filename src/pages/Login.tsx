@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Form, Input, Button, Typography, message, Select, InputNumber, Space, Divider } from 'antd';
-import { UserOutlined, LockOutlined, ThunderboltOutlined, LoginOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, ThunderboltOutlined, LoginOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, type AuthUser } from '../store';
 import { apiGet, apiPost } from '../api';
@@ -275,6 +275,12 @@ const Login: React.FC = () => {
             </Button>
           </>
         )}
+        {/* [Xfactory-ONBOARDING] 快速上手入口: 三动线帮助页 (免登) */}
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <Button type="link" size="small" icon={<QuestionCircleOutlined />} onClick={() => navigate('/quickstart')}>
+            快速上手 · 三条动线指南
+          </Button>
+        </div>
       </Card>
     </div>
   );

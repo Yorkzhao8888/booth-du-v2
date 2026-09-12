@@ -25,7 +25,8 @@ import {
   ApartmentOutlined,
   CalendarOutlined,
   HeatMapOutlined,
-  DeliveredProcedureOutlined
+  DeliveredProcedureOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
 
@@ -433,6 +434,15 @@ const AppLayout: React.FC = () => {
             Xfactory 制造厂 · 供给履约系统
           </div>
           <Space>
+            {/* [Xfactory-ONBOARDING] 应用内帮助入口: 快速上手三动线 */}
+            <Button
+              size="small"
+              type="text"
+              icon={<QuestionCircleOutlined />}
+              onClick={() => window.open('/quickstart', '_blank')}
+            >
+              快速上手
+            </Button>
             {/* [BOOTH-PRD-002 PM-004] DEU 分身入口: DU 可切换进入履约铺后台 (保留经营决策权) */}
             {user?.role === 'du' && (
               <Button

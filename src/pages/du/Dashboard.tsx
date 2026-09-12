@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Row, Col, Progress, Typography, Alert, Card, Segmented, Tag, Space } from 'antd';
+import { Row, Col, Progress, Typography, Alert, Card, Segmented, Tag, Space, Button } from 'antd';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import {
   ShoppingCartOutlined,
@@ -8,6 +8,7 @@ import {
   PercentageOutlined,
   PlusOutlined,
   InboxOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiGet } from '../../api';
@@ -15,6 +16,15 @@ import { fmtMoney, fmtPercent } from '../../utils/format';
 import { ExecutionStatusBar } from '../../components/booth/ExecutionStatusBar';
 import { KpiCard } from '../../components/booth/KpiCard';
 import { EmptyState } from '../../components/booth/EmptyState';
+import DemoDataCard from './DemoDataCard'; // [Xfactory-ONBOARDING]
+
+export interface OnboardingStatus {
+  isEdu: boolean;
+  hasRealData: boolean;
+  hasOrgProfile: boolean;
+  demoActive: boolean;
+  demoDataset: { dataset_no: string; seeded_at: string; cleared_at: string | null } | null;
+}
 
 const { Title } = Typography;
 
@@ -50,7 +60,25 @@ const DuDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendRange, setTrendRange] = useState<string>('7天');
+  // [Xfactory-ONBOARDING] 首次使用横幅 + EDU 演示数据卡
+  const [onboardStatus, setOnboardStatus] = useState<OnboardingStatus | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const navigate = useNavigate();
+
+  const fetchOnboardStatus = useCallback(async () => {
+    try {
+      const s = await apiGet<OnboardingStatus>('/onboarding/status');
+      setOnboardStatus(s);
+      const done = localStorage.getItem('booth_onboarding_done');
+      if (!done && s.isEdu && !s.hasOrgProfile && !s.hasRealData && !s.demoActive) setShowGuide(true);
+    } catch {
+      // status 接口异常不阻塞看板
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOnboardStatus();
+  }, [fetchOnboardStatus]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -88,6 +116,29 @@ const DuDashboard: React.FC = () => {
   return (
     <div>
       <Title level={4} style={{ marginBottom: 24, color: '#1F3A5F' }}>经营看板</Title>
+
+      {/* [Xfactory-ONBOARDING] 首次使用三步开通横幅 (EDU + 未完成开通 + 铺内无业务数据) */}
+      {showGuide && (
+        <Alert
+          type="info"
+          showIcon
+          icon={<RocketOutlined />}
+          message="首次使用 Xfactory？三步开通您的厂"
+          description="填写铺信息 → 选产能模板 → 可选灌入演示数据。全程可跳过，设置入口可随时补完成。"
+          action={
+            <Space direction="vertical">
+              <Button size="small" type="primary" onClick={() => navigate('/du/onboarding')}>立即开始</Button>
+              <Button size="small" type="text" onClick={() => { localStorage.setItem('booth_onboarding_done', '1'); setShowGuide(false); }}>暂不</Button>
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      {/* [Xfactory-ONBOARDING] EDU 演示数据一键灌入/清空卡 */}
+      {onboardStatus?.isEdu && (
+        <DemoDataCard />
+      )}
 
       {/* 顶部执行状态条 */}
       <ExecutionStatusBar
