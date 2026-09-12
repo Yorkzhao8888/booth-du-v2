@@ -12,8 +12,8 @@ const DEV_TOKEN_ROLES = ['admin', 'operator', 'customer', 'viewer', 'em', 'OFM',
 
 /** [Xfactory-B5] 演示账号一键登录 (内测规则: admin=SU / operator=AU / customer=CU, 密码统一 test123, 走真实 OAS 登录链) */
 const DEMO_ACCOUNTS = [
-  { username: 'admin', label: '经营者演示', role: 'SU · 经营侧', desc: '经营看板 / 铺子与履约全量' },
-  { username: 'operator', label: '执行者演示', role: 'AU · 执行侧', desc: '交付工作台 / 作业执行' },
+  { username: 'admin', label: '经营者演示', role: 'SU · 经营侧', desc: '经营台 · 铺子与履约全量' },
+  { username: 'operator', label: '执行者演示', role: 'AU · 执行侧', desc: '店长台 · 经营与履约管理' },
   { username: 'customer', label: '铺员演示', role: 'CU · 铺员', desc: 'FAB / WH 作业端' },
 ] as const;
 

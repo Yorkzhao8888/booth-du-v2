@@ -82,7 +82,13 @@ const OnboardingWizard: React.FC = () => {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const isEdu = !!user && ['du', 'dx', 'dm'].includes(user.role);
-  const [current, setCurrent] = useState(0);
+  // [UX-BOOST P2] 支持 ?step=N 直跳（分享/回访预览）；直跳场景「保存并下一步」不阻断（免保存预览）
+  const [current, setCurrent] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    const s = Number(new URLSearchParams(window.location.search).get('step'));
+    return Number.isFinite(s) && s >= 0 && s <= 2 ? Math.floor(s) : 0;
+  });
+  const jumpedFromUrl = current > 0;
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('food');
@@ -117,6 +123,12 @@ const OnboardingWizard: React.FC = () => {
 
   // 第一步: 铺信息
   const onSaveProfile = async (): Promise<void> => {
+    const filledName = String(profileForm.getFieldValue('factoryName') || '').trim();
+    if (!filledName && jumpedFromUrl) {
+      message.info('未填写铺信息, 本次为免保存预览, 可随时回来补全');
+      setCurrent(1);
+      return;
+    }
     try {
       const vals = await profileForm.validateFields();
       setSaving(true);

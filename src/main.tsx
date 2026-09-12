@@ -1,9 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, message, notification } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import App from './App';
 import './styles/global.css';
+
+/* UX-BOOST ④ toast 规范：统一时长/上限/顶部位置（避开 Header） */
+message.config({ maxCount: 3, duration: 2.5, top: 72 });
+notification.config({ maxCount: 4, top: 72, placement: 'topRight' });
 
 // Booth 供给系统视觉 Token
 // 定位：稳重/精确/可靠，与 Shop「卖」暖色轻快风彻底区隔
@@ -30,6 +34,8 @@ const boothTheme = {
     borderRadius: 6,
     // 表格
     colorBgBase: '#FFFFFF',
+    // UX-BOOST ⑥ 禁用态/文字 token 统一
+    colorTextDisabled: '#9CA3AF',
   },
   components: {
     Button: {

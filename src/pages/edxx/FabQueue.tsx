@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Button, Modal, message, Tag, Space, Steps, Divider } from 'antd';
 import { api } from '../../api';
+import PageState from '../../components/PageState';
+import { TABLE_PROPS } from '../../constants/table';
 
 const STAGE_LABELS: Record<string, string> = {
   preprocessing: '前置工序',
@@ -67,6 +69,7 @@ const getSlaColor = (slaMinutes: number, dispatchedAt: string | null) => {
 const FabQueue = () => {
   const [queue, setQueue] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [stageModalVisible, setStageModalVisible] = useState(false);
   const [selectedWo, setSelectedWo] = useState<any>(null);
 
@@ -75,8 +78,11 @@ const FabQueue = () => {
     try {
       const res = await api.get('/edxx/fab/queue');
       setQueue(res.items || []);
-    } catch { /* ignore */ }
-    setLoading(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchQueue(); }, []);
@@ -182,7 +188,16 @@ const FabQueue = () => {
 
   return (
     <Card title="FAB 工作台">
-      <Table dataSource={queue} columns={columns} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} scroll={{ x: 900 }} />
+      <PageState
+        loading={loading}
+        error={loadError}
+        empty={!loading && !loadError && queue.length === 0}
+        onRetry={fetchQueue}
+        emptyTitle="作业队列是空的"
+        emptyDesc="订单下发拆单后, 分配给你所在产线的工单会出现在这里。现在可以先接单其他产线任务, 或等待新工单派发。"
+      >
+      <Table dataSource={queue} columns={columns} rowKey="id" loading={loading} {...TABLE_PROPS} scroll={{ x: 900 }} />
+      </PageState>
 
       <Modal
         title={`产线流转 - ${selectedWo?.wo_no || ''}`}

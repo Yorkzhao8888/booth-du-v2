@@ -58,7 +58,7 @@ const ExWorkOrders: React.FC = () => {
       const res = await apiGet<{ items: WorkOrder[]; total: number }>(`/ex/work-orders${query}`);
       setOrders(res.items);
     } catch {
-      // ignore
+      message.error('列表加载失败, 请重试');
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layout, Menu, Button, Dropdown, Space } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Layout, Menu, Button, Dropdown, Space, Drawer, Grid, Tooltip } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -26,9 +26,11 @@ import {
   CalendarOutlined,
   HeatMapOutlined,
   DeliveredProcedureOutlined,
-  QuestionCircleOutlined
+  QuestionCircleOutlined,
+  MenuOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
+import { useRouteTitle } from '../hooks/useRouteTitle';
 
 const { Header, Sider, Content } = Layout;
 
@@ -293,6 +295,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
 };
 
 // [Xfactory-C8] 26 菜单三层重组: 经营/作业/台账 三组 (菜单项文字措辞不动, 术语口径待定)
+// [UX-BOOST] 顶层组由 submenu 改 type:'group'——消除三级嵌套折叠, 修复二级菜单在窄 Sider 内点击被遮挡/不可达 (P1-d 零响应根因)
 const wrapMenuGroups = (items: any[]): any[] => {
   const groups: Array<{ key: string; icon: React.ReactNode; label: string; pred: (l: string) => boolean }> = [
     { key: 'grp-biz', icon: <DollarOutlined />, label: '经营', pred: (l) => /^(MKT|Market|EM |经营决策|一线经营)/.test(l) },
@@ -300,21 +303,25 @@ const wrapMenuGroups = (items: any[]): any[] => {
     { key: 'grp-ledger', icon: <DatabaseOutlined />, label: '台账', pred: (l) => /^WH/.test(l) },
   ];
   return groups
-    .map((g) => ({ key: g.key, icon: g.icon, label: g.label, children: items.filter((i) => g.pred(String(i.label || ''))) }))
-    .filter((g) => g.children.length > 0);
+    .map((g) => ({ key: g.key, type: 'group' as const, icon: g.icon, label: g.label, children: items.filter((i) => g.pred(String(i.label || ''))) }))
+    .filter((g) => (g.children || []).length > 0);
 };
 
 const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  // [UX-BOOST P1-a] 响应式断点: <768px 走移动布局 (Drawer 侧栏 + Header 收纳)
+  const screens = Grid.useBreakpoint();
+  const isMobile = !!screens.xs && !screens.md;
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // [BOOTH-PRD-002] DEU 分身状态 (会话期 localStorage; 菜单与 Header 共用)
   const actingDeu = user?.role === 'du' && !!localStorage.getItem('booth-acting-deu');
   const setActingDeu = (v: boolean) => { if (v) localStorage.setItem('booth-acting-deu', '1'); else localStorage.removeItem('booth-acting-deu'); };
 
-  // [Xfactory-C8] 菜单三层重组: 域组包入 经营/作业/台账 三大组
-  const menuItems = wrapMenuGroups(getMenuItemsByRole(user?.role || 'du', actingDeu));
+  // [Xfactory-C8] 菜单三层重组: 域组包入 经营/作业/台账 三大组 ([UX-BOOST] 顶层已 group 化)
+  const menuItems = useMemo(() => wrapMenuGroups(getMenuItemsByRole(user?.role || 'du', actingDeu)), [user?.role, actingDeu]);
 
   // [Xfactory-C8] 身份帽卡: EDU(经营线)/EDX(执行线) 按登录身份显隐
   const capCard = (() => {
@@ -337,9 +344,9 @@ const AppLayout: React.FC = () => {
     return '';
   };
 
-  const selectedKey = findSelectedKey(menuItems);
+  const selectedKey = useMemo(() => findSelectedKey(menuItems), [menuItems, location.pathname]);
 
-  // 找到展开的子菜单 ([Xfactory-C8] 递归支持三层: 组→域→项)
+  // 找到展开的子菜单 ([Xfactory-C8] 递归; [UX-BOOST] 顶层 group 后仅一层域组)
   const findOpenKeys = (items: any[], targetPath: string): string[] => {
     const walk = (list: any[], ancestors: string[]): string[] | null => {
       for (const item of list) {
@@ -354,7 +361,19 @@ const AppLayout: React.FC = () => {
     return walk(items, []) ?? [];
   };
 
-  const openKeys = findOpenKeys(menuItems, location.pathname);
+  // [UX-BOOST P1-e] openKeys 受控: 路由链路自动展开 ∪ 用户手动展开 (切路由不再重置手动展开状态)
+  const routeOpenKeys = useMemo(() => findOpenKeys(menuItems, location.pathname), [menuItems, location.pathname]);
+  const [manualOpenKeys, setManualOpenKeys] = useState<string[]>([]);
+  const openKeys = useMemo(
+    () => Array.from(new Set([...routeOpenKeys, ...manualOpenKeys])),
+    [routeOpenKeys, manualOpenKeys]
+  );
+  const handleOpenKeys = (keys: string[]) => {
+    setManualOpenKeys(keys.filter((k) => !routeOpenKeys.includes(k)));
+  };
+
+  // [UX-BOOST ⑥] 路由 title
+  useRouteTitle(location.pathname);
 
   const userMenu = {
     items: [
@@ -375,100 +394,149 @@ const AppLayout: React.FC = () => {
     edxx: 'EDXX 铺员',
   };
 
+  const handleNavigate = (key: string) => {
+    navigate(key);
+    if (isMobile) setDrawerOpen(false);
+  };
+
+  // [UX-BOOST P1-a] 侧栏内容复用: 桌面 Sider / 移动 Drawer 共用
+  const siderInner = (
+    <>
+      <div style={{
+        padding: '14px 16px 10px',
+        textAlign: 'center',
+        fontWeight: 'bold',
+        fontSize: '17px',
+        color: '#FFFFFF',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        letterSpacing: '0.05em'
+      }}>
+        Xfactory
+        <div style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.55)', marginTop: 2, letterSpacing: '0.2em' }}>制 造 厂</div>
+      </div>
+      {capCard && (
+        <div style={{
+          margin: '10px 12px 4px', padding: '7px 10px', borderRadius: 8,
+          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ background: capCard.code === 'EDU' ? '#C9A227' : '#2F6BFF', color: '#fff', borderRadius: 6, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
+            {capCard.code}
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{capCard.label}</span>
+          {user?.hats?.length ? (
+            <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{user.hats.join('/')}</span>
+          ) : null}
+        </div>
+      )}
+      <Menu
+        mode="inline"
+        theme="dark"
+        selectedKeys={[selectedKey]}
+        openKeys={openKeys}
+        onOpenChange={(keys) => handleOpenKeys(keys)}
+        items={menuItems}
+        onClick={(e) => handleNavigate(e.key)}
+        style={{
+          background: '#1F3A5F',
+          borderRight: 0,
+        }}
+      />
+    </>
+  );
+
   return (
     // [G-001] 全局布局约束: 滚动独立 —— Header/Sider 固定, Content 独立滚动
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <Sider width={220} style={{ background: '#1F3A5F', overflow: 'auto', flexShrink: 0 }}>
-        <div style={{
-          padding: '14px 16px 10px',
-          textAlign: 'center',
-          fontWeight: 'bold',
-          fontSize: '17px',
-          color: '#FFFFFF',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
-          letterSpacing: '0.05em'
-        }}>
-          Xfactory
-          <div style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.55)', marginTop: 2, letterSpacing: '0.2em' }}>制 造 厂</div>
-        </div>
-        {capCard && (
-          <div style={{
-            margin: '10px 12px 4px', padding: '7px 10px', borderRadius: 8,
-            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span style={{ background: capCard.code === 'EDU' ? '#C9A227' : '#2F6BFF', color: '#fff', borderRadius: 6, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
-              {capCard.code}
-            </span>
-            <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{capCard.label}</span>
-            {user?.hats?.length ? (
-              <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{user.hats.join('/')}</span>
-            ) : null}
-          </div>
-        )}
-        <Menu
-          mode="inline"
-          theme="dark"
-          selectedKeys={[selectedKey]}
-          defaultOpenKeys={openKeys}
-          items={menuItems}
-          onClick={(e) => navigate(e.key)}
-          style={{ 
-            background: '#1F3A5F',
-            borderRight: 0,
-          }}
-        />
-      </Sider>
+      {/* [UX-BOOST P1-a] 移动端: Sider → Drawer (375 不再挤压内容区) */}
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          width={264}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          styles={{ body: { background: '#1F3A5F', padding: 0 }, header: { display: 'none' } }}
+        >
+          {siderInner}
+        </Drawer>
+      ) : (
+        <Sider width={232} style={{ background: '#1F3A5F', overflow: 'auto', flexShrink: 0 }}>
+          {siderInner}
+        </Sider>
+      )}
       <Layout style={{ minWidth: 0 }}>
         <Header style={{
           background: '#FFFFFF',
-          padding: '0 24px',
+          padding: isMobile ? '0 12px' : '0 24px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           borderBottom: '1px solid #E5E9F0',
           boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)',
           flexShrink: 0,
+          gap: 8,
         }}>
-          <div style={{ fontSize: '14px', color: '#1F3A5F', fontWeight: 500 }}>
-            Xfactory 制造厂 · 供给履约系统
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {/* [UX-BOOST P1-b] 移动端汉堡按钮打开侧栏 Drawer */}
+            {isMobile && (
+              <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} aria-label="打开菜单" style={{ color: '#1F3A5F' }} />
+            )}
+            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#1F3A5F', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {isMobile ? 'Xfactory' : 'Xfactory 制造厂 · 供给履约系统'}
+            </div>
           </div>
-          <Space>
-            {/* [Xfactory-ONBOARDING] 应用内帮助入口: 快速上手三动线 */}
-            <Button
-              size="small"
-              type="text"
-              icon={<QuestionCircleOutlined />}
-              onClick={() => window.open('/quickstart', '_blank')}
-            >
-              快速上手
-            </Button>
-            {/* [BOOTH-PRD-002 PM-004] DEU 分身入口: DU 可切换进入履约铺后台 (保留经营决策权) */}
-            {user?.role === 'du' && (
+          <Space size={isMobile ? 0 : 8}>
+            {/* [Xfactory-ONBOARDING] 应用内帮助入口: 快速上手三动线 ([UX-BOOST P1-b] 移动端 icon-only 不再裁切) */}
+            <Tooltip title="快速上手">
               <Button
                 size="small"
-                type={actingDeu ? 'primary' : 'default'}
-                icon={<DeliveredProcedureOutlined />}
-                onClick={() => {
-                  const next = !actingDeu;
-                  setActingDeu(next);
-                                    navigate(next ? '/edx' : '/du');
-                }}
+                type="text"
+                icon={<QuestionCircleOutlined />}
+                onClick={() => window.open('/quickstart', '_blank')}
               >
-                {actingDeu ? '退出履约铺 (回 DU)' : '进入履约铺后台 (DEU)'}
+                {isMobile ? '' : '快速上手'}
               </Button>
+            </Tooltip>
+            {/* [BOOTH-PRD-002 PM-004] DEU 分身入口: DU 可切换进入履约铺后台 (保留经营决策权) */}
+            {user?.role === 'du' && (
+              <Tooltip title={actingDeu ? '退出履约铺 (回 DU)' : '进入履约铺后台 (DEU)'}>
+                <Button
+                  size="small"
+                  type={actingDeu ? 'primary' : 'default'}
+                  icon={<DeliveredProcedureOutlined />}
+                  onClick={() => {
+                    const next = !actingDeu;
+                    setActingDeu(next);
+                    navigate(next ? '/edx' : '/du');
+                  }}
+                >
+                  {isMobile ? '' : actingDeu ? '退出履约铺 (回 DU)' : '进入履约铺后台 (DEU)'}
+                </Button>
+              </Tooltip>
             )}
-            <span style={{ color: '#6B7280', fontSize: '13px' }}>{actingDeu && user?.role === 'du' ? 'DEU · DU 分身' : roleLabels[user?.role || 'du']}</span>
+            {!isMobile && (
+              <span style={{ color: '#6B7280', fontSize: '13px' }}>{actingDeu && user?.role === 'du' ? 'DEU · DU 分身' : roleLabels[user?.role || 'du']}</span>
+            )}
             <Dropdown menu={userMenu}>
-              <Button type="text" icon={<UserOutlined />} style={{ color: '#1F3A5F' }}>
-                {user?.name || '用户'}
+              <Button type="text" icon={<UserOutlined />} style={{ color: '#1F3A5F' }} aria-label={user?.name || '用户'}>
+                {isMobile ? '' : (user?.name || '用户')}
               </Button>
             </Dropdown>
           </Space>
         </Header>
         {/* [G-001] 主内容区独立滚动: Header/Sider 不随内容滚动 */}
-        <Content style={{ margin: '24px', padding: '24px', background: '#FFFFFF', borderRadius: '8px', overflow: 'auto', boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)' }}>
-          <Outlet />
+        <Content style={{
+          margin: isMobile ? '12px' : '24px',
+          padding: isMobile ? '12px' : '24px',
+          background: '#FFFFFF',
+          borderRadius: '8px',
+          overflow: 'auto',
+          boxShadow: '0 1px 3px rgba(31, 58, 95, 0.04)',
+        }}>
+          {/* [UX-BOOST ④] 路由过渡: key 变化触发淡入动画 */}
+          <div key={location.pathname} className="page-fade">
+            <Outlet />
+          </div>
         </Content>
       </Layout>
     </Layout>

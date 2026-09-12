@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Table, Typography, Tag } from 'antd';
 import { apiGet } from '../../api';
+import { TABLE_PROPS } from '../../constants/table';
+import PageState from '../../components/PageState';
 import PriceText from '../../components/PriceText';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -33,6 +35,7 @@ const statusMap: Record<string, { color: string; text: string }> = {
 const EuOrders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
@@ -43,7 +46,7 @@ const EuOrders: React.FC = () => {
       setOrders(res.items);
       setTotal(res.total);
     } catch {
-      // ignore
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -108,13 +111,23 @@ const EuOrders: React.FC = () => {
   return (
     <div>
       <Title level={4} style={{ marginBottom: 24 }}>订单管理</Title>
+      <PageState
+        loading={loading}
+        error={loadError}
+        empty={!loading && !loadError && orders.length === 0}
+        onRetry={() => fetchData(page)}
+        emptyTitle="还没有订单"
+        emptyDesc="订单由交易侧确认后自动同步进来, 是生产派发与履约跟踪的数据源头。新订单确认后, 这里会实时出现待处理单据。"
+      >
       <Table
         columns={columns}
         dataSource={orders}
         rowKey="id"
         loading={loading}
         scroll={{ x: 900 }}
+        {...TABLE_PROPS}
         pagination={{
+          ...TABLE_PROPS.pagination,
           current: page,
           total,
           pageSize: 10,
@@ -122,6 +135,7 @@ const EuOrders: React.FC = () => {
           showTotal: (t) => `共 ${t} 条`,
         }}
       />
+      </PageState>
     </div>
   );
 };

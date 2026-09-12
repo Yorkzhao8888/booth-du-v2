@@ -141,7 +141,7 @@ export default function ExxFabSupplierScore() {
     <Card title={`制造厂 #${card.booth_id} 履约信用`} extra={card.status === 'scored' ? <Tag color="gold">综合 {Number(card.overall_score).toFixed(1)}</Tag> : <Tag color="orange">样本不足</Tag>}>
       <Row gutter={[12, 12]}>
         {Object.entries(card.metrics || {}).map(([k, v]: [string, any]) => (
-          <Col span={8} key={k}>
+          <Col xs={24} sm={12} lg={8} key={k}>
             <Statistic title={METRIC_LABELS[k] || k}
               value={k === 'response' ? (v.avg_minutes === null || v.avg_minutes === undefined ? 'N/A' : `${Number(v.avg_minutes).toFixed(0)} min`) : (v.rate === null || v.rate === undefined ? 'N/A' : `${Number(v.rate).toFixed(1)}%`)}
               suffix={<Text type="secondary" style={{ fontSize: 12 }}>样本 {v.sample}</Text>} />
@@ -168,7 +168,7 @@ export default function ExxFabSupplierScore() {
                     description={`以下指标样本量低于阈值(${dash.config?.min_samples}): ${dash.insufficient_metrics.map((k: string) => METRIC_LABELS[k] || k).join('、')}。总分暂不输出, 待数据积累后自动恢复。`} />
                 )}
                 <Row gutter={[12, 12]}>
-                  <Col span={6}>
+                  <Col xs={12} lg={6}>
                     <Card>
                       <Statistic title="综合履约信用分"
                         value={dash.overall_score === null || dash.overall_score === undefined ? 'N/A' : Number(dash.overall_score).toFixed(1)}
@@ -183,9 +183,9 @@ export default function ExxFabSupplierScore() {
                     </Card>
                   </Col>
                   {metricCards.map((m) => (
-                    <Col span={3} key={m.key}>
+                    <Col xs={8} lg={3} key={m.key}>
                       <Card hoverable size="small" onClick={() => setDrill({ key: m.key, view: m.view })}>
-                        <Statistic title={METRIC_LABELS[m.key]} value={m.main} suffix={m.suffix ? <Text type="secondary" style={{ fontSize: 12 }}>{m.suffix}</Text> : undefined} />
+                        <Statistic title={<span style={{ fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{METRIC_LABELS[m.key]}</span>} value={m.main} suffix={m.suffix ? <Text type="secondary" style={{ fontSize: 12 }}>{m.suffix}</Text> : undefined} valueStyle={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }} />
                         <div style={{ marginTop: 4 }}>{statusTag(m.view.status)}<Text type="secondary" style={{ fontSize: 12 }}>样本 {m.view.sample}</Text></div>
                       </Card>
                     </Col>

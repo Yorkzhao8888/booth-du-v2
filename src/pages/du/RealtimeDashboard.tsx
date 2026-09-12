@@ -32,8 +32,8 @@ export default function RealtimeDashboard() {
     delivery: { pending: 0, inTransit: 0, completed: 0 },
   });
   const [time, setTime] = useState(new Date());
-  const [wsConnected, setWsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [linkState, setLinkState] = useState<'connecting' | 'connected' | 'reconnecting'>('connecting');
+  const esRef = useRef<EventSource | null>(null);
 
   // Fetch initial data
   const fetchData = async () => {
@@ -100,51 +100,34 @@ export default function RealtimeDashboard() {
     }
   };
 
-  // WebSocket connection for real-time updates
+  // [UX-BOOST P1-c] 服务端为 SSE(/api/booth/stream)，原 WebSocket 连接必失败导致「连接断开」红标常驻。
+  // 改用 EventSource + ?token=（sseTokenBridge 统一验签），token key 修正为 booth_token（原 'token' 恒空）。
+  // 连接三态：connecting(蓝) / connected(绿) / reconnecting(红，仅在重连中显示)，红标不再常驻。
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/api/booth/stream`;
-
-    const connect = () => {
-      const token = localStorage.getItem('token') || '';
-      const ws = new WebSocket(`${wsUrl}?token=${token}`);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        console.log('WebSocket connected');
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          // Refresh data on relevant events
-          if (['order.created', 'order.status_changed', 'inventory.changed', 'work_order.updated'].includes(data.type)) {
-            fetchData();
-          }
-        } catch (err) {
-          console.error('WebSocket message parse error:', err);
+    setLinkState('connecting');
+    const token = localStorage.getItem('booth_token') || '';
+    const es = new EventSource(`/api/booth/stream?token=${encodeURIComponent(token)}`);
+    esRef.current = es;
+    es.onopen = () => setLinkState('connected');
+    es.onmessage = (event: MessageEvent<string>) => {
+      try {
+        const data = JSON.parse(event.data) as { type?: string };
+        if (['order.created', 'order.status_changed', 'inventory.changed', 'work_order.updated'].includes(data.type || '')) {
+          fetchData();
         }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-        console.log('WebSocket disconnected, reconnecting in 5s...');
-        setTimeout(connect, 5000);
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
-      };
+      } catch {
+        // 忽略非 JSON 心跳帧
+      }
     };
-
-    connect();
-
+    es.onerror = () => {
+      // EventSource 内建自动重连
+      setLinkState((s) => (s === 'connected' ? 'reconnecting' : s));
+    };
     return () => {
-      wsRef.current?.close();
+      es.close();
+      esRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Periodic refresh (fallback)
@@ -164,31 +147,31 @@ export default function RealtimeDashboard() {
     <div style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-      padding: 24,
+      padding: 'clamp(12px, 3vw, 24px)',
       color: '#fff',
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, color: '#fff' }}>
+        <h1 style={{ margin: 0, fontSize: 'clamp(20px, 3.4vw, 32px)', fontWeight: 700, color: '#fff' }}>
           Xfactory-DU 实时运营大屏
         </h1>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#1890ff' }}>
+          <div style={{ fontSize: 'clamp(16px, 2.4vw, 24px)', fontWeight: 600, color: '#1890ff', fontVariantNumeric: 'tabular-nums' }}>
             {time.toLocaleTimeString('zh-CN')}
           </div>
           <div style={{ fontSize: 14, color: '#999' }}>
             {time.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
           </div>
-          <Tag color={wsConnected ? 'success' : 'error'} style={{ marginTop: 4 }}>
-            {wsConnected ? '实时连接' : '连接断开'}
+          <Tag color={linkState === 'connected' ? 'success' : linkState === 'connecting' ? 'processing' : 'error'} style={{ marginTop: 4 }}>
+            {linkState === 'connected' ? '实时连接' : linkState === 'connecting' ? '连接中…' : '重连中…'}
           </Tag>
         </div>
       </div>
 
       {/* Main Stats */}
-      <Row gutter={[24, 24]}>
+      <Row gutter={[16, 16]}>
         {/* Orders */}
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card
             style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 16 }}
             styles={{ body: { padding: 24 } }}
@@ -200,23 +183,23 @@ export default function RealtimeDashboard() {
             <Statistic
               title={<span style={{ color: '#999' }}>今日订单</span>}
               value={data.orders.today}
-              valueStyle={{ color: '#fff', fontSize: 36 }}
+              valueStyle={{ color: '#fff', fontSize: 'clamp(24px, 4.2vw, 36px)', fontVariantNumeric: 'tabular-nums' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>待处理</div>
-                <div style={{ color: '#faad14', fontSize: 20, fontWeight: 600 }}>{data.orders.pending}</div>
+                <div style={{ color: '#faad14', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.orders.pending}</div>
               </div>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>已完成</div>
-                <div style={{ color: '#52c41a', fontSize: 20, fontWeight: 600 }}>{data.orders.completed}</div>
+                <div style={{ color: '#52c41a', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.orders.completed}</div>
               </div>
             </div>
           </Card>
         </Col>
 
         {/* Inventory */}
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card
             style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 16 }}
             styles={{ body: { padding: 24 } }}
@@ -228,23 +211,23 @@ export default function RealtimeDashboard() {
             <Statistic
               title={<span style={{ color: '#999' }}>SKU 总数</span>}
               value={data.inventory.total}
-              valueStyle={{ color: '#fff', fontSize: 36 }}
+              valueStyle={{ color: '#fff', fontSize: 'clamp(24px, 4.2vw, 36px)', fontVariantNumeric: 'tabular-nums' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>缺货预警</div>
-                <div style={{ color: '#ff4d4f', fontSize: 20, fontWeight: 600 }}>{data.inventory.low}</div>
+                <div style={{ color: '#ff4d4f', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.inventory.low}</div>
               </div>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>临期预警</div>
-                <div style={{ color: '#faad14', fontSize: 20, fontWeight: 600 }}>{data.inventory.expiring}</div>
+                <div style={{ color: '#faad14', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.inventory.expiring}</div>
               </div>
             </div>
           </Card>
         </Col>
 
         {/* Production */}
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card
             style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 16 }}
             styles={{ body: { padding: 24 } }}
@@ -256,23 +239,23 @@ export default function RealtimeDashboard() {
             <Statistic
               title={<span style={{ color: '#999' }}>进行中工单</span>}
               value={data.production.inProgress}
-              valueStyle={{ color: '#fff', fontSize: 36 }}
+              valueStyle={{ color: '#fff', fontSize: 'clamp(24px, 4.2vw, 36px)', fontVariantNumeric: 'tabular-nums' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>已完成</div>
-                <div style={{ color: '#52c41a', fontSize: 20, fontWeight: 600 }}>{data.production.completed}</div>
+                <div style={{ color: '#52c41a', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.production.completed}</div>
               </div>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>良品率</div>
-                <div style={{ color: '#1890ff', fontSize: 20, fontWeight: 600 }}>{data.production.yieldRate}%</div>
+                <div style={{ color: '#1890ff', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.production.yieldRate}%</div>
               </div>
             </div>
           </Card>
         </Col>
 
         {/* Delivery */}
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card
             style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 16 }}
             styles={{ body: { padding: 24 } }}
@@ -284,16 +267,16 @@ export default function RealtimeDashboard() {
             <Statistic
               title={<span style={{ color: '#999' }}>配送任务</span>}
               value={data.delivery.pending + data.delivery.inTransit}
-              valueStyle={{ color: '#fff', fontSize: 36 }}
+              valueStyle={{ color: '#fff', fontSize: 'clamp(24px, 4.2vw, 36px)', fontVariantNumeric: 'tabular-nums' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>待配送</div>
-                <div style={{ color: '#faad14', fontSize: 20, fontWeight: 600 }}>{data.delivery.pending}</div>
+                <div style={{ color: '#faad14', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.delivery.pending}</div>
               </div>
               <div>
                 <div style={{ color: '#999', fontSize: 12 }}>配送中</div>
-                <div style={{ color: '#1890ff', fontSize: 20, fontWeight: 600 }}>{data.delivery.inTransit}</div>
+                <div style={{ color: '#1890ff', fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{data.delivery.inTransit}</div>
               </div>
             </div>
           </Card>
@@ -301,9 +284,9 @@ export default function RealtimeDashboard() {
       </Row>
 
       {/* Second Row */}
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         {/* Warehouse Overview */}
-        <Col span={12}>
+        <Col xs={24} lg={12}>
           <Card
             title={<span style={{ color: '#fff', fontSize: 18 }}>四仓概览</span>}
             style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 16 }}
@@ -311,7 +294,7 @@ export default function RealtimeDashboard() {
           >
             <Row gutter={16}>
               {Object.entries(WAREHOUSE_LABELS).map(([key, label]) => (
-                <Col span={6} key={key}>
+                <Col xs={12} lg={6} key={key}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 14, color: '#999', marginBottom: 8 }}>{label}</div>
                     <Progress
@@ -329,7 +312,7 @@ export default function RealtimeDashboard() {
         </Col>
 
         {/* Alerts */}
-        <Col span={12}>
+        <Col xs={24} lg={12}>
           <Card
             title={<span style={{ color: '#fff', fontSize: 18 }}><WarningOutlined /> 预警信息</span>}
             style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 16 }}

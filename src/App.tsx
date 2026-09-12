@@ -1,31 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store';
+import { Spin } from 'antd';
 import SSEListener from './components/SSEListener';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppLayout from './components/AppLayout';
 import MobileLayout from './components/MobileLayout';
-import Login from './pages/Login';
+const Login = lazy(() => import('./pages/Login'));
 // DU pages
-import DuDashboard from './pages/du/Dashboard';
-import DuOrders from './pages/du/Orders';
-import DuWorkOrders from './pages/du/WorkOrders';
-import DuInventory from './pages/du/Inventory';
-import DuBoms from './pages/du/Boms';
-import DuPurchaseOrders from './pages/du/PurchaseOrders';
-import DuProfitDashboard from './pages/du/ProfitDashboard';
-import DuDlTasks from './pages/du/DlTasks';
-import DuSvcTasks from './pages/du/SvcTasks';
-import DuBatches from './pages/du/Batches';
-import DuReplenishment from './pages/du/Replenishment';
-import DuSuppliers from './pages/du/Suppliers';
-import DuSupplierManagement from './pages/du/SupplierManagement';
-import DuExpiryControl from './pages/du/ExpiryControl';
-import DuInventoryAlerts from './pages/du/InventoryAlerts';
-import DuFulfillmentTrack from './pages/du/FulfillmentTrack';
-import DuSupplyOrders from './pages/du/SupplyOrders';
-import DuInventoryTransfer from './pages/du/InventoryTransfer';
-import DuRealtimeDashboard from './pages/du/RealtimeDashboard';
+const DuDashboard = lazy(() => import('./pages/du/Dashboard'));
+const DuOrders = lazy(() => import('./pages/du/Orders'));
+const DuWorkOrders = lazy(() => import('./pages/du/WorkOrders'));
+const DuInventory = lazy(() => import('./pages/du/Inventory'));
+const DuBoms = lazy(() => import('./pages/du/Boms'));
+const DuPurchaseOrders = lazy(() => import('./pages/du/PurchaseOrders'));
+const DuProfitDashboard = lazy(() => import('./pages/du/ProfitDashboard'));
+const DuDlTasks = lazy(() => import('./pages/du/DlTasks'));
+const DuSvcTasks = lazy(() => import('./pages/du/SvcTasks'));
+const DuBatches = lazy(() => import('./pages/du/Batches'));
+const DuReplenishment = lazy(() => import('./pages/du/Replenishment'));
+const DuSuppliers = lazy(() => import('./pages/du/Suppliers'));
+const DuSupplierManagement = lazy(() => import('./pages/du/SupplierManagement'));
+const DuExpiryControl = lazy(() => import('./pages/du/ExpiryControl'));
+const DuInventoryAlerts = lazy(() => import('./pages/du/InventoryAlerts'));
+const DuFulfillmentTrack = lazy(() => import('./pages/du/FulfillmentTrack'));
+const DuSupplyOrders = lazy(() => import('./pages/du/SupplyOrders'));
+const DuInventoryTransfer = lazy(() => import('./pages/du/InventoryTransfer'));
+const DuRealtimeDashboard = lazy(() => import('./pages/du/RealtimeDashboard'));
 import ProductionOrders from './pages/du/ProductionOrders'; // [BOOTH-PRD-001] 生产单契约地基
 import SupplyShops from './pages/du/SupplyShops'; // [BOOTH-PRD-002] PM-001 供应铺管理
 import OrderTypes from './pages/du/OrderTypes'; // [BOOTH-PRD-002] PM-002 订单类型配置
@@ -34,81 +35,81 @@ import Crafts from './pages/du/Crafts'; // [BOOTH-PRD-003] RD-005 工艺管理
 import OnboardingWizard from './pages/du/OnboardingWizard'; // [Xfactory-ONBOARDING] 三步开通向导
 import QuickStart from './pages/QuickStart'; // [Xfactory-ONBOARDING] 三动线帮助页
 // EDX pages
-import ExDashboard from './pages/ex/Dashboard';
-import ExWorkOrders from './pages/ex/WorkOrders';
-import ExBoms from './pages/ex/Boms';
-import ExSkus from './pages/ex/Skus';
-import ExInventory from './pages/ex/Inventory';
-import ExDlDispatch from './pages/ex/DlDispatch';
-import ExSvcDispatch from './pages/ex/SvcDispatch';
-import ExStocktakeApproval from './pages/ex/StocktakeApproval';
-import ExCapacityQuery from './pages/ex/CapacityQuery';
+const ExDashboard = lazy(() => import('./pages/ex/Dashboard'));
+const ExWorkOrders = lazy(() => import('./pages/ex/WorkOrders'));
+const ExBoms = lazy(() => import('./pages/ex/Boms'));
+const ExSkus = lazy(() => import('./pages/ex/Skus'));
+const ExInventory = lazy(() => import('./pages/ex/Inventory'));
+const ExDlDispatch = lazy(() => import('./pages/ex/DlDispatch'));
+const ExSvcDispatch = lazy(() => import('./pages/ex/SvcDispatch'));
+const ExStocktakeApproval = lazy(() => import('./pages/ex/StocktakeApproval'));
+const ExCapacityQuery = lazy(() => import('./pages/ex/CapacityQuery'));
 // EDXX pages
-import ExxModuleEntry from './pages/edxx/ModuleEntry';
-import ExxFabQueue from './pages/edxx/FabQueue';
-import ExxFabActive from './pages/edxx/FabActive';
-import ExxFabHistory from './pages/edxx/FabHistory';
-import ExxWhInventory from './pages/edxx/WhInventory';
-import ExxWhInbound from './pages/edxx/WhInbound';
-import ExxWhOutbound from './pages/edxx/WhOutbound';
-import ExxWhTxns from './pages/edxx/WhTxns';
-import ExxFabOperations from './pages/edxx/FabOperations';
-import ExxFabAndon from './pages/edxx/FabAndon';
-import ExxQcExecute from './pages/edxx/QcExecute';
-import ExxFabTrace from './pages/edxx/FabTrace';
-import ExxFabPlugins from './pages/edxx/FabPlugins';
-import ExxFabTelemetry from './pages/edxx/FabTelemetry';
-import ExxFabSupplierScore from './pages/edxx/FabSupplierScore';
-import ExxFabDefects from './pages/edxx/FabDefects';
-import ExxStocktakeExec from './pages/edxx/StocktakeExec';
-import ExxDlExec from './pages/edxx/DlExec';
-import ExxSvcExec from './pages/edxx/SvcExec';
-import ExxProductionDashboard from './pages/edxx/ProductionDashboard';
-import ExxYieldTracking from './pages/edxx/YieldTracking';
-import ExxFabZoneView from './pages/edxx/FabZoneView';
-import ExxFabStations from './pages/edxx/FabStations';
-import ExxFabStationDetail from './pages/edxx/FabStationDetail';
-import ExxFabEquipment from './pages/edxx/FabEquipment';
-import ExxFabEquipmentOee from './pages/edxx/FabEquipmentOee';
-import ExxFabOeeDashboard from './pages/edxx/FabOeeDashboard';
-import ExxFabMaintenance from './pages/edxx/FabMaintenance';
-import ExxSupplyOrders from './pages/edxx/SupplyOrders';
-import ExxSupplyLineFeed from './pages/edxx/SupplyLineFeed';
-import ExxDeviceSupply from './pages/edxx/DeviceSupply';
-import ExxPlazaSupply from './pages/edxx/PlazaSupply';
+const ExxModuleEntry = lazy(() => import('./pages/edxx/ModuleEntry'));
+const ExxFabQueue = lazy(() => import('./pages/edxx/FabQueue'));
+const ExxFabActive = lazy(() => import('./pages/edxx/FabActive'));
+const ExxFabHistory = lazy(() => import('./pages/edxx/FabHistory'));
+const ExxWhInventory = lazy(() => import('./pages/edxx/WhInventory'));
+const ExxWhInbound = lazy(() => import('./pages/edxx/WhInbound'));
+const ExxWhOutbound = lazy(() => import('./pages/edxx/WhOutbound'));
+const ExxWhTxns = lazy(() => import('./pages/edxx/WhTxns'));
+const ExxFabOperations = lazy(() => import('./pages/edxx/FabOperations'));
+const ExxFabAndon = lazy(() => import('./pages/edxx/FabAndon'));
+const ExxQcExecute = lazy(() => import('./pages/edxx/QcExecute'));
+const ExxFabTrace = lazy(() => import('./pages/edxx/FabTrace'));
+const ExxFabPlugins = lazy(() => import('./pages/edxx/FabPlugins'));
+const ExxFabTelemetry = lazy(() => import('./pages/edxx/FabTelemetry'));
+const ExxFabSupplierScore = lazy(() => import('./pages/edxx/FabSupplierScore'));
+const ExxFabDefects = lazy(() => import('./pages/edxx/FabDefects'));
+const ExxStocktakeExec = lazy(() => import('./pages/edxx/StocktakeExec'));
+const ExxDlExec = lazy(() => import('./pages/edxx/DlExec'));
+const ExxSvcExec = lazy(() => import('./pages/edxx/SvcExec'));
+const ExxProductionDashboard = lazy(() => import('./pages/edxx/ProductionDashboard'));
+const ExxYieldTracking = lazy(() => import('./pages/edxx/YieldTracking'));
+const ExxFabZoneView = lazy(() => import('./pages/edxx/FabZoneView'));
+const ExxFabStations = lazy(() => import('./pages/edxx/FabStations'));
+const ExxFabStationDetail = lazy(() => import('./pages/edxx/FabStationDetail'));
+const ExxFabEquipment = lazy(() => import('./pages/edxx/FabEquipment'));
+const ExxFabEquipmentOee = lazy(() => import('./pages/edxx/FabEquipmentOee'));
+const ExxFabOeeDashboard = lazy(() => import('./pages/edxx/FabOeeDashboard'));
+const ExxFabMaintenance = lazy(() => import('./pages/edxx/FabMaintenance'));
+const ExxSupplyOrders = lazy(() => import('./pages/edxx/SupplyOrders'));
+const ExxSupplyLineFeed = lazy(() => import('./pages/edxx/SupplyLineFeed'));
+const ExxDeviceSupply = lazy(() => import('./pages/edxx/DeviceSupply'));
+const ExxPlazaSupply = lazy(() => import('./pages/edxx/PlazaSupply'));
 // DM pages
-import DmDashboard from './pages/dm/Dashboard';
+const DmDashboard = lazy(() => import('./pages/dm/Dashboard'));
 // EMXX pages
-import DxxDashboard from './pages/emxx/Dashboard';
+const DxxDashboard = lazy(() => import('./pages/emxx/Dashboard'));
 // EM pages
-import EmDashboard from './pages/em/Dashboard';
-import EmSupplierAdmissions from './pages/em/SupplierAdmissions';
-import EmSupplyStrategies from './pages/em/SupplyStrategies';
-import EmCapacityPlanning from './pages/em/CapacityPlanning';
-import EmCapacityResources from './pages/em/CapacityResources';
-import EmAtpCommitments from './pages/em/AtpCommitments';
-import EmSguCatalog from './pages/em/SguCatalog';
-import EmSguListings from './pages/em/SguListings';
-import EmSguPending from './pages/em/SguPending';
-import EmSupplyQuotes from './pages/em/SupplyQuotes';
-import DuSupplyQuotes from './pages/du/SupplyQuotes';
-import ExSupplyQuotes from './pages/ex/SupplyQuotes';
+const EmDashboard = lazy(() => import('./pages/em/Dashboard'));
+const EmSupplierAdmissions = lazy(() => import('./pages/em/SupplierAdmissions'));
+const EmSupplyStrategies = lazy(() => import('./pages/em/SupplyStrategies'));
+const EmCapacityPlanning = lazy(() => import('./pages/em/CapacityPlanning'));
+const EmCapacityResources = lazy(() => import('./pages/em/CapacityResources'));
+const EmAtpCommitments = lazy(() => import('./pages/em/AtpCommitments'));
+const EmSguCatalog = lazy(() => import('./pages/em/SguCatalog'));
+const EmSguListings = lazy(() => import('./pages/em/SguListings'));
+const EmSguPending = lazy(() => import('./pages/em/SguPending'));
+const EmSupplyQuotes = lazy(() => import('./pages/em/SupplyQuotes'));
+const DuSupplyQuotes = lazy(() => import('./pages/du/SupplyQuotes'));
+const ExSupplyQuotes = lazy(() => import('./pages/ex/SupplyQuotes'));
 // Market pages
-import MarketDashboard from './pages/market/Dashboard';
+const MarketDashboard = lazy(() => import('./pages/market/Dashboard'));
 // Common pages
-import OrgChart from './pages/common/OrgChart';
-import EmployeeManagement from './pages/du/EmployeeManagement';
-import WarehouseDashboard from './pages/du/WarehouseDashboard';
+const OrgChart = lazy(() => import('./pages/common/OrgChart'));
+const EmployeeManagement = lazy(() => import('./pages/du/EmployeeManagement'));
+const WarehouseDashboard = lazy(() => import('./pages/du/WarehouseDashboard'));
 // [DUAL-PORTAL-P0] 双端容器分流 + 个人台/企业台
 import { ContainerPortal } from './pages/portal/ContainerPortal';
 import { HatSelect } from './pages/portal/HatSelect';
 import { ForbiddenPage } from './pages/portal/ForbiddenPage';
 import { PortalShell } from './components/PortalShell';
-import PersonalWorkbench from './pages/xhpz/PersonalWorkbench';
-import EnterpriseWorkbench from './pages/xepz/EnterpriseWorkbench';
+const PersonalWorkbench = lazy(() => import('./pages/xhpz/PersonalWorkbench'));
+const EnterpriseWorkbench = lazy(() => import('./pages/xepz/EnterpriseWorkbench'));
 // [XDP-ECO] 生态版四主体: 经营户台 + VEM 平台方控制台
-import ShopOwnerWorkbench from './pages/xdpz/ShopOwnerWorkbench';
-import VemConsole from './pages/xvpz/VemConsole';
+const ShopOwnerWorkbench = lazy(() => import('./pages/xdpz/ShopOwnerWorkbench'));
+const VemConsole = lazy(() => import('./pages/xvpz/VemConsole'));
 import type { ContainerKey } from './types/containers';
 
 const CONTAINER_PATHS = ['/containers', '/xhpz', '/xepz', '/xdpz', '/xvpz'];
@@ -236,6 +237,8 @@ const RequireContainer: React.FC<{ container: ContainerKey; children: React.Reac
 // [DUAL-PORTAL-P0] 视角层守卫: 有 token 未选帽 → 角色选择页 (切换角色=回此页重进, 视角状态清空重建)
 const RequireHat: React.FC<{ container: ContainerKey; children: React.ReactNode }> = ({ container, children }) => {
   const hat = useAuthStore((s) => s.hat);
+  // [UX-BOOST] xvpz(平台方·VEM) / xdpz(经营户) 为管理控制台视图, 无作业帽语义, 不强制选帽
+  if (container === 'xvpz' || container === 'xdpz') return <>{children}</>;
   if (!hat) return <Navigate to={`/${container}/hats`} replace />;
   return <>{children}</>;
 };
@@ -257,6 +260,13 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <SSEListener />
+      <Suspense
+        fallback={
+          <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spin size="large" tip="页面加载中" />
+          </div>
+        }
+      >
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/quickstart" element={<QuickStart />} /> {/* [Xfactory-ONBOARDING] 三动线帮助页, 免登可达 */}
@@ -307,6 +317,7 @@ const App: React.FC = () => {
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
@@ -385,6 +396,7 @@ const App: React.FC = () => {
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
@@ -415,6 +427,7 @@ const App: React.FC = () => {
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
@@ -464,6 +477,7 @@ const App: React.FC = () => {
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
+          <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
           <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
@@ -616,6 +630,7 @@ const App: React.FC = () => {
 
         <Route path="*" element={<RoleRedirect />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };

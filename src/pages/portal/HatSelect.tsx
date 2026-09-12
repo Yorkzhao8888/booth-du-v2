@@ -27,6 +27,7 @@ const CONTAINER_TITLE: Record<ContainerKey, string> = {
 export const HatSelect: React.FC<{ container: ContainerKey }> = ({ container }) => {
   const navigate = useNavigate();
   const setHat = useAuthStore((s) => s.setHat);
+  const resetPerspective = useAuthStore((s) => s.resetPerspective);
   const [loading, setLoading] = useState(true);
   const [hats, setHats] = useState<HatItem[]>([]);
   const [source, setSource] = useState<string>('');
@@ -108,7 +109,30 @@ export const HatSelect: React.FC<{ container: ContainerKey }> = ({ container }) 
             ))}
         {!loading && hats.length === 0 ? (
           <Card style={cardStyle}>
-            <Typography.Text type="secondary">暂无可用帽, 请联系管理员配置权限。</Typography.Text>
+            <div style={{ textAlign: 'center', padding: '10px 6px' }}>
+              <Typography.Text strong style={{ fontSize: 15 }}>暂无可用帽</Typography.Text>
+              <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 14, fontSize: 13 }}>
+                当前身份还没有被授权任何作业帽。帽由管理员在 OAS 平台配置, 配置后重新登录即可生效。
+                你也可以先回到容器分流页查看其他可用视角。
+              </Typography.Paragraph>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/containers')}>
+                  返回容器分流
+                </Button>
+                <Button
+                  icon={<SafetyOutlined />}
+                  onClick={() => {
+                    resetPerspective();
+                    navigate('/login');
+                  }}
+                >
+                  重新登录
+                </Button>
+                <Button type="link" onClick={() => navigate('/quickstart')}>
+                  快速上手
+                </Button>
+              </div>
+            </div>
           </Card>
         ) : null}
       </div>

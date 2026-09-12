@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Table, Typography, Tag } from 'antd';
 import { apiGet } from '../../api';
+import PageState from '../../components/PageState';
+import { TABLE_PROPS } from '../../constants/table';
 import PriceText from '../../components/PriceText';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -19,14 +21,16 @@ interface InventoryItem {
 const EuInventory: React.FC = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await apiGet<{ items: InventoryItem[]; total: number }>('/du/inventory');
       setItems(res?.items || []);
+      setLoadError(false);
     } catch {
-      // ignore
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -68,14 +72,24 @@ const EuInventory: React.FC = () => {
   return (
     <div>
       <Title level={4} style={{ marginBottom: 24 }}>库存管理</Title>
+      <PageState
+        loading={loading}
+        error={loadError}
+        empty={!loading && !loadError && items.length === 0}
+        onRetry={fetchData}
+        emptyTitle="还没有库存记录"
+        emptyDesc="库存数据来自完工入库与出库单据的自动登记, 是成本核算与补货提醒的数据基础。完成首批作业入库后, 这里会显示各 SKU 的可用量。"
+      >
       <Table
         columns={columns}
         dataSource={items}
         rowKey="id"
         loading={loading}
         scroll={{ x: 800 }}
-        pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
+        {...TABLE_PROPS}
+        pagination={{ ...TABLE_PROPS.pagination, pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
       />
+      </PageState>
     </div>
   );
 };

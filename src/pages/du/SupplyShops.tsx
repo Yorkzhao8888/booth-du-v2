@@ -5,6 +5,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button, Card, Form, Input, Modal, Select, Space, Switch, Table, Tag, message } from 'antd';
 import { apiGet, apiPost } from '../../api';
+import PageState from '../../components/PageState';
+import { TABLE_PROPS } from '../../constants/table';
 
 const SHOP_TYPES = [
   { value: 'rd', label: '研发铺' },
@@ -31,6 +33,7 @@ const typeColor = (t: string) =>
 export default function SupplyShops() {
   const [rows, setRows] = useState<SupplyShop[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SupplyShop | null>(null);
   const [form] = Form.useForm();
@@ -40,6 +43,9 @@ export default function SupplyShops() {
     try {
       const d = await apiGet<SupplyShop[]>('/supply-shops');
       setRows(d || []);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -137,12 +143,20 @@ export default function SupplyShops() {
         </Button>
       }
     >
+      <PageState
+        loading={loading}
+        error={loadError}
+        empty={!loading && !loadError && rows.length === 0}
+        onRetry={load}
+        emptyTitle="还没有供应铺档案"
+        emptyDesc="四铺（研发/制造/配送/供给）的供应铺是订单派发与能力展示的数据源。点击右上角「新建供应铺」登记第一家铺子后, 这里会显示铺位清单与能力标签。"
+      >
       <Table<SupplyShop>
         rowKey="id"
         size="small"
         loading={loading}
         dataSource={rows}
-        pagination={false}
+        {...TABLE_PROPS}
         columns={[
           { title: 'ID', dataIndex: 'id', width: 56 },
           {
@@ -194,6 +208,7 @@ export default function SupplyShops() {
           },
         ]}
       />
+      </PageState>
       <Modal
         title={editing ? `编辑供应铺 — ${editing.shop_name}` : '新建供应铺'}
         open={modalOpen}
