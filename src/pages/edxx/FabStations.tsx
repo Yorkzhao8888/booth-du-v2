@@ -19,6 +19,7 @@ import {
 
 import { useAuthStore } from '../../store';
 import { api } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 
 const MONO = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
 const NAVY = '#1F3A5F';
@@ -76,12 +77,14 @@ export default function FabStations() {
   const isReadOnly = user?.role !== 'edxx';
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [stations, setStations] = useState<Station[]>([]);
   const [zone, setZone] = useState<string | undefined>();
   const [state, setState] = useState<string | undefined>();
   const [keyword, setKeyword] = useState('');
 
   const fetchStations = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const params: string[] = [];
@@ -89,7 +92,7 @@ export default function FabStations() {
       if (state) params.push(`state=${state}`);
       const res = await api.get<any>(`/edxx/fab/stations${params.length ? '?' + params.join('&') : ''}`);
       if (res) setStations(res?.items || []); // api.ts 解包后 res 即业务数据
-    } catch {
+    } catch { setLoadError(true);
       // ignore
     }
     setLoading(false);
@@ -145,6 +148,9 @@ export default function FabStations() {
     idle: stations.filter((s) => s.state === 'idle').length,
     abnormal: stations.filter((s) => ['down', 'paused'].includes(s.state)).length,
   };
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void fetchStations()} skeletonRows={6} />;
 
   return (
     <div style={{ padding: '20px 24px', background: '#F5F7FA', minHeight: '100%' }}>

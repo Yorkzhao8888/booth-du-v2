@@ -1665,9 +1665,19 @@ export async function migrate() {
         );
         const colNames = mpCols.rows.map((r: { column_name: string }) => r.column_name);
         if (colNames.includes('next_date') && !colNames.includes('next_due_at')) {
-          await client.query(`ALTER TABLE booth_maintenance_plans RENAME TO booth_maintenance_plans_legacy_v0`);
-          await client.query(`ALTER INDEX IF EXISTS idx_maintenance_plans_org_status RENAME TO idx_maintenance_plans_legacy_v0`);
-          console.log('[migrate] MES-LEGACY: booth_maintenance_plans 旧 schema 已归档为 booth_maintenance_plans_legacy_v0, 重建新 schema');
+          // [W1-FIX] 幂等防御: legacy_v0 已存在(上次已归档过)时不再 RENAME(会撞 already exists fail-closed),
+          // 旧 schema 表此时为重复再现的存量, 直接 DROP 后走下方 CREATE 重建新 schema
+          const legacyExists = await client.query(
+            `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='booth_maintenance_plans_legacy_v0'`
+          );
+          if ((legacyExists.rowCount ?? 0) > 0) {
+            await client.query(`DROP TABLE booth_maintenance_plans`);
+            console.log('[migrate] MES-LEGACY: booth_maintenance_plans_legacy_v0 已存在, 重复旧 schema 表已 DROP 重建');
+          } else {
+            await client.query(`ALTER TABLE booth_maintenance_plans RENAME TO booth_maintenance_plans_legacy_v0`);
+            await client.query(`ALTER INDEX IF EXISTS idx_maintenance_plans_org_status RENAME TO idx_maintenance_plans_legacy_v0`);
+            console.log('[migrate] MES-LEGACY: booth_maintenance_plans 旧 schema 已归档为 booth_maintenance_plans_legacy_v0, 重建新 schema');
+          }
         }
       }
 

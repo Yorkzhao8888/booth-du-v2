@@ -3,6 +3,7 @@ import { Card, Table, Button, Modal, message, Tag, Space, Steps, Divider } from 
 import { api } from '../../api';
 import PageState from '../../components/PageState';
 import { TABLE_PROPS } from '../../constants/table';
+import EvidenceUploadModal from '../../components/EvidenceUploadModal'; // [W1-D3] 完工上报凭证
 
 const STAGE_LABELS: Record<string, string> = {
   preprocessing: '前置工序',
@@ -71,6 +72,7 @@ const FabQueue = () => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [stageModalVisible, setStageModalVisible] = useState(false);
+  const [evidenceTarget, setEvidenceTarget] = useState<{ id: number; woNo: string } | null>(null); // [W1-D3]
   const [selectedWo, setSelectedWo] = useState<any>(null);
 
   const fetchQueue = async () => {
@@ -181,6 +183,9 @@ const FabQueue = () => {
           {(record.status === 'in_progress' || record.status === 'Running') && (
             <Button onClick={() => openStageModal(record)}>产线流转</Button>
           )}
+          {(record.status === 'preparing' || record.status === 'in_progress' || record.status === 'Running') && (
+            <Button type="primary" ghost onClick={() => setEvidenceTarget({ id: record.id, woNo: record.wo_no || record.job_id || String(record.id) })}>完工上报</Button>
+          )}
         </Space>
       )
     },
@@ -198,6 +203,15 @@ const FabQueue = () => {
       >
       <Table dataSource={queue} columns={columns} rowKey="id" loading={loading} {...TABLE_PROPS} scroll={{ x: 900 }} />
       </PageState>
+
+      {/* [W1-D3] 完工上报 → G-005 凭证自动归档 + 工单自动完成 */}
+      <EvidenceUploadModal
+        open={!!evidenceTarget}
+        workOrderId={evidenceTarget?.id ?? null}
+        workOrderNo={evidenceTarget?.woNo}
+        onClose={() => setEvidenceTarget(null)}
+        onCompleted={fetchQueue}
+      />
 
       <Modal
         title={`产线流转 - ${selectedWo?.wo_no || ''}`}

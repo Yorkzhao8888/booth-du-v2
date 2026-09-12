@@ -80,7 +80,14 @@ const ExDashboard: React.FC = () => {
           <Card title="待处理履约单" size="small" loading={loading}>
             <List
               dataSource={data?.pendingFulfillments || []}
-              locale={{ emptyText: '暂无待处理订单' }}
+              locale={{
+                emptyText: (
+                  <div style={{ padding: '12px 0' }}>
+                    <Text type="secondary" style={{ display: 'block' }}>当前没有待拆单的履约单</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>订单确认后自动进入此队列, 无需手动刷新</Text>
+                  </div>
+                ),
+              }}
               renderItem={(item) => (
                 <List.Item
                   actions={[

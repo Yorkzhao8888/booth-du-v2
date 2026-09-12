@@ -8,6 +8,7 @@ import { Button, Card, Col, DatePicker, Drawer, Empty, Form, Input, InputNumber,
 import { PlusOutlined, ReloadOutlined, ToolOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 import { useAuthStore } from '../../store';
 import { BOOTH, MonoNum } from '../../styles/booth';
 
@@ -51,6 +52,7 @@ export default function FabEquipment() {
   const isReadOnly = user?.role !== 'edxx';
   const nav = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [items, setItems] = useState<any[]>([]);
   const [stations, setStations] = useState<any[]>([]);
   const [filter, setFilter] = useState<string>('all');
@@ -60,6 +62,7 @@ export default function FabEquipment() {
   const [statusForm] = Form.useForm();
 
   const load = async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const [eqRes, stRes] = await Promise.all([
@@ -68,7 +71,7 @@ export default function FabEquipment() {
       ]);
       setItems(eqRes.data?.data || []);
       setStations(stRes.data?.data || []);
-    } catch (e: any) {
+    } catch (e: any) { setLoadError(true);
       message.error(e?.response?.data?.error || '加载设备台账失败');
     } finally {
       setLoading(false);
@@ -126,6 +129,9 @@ export default function FabEquipment() {
       message.error(e?.response?.data?.error || '状态变更失败');
     }
   };
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void load()} skeletonRows={6} />;
 
   return (
     <div style={{ padding: 20, maxWidth: 1200, margin: '0 auto' }}>

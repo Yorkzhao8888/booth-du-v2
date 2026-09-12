@@ -32,7 +32,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
   Cancelled: { label: '已取消', color: 'error' },
 };
 
-interface WorkOrder {
+export interface WorkOrder {
   id: number;
   job_id?: string;
   product_name: string;
@@ -49,34 +49,9 @@ interface WorkOrder {
   operator_name?: string;
 }
 
-export default function FabZoneView() {
-  const { stage } = useParams<{ stage: string }>();
-  const [loading, setLoading] = useState(false);
-  const [orders, setOrders] = useState<WorkOrder[]>([]);
-
-  const stageInfo = STAGE_CONFIG[stage || 'preprocessing'] || STAGE_CONFIG.preprocessing;
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get<any>('/edxx/fab/dashboard');
-      if (res) { // api.ts 解包后 res 即业务数据
-        const allOrders: WorkOrder[] = res.orders || [];
-        // Filter by production_stage
-        const filtered = allOrders.filter((o) => o.production_stage === stage);
-        setOrders(filtered);
-      }
-    } catch {
-      // ignore
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchOrders();
-    const timer = setInterval(fetchOrders, 30000);
-    return () => clearInterval(timer);
-  }, [stage]);
+/** [W1-SIMPLIFY] 产线面板渲染体 —— FabZoneView 与 FabFlow 作业流视图共用 */
+export function ZonePanel({ stage, orders, loading }: { stage: string; orders: WorkOrder[]; loading: boolean }) {
+  const stageInfo = STAGE_CONFIG[stage] || STAGE_CONFIG.preprocessing;
 
   const getProgress = (wo: WorkOrder) => {
     if (!wo.qty || wo.qty === 0) return 0;
@@ -148,7 +123,7 @@ export default function FabZoneView() {
   const completedCount = orders.filter((o) => ['completed', 'Completed'].includes(o.status)).length;
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <div style={{ width: 16, height: 16, borderRadius: '50%', background: stageInfo.color }} />
@@ -159,22 +134,22 @@ export default function FabZoneView() {
       </Card>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card>
             <Statistic title="工单总数" value={orders.length} prefix={<ThunderboltOutlined />} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card>
             <Statistic title="进行中" value={inProgressCount} valueStyle={{ color: '#1890ff' }} prefix={<ClockCircleOutlined />} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card>
             <Statistic title="已完成" value={completedCount} valueStyle={{ color: '#52c41a' }} prefix={<CheckCircleOutlined />} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col xs={12} lg={6}>
           <Card>
             <Statistic
               title="待处理"
@@ -189,18 +164,64 @@ export default function FabZoneView() {
       <Card title="产线工单队列">
         <Spin spinning={loading}>
           {orders.length === 0 && !loading ? (
-            <Empty description="暂无工单" />
+            <Empty
+              description={
+                <span>
+                  该工序暂无产线工单
+                  <br />
+                  <span style={{ fontSize: 12, color: '#999' }}>
+                    工单由订单拆单后按工序派发至此产线，可从「工单管理」查看全量进度
+                  </span>
+                </span>
+              }
+            />
           ) : (
             <Table
               dataSource={orders}
               columns={columns}
               rowKey="id"
-              pagination={{ pageSize: 10 }}
+              pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
               scroll={{ x: 900 }}
             />
           )}
         </Spin>
       </Card>
+    </div>
+  );
+}
+
+export default function FabZoneView() {
+  const { stage } = useParams<{ stage: string }>();
+  const [loading, setLoading] = useState(false);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+
+  const curStage = stage || 'preprocessing';
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get<any>('/edxx/fab/dashboard');
+      if (res) { // api.ts 解包后 res 即业务数据
+        const allOrders: WorkOrder[] = res.orders || [];
+        // Filter by production_stage
+        const filtered = allOrders.filter((o) => o.production_stage === curStage);
+        setOrders(filtered);
+      }
+    } catch {
+      // ignore
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    const timer = setInterval(fetchOrders, 30000);
+    return () => clearInterval(timer);
+  }, [curStage]);
+
+  return (
+    <div style={{ padding: 24 }}>
+      <ZonePanel stage={curStage} orders={orders} loading={loading} />
     </div>
   );
 }

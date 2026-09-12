@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Card, Button, Tag, Space, message, Drawer, Modal, Form, Input, InputNumber } from 'antd';
 import { ReloadOutlined, TeamOutlined, PlusOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 import { fmtMoney } from '../../utils/format';
 
 interface Supplier {
@@ -37,6 +38,7 @@ const statusLabels: Record<string, { text: string; color: string }> = {
 const Suppliers: React.FC = () => {
   const [data, setData] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [settlements, setSettlements] = useState<SettlementOrder[]>([]);
   const [settlementLoading, setSettlementLoading] = useState(false);
@@ -46,11 +48,12 @@ const Suppliers: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const res = await api.get<any>('/du/supply/suppliers');
       setData(res?.items || []);
-    } catch {
+    } catch { setLoadError(true);
       message.error('加载供应商列表失败');
     } finally {
       setLoading(false);
@@ -234,6 +237,9 @@ const Suppliers: React.FC = () => {
       ),
     },
   ];
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void fetchData()} skeletonRows={6} />;
 
   return (
     <div style={{ padding: 24 }}>

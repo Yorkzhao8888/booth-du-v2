@@ -5,6 +5,7 @@ import {
   DashboardOutlined,
   ShoppingCartOutlined,
   ToolOutlined,
+  TeamOutlined,
   InboxOutlined,
   ProfileOutlined,
   LogoutOutlined,
@@ -46,7 +47,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   const mktItems = {
     key: 'mkt',
     icon: <ShopOutlined />,
-    label: 'MKT 铺子管理',
+    label: '铺子管理',
     children: [
       // /du/* 管理项仅对决策/管理层展示（edx 守卫仅放行 /edx，edx/edxx 点 /du/* 会被 RequireAuth 弹回）
       ...(['du', 'dx', 'dm'].includes(role) ? [
@@ -77,7 +78,21 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
       label: isReadOnly && !item.label.includes('只读') && item.key !== '/du/org-chart' && item.key !== '/du/employees'
         ? `${item.label}（只读）`
         : item.label,
-    })),
+    })).filter(item => menuVisible(item.key)).filter(item => !['/du/inventory-transfer', '/du/purchase-orders', '/du/suppliers'].includes(item.key)),
+  };
+
+  // [W1-B3] 供应链域侧栏分组（采购+供应商+供给订单 同组聚合，各自页面保留）
+  const supplyChainItems = {
+    key: 'supply-chain',
+    icon: <TeamOutlined />,
+    label: '供应链',
+    children: ['du', 'dx', 'dm'].includes(role)
+      ? [
+          { key: '/du/purchase-orders', label: '采购管理' },
+          { key: '/du/suppliers', label: '供应商管理' },
+          { key: '/du/supply-orders', label: '供给订单' },
+        ]
+      : [],
   };
 
   // FAB 制造铺 - 工单视角
@@ -109,19 +124,9 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   // FAB 制造铺 - 产线视角（四大生产区只读看板）——全角色可见（FAB-MES-03-FIX3: 保留可见+可进入+只读）
   // key 前缀按角色: du/dx/dm→/du/fab, edx→/edx/fab, edxx→/edxx/fab（各自 RequireAuth 放行前缀, 绝不弹回）
   const fabBase = role === 'edxx' ? '/edxx/fab' : role === 'ex' ? '/ex/fab' : role === 'em' ? '/em/fab' : '/du/fab';
-  const fabZoneItems = {
-    key: 'fab-zones',
-    icon: <ApartmentOutlined />,
-    label: 'FAB 产线视角',
-    children: [
-      { key: `${fabBase}/zone/preprocessing`, label: '前置工序' },
-      { key: `${fabBase}/zone/production`, label: '制作' },
-      { key: `${fabBase}/zone/packaging`, label: '包装' },
-      { key: `${fabBase}/zone/sorting`, label: '分拣' },
-    ],
-  };
 
   // FAB 制造铺（合并）
+  // [W1-B1] 产线四页合并为 1 个作业流视图（fabZones toggle 控制原四页入口；路由 zone/:stage 优雅重定向）
   const fabItems = {
     key: 'fab',
     icon: <ExperimentOutlined />,
@@ -129,22 +134,17 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
     children: [
       ...fabOrderItems.children,
       { type: 'divider' as const },
-      { key: 'fab-zone-group', label: '产线视角', type: 'group' as const, children: fabZoneItems.children },
-      { type: 'divider' as const },
+      { key: `${fabBase}/flow`, label: '作业流' },
       { key: `${fabBase}/station`, label: 'Station 作业站' },
       { key: `${fabBase}/equipment`, label: '设备台账' },
-      { key: `${fabBase}/equipment/oee`, label: 'OEE 稼动率' },
-      { key: `${fabBase}/telemetry`, label: '采集看板' },
       { key: `${fabBase}/score`, label: '供给信用' },
-      { key: `${fabBase}/maintenance`, label: '保养日历' },
-      { key: `${fabBase}/andon`, label: '安灯异常中心' },
       ...(role === 'edxx'
         ? [
             { type: 'divider' as const },
             { key: `${fabBase}/plugins`, label: '能力市场' },
           ]
         : []),
-    ],
+    ].filter((i: any) => i.type === 'divider' || menuVisible(i.key)),
   };
 
   // WH 仓管铺（供给视角）
@@ -157,11 +157,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
       ...(['du', 'dx', 'dm'].includes(role) ? [
         { key: '/du/batches', label: '批次库存' },
         { key: '/du/inventory', label: '库存总览' },
-        { key: '/du/inventory-alerts', label: '库存预警' },
         { key: '/du/inventory-transfer', label: '库存调拨' },
-        { key: '/du/expiry-control', label: '效期管控' },
-        { key: '/du/wh/warehouse-dashboard', label: '四仓看板' },
-        { key: '/du/supply-orders', label: '供给订单' },
       ] : []),
       ...(role === 'ex' ? [{ key: '/ex/stocktakes', label: '盘点审批' }, { key: '/ex/capacity', label: '产能查询' }, { key: '/ex/supply-quotes', label: '供给报价' }] : []),
       ...(role === 'edxx' ? [
@@ -176,7 +172,7 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
           { key: '/edxx/wh/plaza-supply', label: '场地供给' },
         ]},
       ] : []),
-    ],
+    ].filter((i: any) => i.type === 'divider' || (i as any).children || menuVisible(i.key)),
   };
 
   // DL 物流铺
@@ -198,10 +194,9 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
     label: 'SVC 服务铺',
     children: [
       ...(['du', 'dx', 'dm'].includes(role) ? [{ key: '/du/svc', label: '服务任务' }] : []),
-      ...(['du', 'dx'].includes(role) ? [{ key: '/du/supply-quotes', label: '供给报价' }] : []),
-      ...(role === 'ex' ? [{ key: '/ex/svc-dispatch', label: '服务派单' }] : []),
+      ...(['du', 'dx'].includes(role) ? [{ key: '/du/supply-quotes', label: '供给报价' }] : []),      ...(role === 'ex' ? [{ key: '/ex/svc-dispatch', label: '服务派单' }] : []),
       ...(role === 'edxx' ? [{ key: '/edxx/svc', label: '服务执行' }] : []),
-    ],
+    ].filter((i: any) => menuVisible(i.key)),
   };
 
   // EM 全局供应链层（仅 EM 角色可见）
@@ -245,11 +240,13 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   }
   // EM 角色：EM 供应链 + 产线只读监控 (FAB-MES-04-FIX4) + Market
   else if (role === 'em') {
-    items.push(emItems, fabItems, marketItems);
+    items.push(emItems, fabItems);
+    if (menuVisible('/market')) items.push(marketItems); // [W1-A] Market 待契约隐藏（toggle 可开回）
   }
   // DM/DU/DX 可以看到所有五个域 + Market
   else if (['dm', 'du', 'dx'].includes(role)) {
-    items.push(mktItems, fabItems, whItems, dlItems, svcItems, marketItems);
+    items.push(mktItems, supplyChainItems, fabItems, whItems, dlItems, svcItems);
+    if (menuVisible('/market')) items.push(marketItems); // [W1-A] Market 待契约隐藏（toggle 可开回）
   }
   // EMXX 一线经营：MKT（只读）+ WH + DL + SVC
   else if (role === 'emxx') {
@@ -296,9 +293,12 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
 
 // [Xfactory-C8] 26 菜单三层重组: 经营/作业/台账 三组 (菜单项文字措辞不动, 术语口径待定)
 // [UX-BOOST] 顶层组由 submenu 改 type:'group'——消除三级嵌套折叠, 修复二级菜单在窄 Sider 内点击被遮挡/不可达 (P1-d 零响应根因)
+// [W1-A] menuVisible: 配置驱动隐藏判定（menuConfig.ts toggle, 菜单与路由共用）
+import { isPathHidden } from '../config/menuConfig';
+const menuVisible = (key?: string): boolean => !key || !isPathHidden(key);
 const wrapMenuGroups = (items: any[]): any[] => {
   const groups: Array<{ key: string; icon: React.ReactNode; label: string; pred: (l: string) => boolean }> = [
-    { key: 'grp-biz', icon: <DollarOutlined />, label: '经营', pred: (l) => /^(MKT|Market|EM |经营决策|一线经营)/.test(l) },
+    { key: 'grp-biz', icon: <DollarOutlined />, label: '经营', pred: (l) => /^(MKT|Market|EM |经营决策|一线经营|供应链)/.test(l) },
     { key: 'grp-ops', icon: <ToolOutlined />, label: '作业', pred: (l) => /^(FAB|DL|SVC|业务执行线|运营线)/.test(l) },
     { key: 'grp-ledger', icon: <DatabaseOutlined />, label: '台账', pred: (l) => /^WH/.test(l) },
   ];

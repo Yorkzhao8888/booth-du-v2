@@ -2,6 +2,8 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store';
 import { Spin } from 'antd';
+import { MaybeHiddenRoute } from './components/MaybeHiddenRoute';
+import { isPathHidden } from './config/menuConfig';
 import SSEListener from './components/SSEListener';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppLayout from './components/AppLayout';
@@ -67,6 +69,10 @@ const ExxSvcExec = lazy(() => import('./pages/edxx/SvcExec'));
 const ExxProductionDashboard = lazy(() => import('./pages/edxx/ProductionDashboard'));
 const ExxYieldTracking = lazy(() => import('./pages/edxx/YieldTracking'));
 const ExxFabZoneView = lazy(() => import('./pages/edxx/FabZoneView'));
+// [W1-B1] FAB 作业流视图（四工序 tab 合并）
+const ExxFabFlow = lazy(() => import('./pages/edxx/FabFlow'));
+// [W1-C2] AU 店长台（operator 独立工作台）
+const AUWorkbench = lazy(() => import('./pages/xepz/AUWorkbench'));
 const ExxFabStations = lazy(() => import('./pages/edxx/FabStations'));
 const ExxFabStationDetail = lazy(() => import('./pages/edxx/FabStationDetail'));
 const ExxFabEquipment = lazy(() => import('./pages/edxx/FabEquipment'));
@@ -165,7 +171,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       return <Navigate to="/em" replace />;
     }
     // du and dx share the same /du routes, and can access /market
-    else if ((role === 'du' || role === 'dx') && !path.startsWith('/du') && !path.startsWith('/market')) {
+    else if ((role === 'du' || role === 'dx') && !path.startsWith('/du') && !path.startsWith('/au') && !path.startsWith('/market')) { // [W1-C2] /au 店长台放行
       return <Navigate to="/du" replace />;
     }
     // emxx shares /emxx routes with edxx
@@ -256,6 +262,14 @@ function OldStationRedirect() {
   return <Navigate to={`../station/${id}`} replace />;
 }
 
+// [W1-B1] FAB 产线四页合并进作业流后的 zone/:stage 直连守卫：
+// toggle 关（默认）→ 优雅重定向 /<tree>/fab/flow?zone=<stage>；toggle 开回 → 原四页视图原子恢复
+function ZoneFlowRedirect() {
+  const { stage } = useParams();
+  if (!isPathHidden(`zone/${stage || ''}`)) return <ErrorBoundary><ExxFabZoneView /></ErrorBoundary>;
+  return <Navigate to={`../fab/flow?zone=${stage || 'production'}`} replace />;
+}
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
@@ -287,45 +301,46 @@ const App: React.FC = () => {
           <Route path="inventory" element={<ErrorBoundary><DuInventory /></ErrorBoundary>} />
           <Route path="boms" element={<ErrorBoundary><DuBoms /></ErrorBoundary>} />
           <Route path="purchase-orders" element={<ErrorBoundary><DuPurchaseOrders /></ErrorBoundary>} />
-          <Route path="profit" element={<ErrorBoundary><DuProfitDashboard /></ErrorBoundary>} />
+          <Route path="profit" element={<MaybeHiddenRoute flag="profit" fallback="/du"><ErrorBoundary><DuProfitDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
-          <Route path="supply-quotes" element={<ErrorBoundary><DuSupplyQuotes /></ErrorBoundary>} />
+          <Route path="supply-quotes" element={<MaybeHiddenRoute flag="supplyQuotes" fallback="/du"><ErrorBoundary><DuSupplyQuotes /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
-          <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
+          <Route path="replenishment" element={<MaybeHiddenRoute flag="replenishment" fallback="/du"><ErrorBoundary><DuReplenishment /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="suppliers" element={<ErrorBoundary><DuSupplierManagement /></ErrorBoundary>} />
           <Route path="suppliers-legacy" element={<ErrorBoundary><DuSuppliers /></ErrorBoundary>} />
-          <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
-          <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
-          <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
+          <Route path="expiry-control" element={<MaybeHiddenRoute flag="whExpiry" fallback="/du"><ErrorBoundary><DuExpiryControl /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="inventory-alerts" element={<MaybeHiddenRoute flag="whAlerts" fallback="/du"><ErrorBoundary><DuInventoryAlerts /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="fulfillment-track" element={<MaybeHiddenRoute flag="fulfillmentTrack" fallback="/du"><ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           {/* BOOTH-PK-02: SupplyOrder 显式契约 (M 层 du/dx) */}
           <Route path="supply-orders" element={<ErrorBoundary><DuSupplyOrders /></ErrorBoundary>} />
           {/* [BOOTH-PRD-001] 生产单契约地基 (G-007 三级状态联动 / BDD-19 闭环骨架) */}
           <Route path="production-orders" element={<ErrorBoundary><ProductionOrders /></ErrorBoundary>} />
           {/* [BOOTH-PRD-002] 铺面管理+权限 (阶段一 P0) */}
-          <Route path="supply-shops" element={<ErrorBoundary><SupplyShops /></ErrorBoundary>} />
-          <Route path="order-types" element={<ErrorBoundary><OrderTypes /></ErrorBoundary>} />
-          <Route path="roles" element={<ErrorBoundary><RbacRoles /></ErrorBoundary>} />
+          <Route path="supply-shops" element={<MaybeHiddenRoute flag="supplyShops" fallback="/du"><ErrorBoundary><SupplyShops /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="order-types" element={<MaybeHiddenRoute flag="orderTypes" fallback="/du"><ErrorBoundary><OrderTypes /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="roles" element={<MaybeHiddenRoute flag="roles" fallback="/du"><ErrorBoundary><RbacRoles /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="crafts" element={<ErrorBoundary><Crafts /></ErrorBoundary>} /> {/* [BOOTH-PRD-003] RD-005 */}
           <Route path="inventory-transfer" element={<ErrorBoundary><DuInventoryTransfer /></ErrorBoundary>} />
-          <Route path="realtime-dashboard" element={<ErrorBoundary><DuRealtimeDashboard /></ErrorBoundary>} />
-          <Route path="wh/warehouse-dashboard" element={<ErrorBoundary><WarehouseDashboard /></ErrorBoundary>} />
+          <Route path="realtime-dashboard" element={<MaybeHiddenRoute flag="realtime" fallback="/du"><ErrorBoundary><DuRealtimeDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="wh/warehouse-dashboard" element={<MaybeHiddenRoute flag="whBoard" fallback="/du"><ErrorBoundary><WarehouseDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
-          <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+          <Route path="org-chart" element={<MaybeHiddenRoute flag="orgChart" fallback="/du"><ErrorBoundary><OrgChart /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           {/* FAB 产线只读监控 (FAB-MES-03-FIX3): 复用 edxx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/flow" element={<ErrorBoundary><ExxFabFlow /></ErrorBoundary>} /> {/* [W1-B1] 作业流视图 */}
+          <Route path="fab/zone/:stage" element={<ZoneFlowRedirect />} /> {/* [W1-B1] 合并重定向 */}
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<MaybeHiddenRoute flag="telemetry" fallback="../equipment"><ErrorBoundary><ExxFabTelemetry /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<MaybeHiddenRoute flag="oee" fallback="../equipment"><ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<MaybeHiddenRoute flag="maintenance" fallback="../equipment"><ErrorBoundary><ExxFabMaintenance /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="fab/andon" element={<MaybeHiddenRoute flag="andon" fallback="../equipment"><ErrorBoundary><ExxFabAndon /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
         </Route>
 
         {/* DM routes (read-only access to all) */}
@@ -338,7 +353,7 @@ const App: React.FC = () => {
           }
         >
           <Route index element={<ErrorBoundary><DmDashboard /></ErrorBoundary>} />
-          <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+          <Route path="org-chart" element={<MaybeHiddenRoute flag="orgChart" fallback="/du"><ErrorBoundary><OrgChart /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="employees" element={<ErrorBoundary><EmployeeManagement /></ErrorBoundary>} />
           {/* DM can access all DU routes in read-only mode */}
           <Route path="orders" element={<ErrorBoundary><DuOrders /></ErrorBoundary>} />
@@ -346,15 +361,15 @@ const App: React.FC = () => {
           <Route path="inventory" element={<ErrorBoundary><DuInventory /></ErrorBoundary>} />
           <Route path="boms" element={<ErrorBoundary><DuBoms /></ErrorBoundary>} />
           <Route path="purchase-orders" element={<ErrorBoundary><DuPurchaseOrders /></ErrorBoundary>} />
-          <Route path="profit" element={<ErrorBoundary><DuProfitDashboard /></ErrorBoundary>} />
+          <Route path="profit" element={<MaybeHiddenRoute flag="profit" fallback="/du"><ErrorBoundary><DuProfitDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="dl" element={<ErrorBoundary><DuDlTasks /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><DuSvcTasks /></ErrorBoundary>} />
           <Route path="batches" element={<ErrorBoundary><DuBatches /></ErrorBoundary>} />
-          <Route path="replenishment" element={<ErrorBoundary><DuReplenishment /></ErrorBoundary>} />
+          <Route path="replenishment" element={<MaybeHiddenRoute flag="replenishment" fallback="/du"><ErrorBoundary><DuReplenishment /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="suppliers" element={<ErrorBoundary><DuSupplierManagement /></ErrorBoundary>} />
-          <Route path="expiry-control" element={<ErrorBoundary><DuExpiryControl /></ErrorBoundary>} />
-          <Route path="inventory-alerts" element={<ErrorBoundary><DuInventoryAlerts /></ErrorBoundary>} />
-          <Route path="fulfillment-track" element={<ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary>} />
+          <Route path="expiry-control" element={<MaybeHiddenRoute flag="whExpiry" fallback="/du"><ErrorBoundary><DuExpiryControl /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="inventory-alerts" element={<MaybeHiddenRoute flag="whAlerts" fallback="/du"><ErrorBoundary><DuInventoryAlerts /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="fulfillment-track" element={<MaybeHiddenRoute flag="fulfillmentTrack" fallback="/du"><ErrorBoundary><DuFulfillmentTrack /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
         </Route>
         <Route
           path="/emxx"
@@ -365,7 +380,7 @@ const App: React.FC = () => {
           }
         >
           <Route index element={<ErrorBoundary><DxxDashboard /></ErrorBoundary>} />
-          <Route path="org-chart" element={<ErrorBoundary><OrgChart /></ErrorBoundary>} />
+          <Route path="org-chart" element={<MaybeHiddenRoute flag="orgChart" fallback="/du"><ErrorBoundary><OrgChart /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           {/* EMXX can access EDXX execution routes */}
           <Route path="dl" element={<ErrorBoundary><ExxDlExec /></ErrorBoundary>} />
           <Route path="svc" element={<ErrorBoundary><ExxSvcExec /></ErrorBoundary>} />
@@ -392,19 +407,20 @@ const App: React.FC = () => {
           <Route path="supply-quotes" element={<ErrorBoundary><ExSupplyQuotes /></ErrorBoundary>} />
           <Route path="crafts" element={<ErrorBoundary><Crafts /></ErrorBoundary>} /> {/* [BOOTH-PRD-003] EDX 工艺管理 */}
           {/* FAB 产线只读监控 (FAB-MES-03-FIX3): edx 复用 edxx 组件 */}
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/flow" element={<ErrorBoundary><ExxFabFlow /></ErrorBoundary>} /> {/* [W1-B1] 作业流视图 */}
+          <Route path="fab/zone/:stage" element={<ZoneFlowRedirect />} /> {/* [W1-B1] 合并重定向 */}
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<MaybeHiddenRoute flag="telemetry" fallback="../equipment"><ErrorBoundary><ExxFabTelemetry /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<MaybeHiddenRoute flag="oee" fallback="../equipment"><ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<MaybeHiddenRoute flag="maintenance" fallback="../equipment"><ErrorBoundary><ExxFabMaintenance /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="fab/andon" element={<MaybeHiddenRoute flag="andon" fallback="../equipment"><ErrorBoundary><ExxFabAndon /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
         </Route>
 
         {/* EDXX routes */}
@@ -421,20 +437,21 @@ const App: React.FC = () => {
           <Route path="fab/active" element={<ErrorBoundary><ExxFabActive /></ErrorBoundary>} />
           <Route path="fab/history" element={<ErrorBoundary><ExxFabHistory /></ErrorBoundary>} />
           <Route path="fab/operations" element={<ErrorBoundary><ExxFabOperations /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/andon" element={<MaybeHiddenRoute flag="andon" fallback="../equipment"><ErrorBoundary><ExxFabAndon /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/dashboard" element={<ErrorBoundary><ExxProductionDashboard /></ErrorBoundary>} />
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/flow" element={<ErrorBoundary><ExxFabFlow /></ErrorBoundary>} /> {/* [W1-B1] 作业流视图 */}
+          <Route path="fab/zone/:stage" element={<ZoneFlowRedirect />} /> {/* [W1-B1] 合并重定向 */}
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<MaybeHiddenRoute flag="telemetry" fallback="../equipment"><ErrorBoundary><ExxFabTelemetry /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<MaybeHiddenRoute flag="oee" fallback="../equipment"><ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<MaybeHiddenRoute flag="maintenance" fallback="../equipment"><ErrorBoundary><ExxFabMaintenance /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/yield" element={<ErrorBoundary><ExxYieldTracking /></ErrorBoundary>} />
           <Route path="qc" element={<ErrorBoundary><ExxQcExecute /></ErrorBoundary>} />
           <Route path="fab/trace" element={<ErrorBoundary><ExxFabTrace /></ErrorBoundary>} />
@@ -471,30 +488,45 @@ const App: React.FC = () => {
           <Route path="sgu-catalog" element={<ErrorBoundary><EmSguCatalog /></ErrorBoundary>} />
           <Route path="sgu-listings" element={<ErrorBoundary><EmSguListings /></ErrorBoundary>} />
           <Route path="sgu-pending" element={<ErrorBoundary><EmSguPending /></ErrorBoundary>} />
-          <Route path="supply-quotes" element={<ErrorBoundary><EmSupplyQuotes /></ErrorBoundary>} />
+          <Route path="supply-quotes" element={<MaybeHiddenRoute flag="supplyQuotes" fallback="/em"><ErrorBoundary><EmSupplyQuotes /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           {/* FAB 产线只读监控 (FAB-MES-04-FIX4): 复用 edxx 组件, 后端 requireFabRead 放行只读 GET, 写操作仍 FAB */}
-          <Route path="fab/zone/:stage" element={<ErrorBoundary><ExxFabZoneView /></ErrorBoundary>} />
+          <Route path="fab/flow" element={<ErrorBoundary><ExxFabFlow /></ErrorBoundary>} /> {/* [W1-B1] 作业流视图 */}
+          <Route path="fab/zone/:stage" element={<ZoneFlowRedirect />} /> {/* [W1-B1] 合并重定向 */}
           <Route path="station" element={<ErrorBoundary><ExxFabStations /></ErrorBoundary>} />
           <Route path="station/:id" element={<ErrorBoundary><ExxFabStationDetail /></ErrorBoundary>} />
           <Route path="fab/stations" element={<Navigate to="../station" replace />} />
           <Route path="fab/station" element={<Navigate to="../station" replace />} /> {/* [UX-BOOST] P1-e: fabBase/station 菜单死链兼容 */}
           <Route path="fab/station/:id" element={<OldStationRedirect />} />
-          <Route path="fab/telemetry" element={<ErrorBoundary><ExxFabTelemetry /></ErrorBoundary>} />
+          <Route path="fab/telemetry" element={<MaybeHiddenRoute flag="telemetry" fallback="../equipment"><ErrorBoundary><ExxFabTelemetry /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/score" element={<ErrorBoundary><ExxFabSupplierScore /></ErrorBoundary>} />
           <Route path="fab/equipment" element={<ErrorBoundary><ExxFabEquipment /></ErrorBoundary>} />
-          <Route path="fab/equipment/oee" element={<ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary>} />
+          <Route path="fab/equipment/oee" element={<MaybeHiddenRoute flag="oee" fallback="../equipment"><ErrorBoundary><ExxFabOeeDashboard /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
           <Route path="fab/equipment/:id" element={<ErrorBoundary><ExxFabEquipmentOee /></ErrorBoundary>} />
-          <Route path="fab/maintenance" element={<ErrorBoundary><ExxFabMaintenance /></ErrorBoundary>} />
-          <Route path="fab/andon" element={<ErrorBoundary><ExxFabAndon /></ErrorBoundary>} />
+          <Route path="fab/maintenance" element={<MaybeHiddenRoute flag="maintenance" fallback="../equipment"><ErrorBoundary><ExxFabMaintenance /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
+          <Route path="fab/andon" element={<MaybeHiddenRoute flag="andon" fallback="../equipment"><ErrorBoundary><ExxFabAndon /></ErrorBoundary></MaybeHiddenRoute>} /> {/* [W1-A] */}
         </Route>
 
-        {/* Market routes (em/du/dx/dm can access) */}
+        {/* [W1-C2] AU 店长台: operator 独立工作台 (dx 天然经营视角, 登录分流与演示卡描述一致) */}
         <Route
-          path="/market"
+          path="/au"
           element={
             <RequireAuth>
               <AppLayout />
             </RequireAuth>
+          }
+        >
+          <Route index element={<ErrorBoundary><AUWorkbench /></ErrorBoundary>} />
+          <Route path="*" element={<Navigate to="/au" replace />} />
+        </Route>
+        {/* Market routes (em/du/dx/dm can access) */}
+        <Route
+          path="/market"
+          element={
+            <MaybeHiddenRoute flag="market" fallback="/du">
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+            </MaybeHiddenRoute>
           }
         >
           <Route index element={<ErrorBoundary><MarketDashboard /></ErrorBoundary>} />

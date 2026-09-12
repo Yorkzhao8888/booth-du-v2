@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Card, Button, Tag, Space, message, Typography, Popconfirm, Alert } from 'antd';
-import { ThunderboltOutlined, DeleteOutlined, RocketOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { Card, Button, Tag, Space, message, Typography, Modal, Input, Alert } from 'antd';
+import { ThunderboltOutlined, DeleteOutlined, RocketOutlined, QuestionCircleOutlined, PartitionOutlined, LineChartOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiGet, apiPost } from '../../api';
 import type { OnboardingStatus } from '../du/OnboardingWizard';
@@ -12,6 +12,8 @@ const DemoDataCard: React.FC = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false); // [W1-P3-4] 清空降权: 强二次确认
+  const [confirmText, setConfirmText] = useState('');
 
   const load = useCallback((): void => {
     apiGet<OnboardingStatus>('/onboarding/status')
@@ -74,9 +76,14 @@ const DemoDataCard: React.FC = () => {
                   <Tag color="orange">已灌入 {status.demoDataset?.dataset_no}</Tag>
                   <Text type="secondary" style={{ fontSize: 12 }}>数据带 DEMO- 前缀, 清空不触碰真实账</Text>
                 </Space>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  查看: 订单履约时间线搜索 <b>DEMO-SO-2026-0901</b>
-                </Text>
+                <Space size={8} wrap style={{ marginTop: 4 }}>
+                  <Button size="small" type="link" icon={<PartitionOutlined />} onClick={() => navigate('/du/production-orders')}>
+                    看订单拆成工单
+                  </Button>
+                  <Button size="small" type="link" icon={<LineChartOutlined />} onClick={() => navigate('/xepz')}>
+                    看回执触发结算 (履约时间线)
+                  </Button>
+                </Space>
               </Space>
             ) : (
               <Text type="secondary" style={{ fontSize: 12 }}>
@@ -92,16 +99,30 @@ const DemoDataCard: React.FC = () => {
               快速上手
             </Button>
             {status.demoActive ? (
-              <Popconfirm
-                title="清空演示数据?"
-                description="只清除 DEMO- 标记的演示行, 真实数据不受影响。"
-                okText="清空"
-                cancelText="取消"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => { void onClear(); }}
-              >
-                <Button size="small" danger loading={busy} icon={<DeleteOutlined />}>清空演示数据</Button>
-              </Popconfirm>
+              <>
+                <Button size="small" danger loading={busy} icon={<DeleteOutlined />} onClick={() => { setConfirmText(''); setConfirmOpen(true); }}>
+                  清空演示数据
+                </Button>
+                {/* [W1-P3-4] 清空降权: Modal 强二次确认 (输入确认词才可提交), 防误触 */}
+                <Modal
+                  open={confirmOpen}
+                  title={<Space><ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />确认清空演示数据</Space>}
+                  onCancel={() => setConfirmOpen(false)}
+                  okText="确认清空"
+                  okButtonProps={{ danger: true, disabled: confirmText.trim() !== '清空' }}
+                  cancelText="再想想"
+                  onOk={() => { setConfirmOpen(false); void onClear(); }}
+                >
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="将删除全部 DEMO- 前缀演示行"
+                    description="演示订单/工单/凭证/入库单及演示批次登记会被清除；真实数据不受影响。此操作不可撤销。"
+                    style={{ marginBottom: 12 }}
+                  />
+                  <Input placeholder='输入"清空"以确认' value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
+                </Modal>
+              </>
             ) : (
               <Button size="small" type="primary" loading={busy} icon={<ThunderboltOutlined />} onClick={() => { void onSeed(); }}>
                 一键灌入

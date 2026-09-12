@@ -9,6 +9,7 @@ import {
   AuditOutlined, EyeOutlined
 } from '@ant-design/icons';
 import { api } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 import { useAuthStore } from '../../store';
 import dayjs from 'dayjs';
 
@@ -93,6 +94,7 @@ const DuSupplierManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState('suppliers');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [statusFilter, setStatusFilter] = useState('all');
   const [keyword, setKeyword] = useState('');
@@ -121,14 +123,16 @@ const DuSupplierManagement: React.FC = () => {
 
   // 获取统计
   const fetchStats = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     try {
       const res = await api.get<any>('/du/suppliers/overview/stats');
       setStats(res);
-    } catch { /* ignore */ }
+    } catch { setLoadError(true); /* ignore */ }
   }, []);
 
   // 获取供应商列表
   const fetchSuppliers = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const res = await api.get<any>('/du/suppliers', {
@@ -139,7 +143,7 @@ const DuSupplierManagement: React.FC = () => {
       });
       setSuppliers(res?.items || []);
       setPagination(prev => ({ ...prev, total: res?.total || 0 }));
-    } catch {
+    } catch { setLoadError(true);
       message.error('加载供应商列表失败');
     } finally {
       setLoading(false);
@@ -439,6 +443,9 @@ const DuSupplierManagement: React.FC = () => {
   };
 
   const statCounts = getStatCounts();
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => { void fetchStats(); void fetchSuppliers(); }} skeletonRows={6} />;
 
   return (
     <div style={{ padding: 24 }}>

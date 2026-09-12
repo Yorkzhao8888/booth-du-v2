@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Table, Typography, Select, Space, Progress } from 'antd';
 import { apiGet } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 import StatusTag from '../../components/StatusTag';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -21,15 +22,17 @@ interface WorkOrder {
 const EuWorkOrders: React.FC = () => {
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [statusFilter, setStatusFilter] = useState<string>('');
 
   const fetchData = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const query = statusFilter ? `?status=${statusFilter}` : '';
       const res = await apiGet<{ items: WorkOrder[]; total: number }>(`/du/work-orders${query}`);
       setOrders(res.items);
-    } catch {
+    } catch { setLoadError(true);
       // ignore
     } finally {
       setLoading(false);
@@ -75,6 +78,9 @@ const EuWorkOrders: React.FC = () => {
       render: (t?: string) => (t ? dayjs(t).format('MM-DD HH:mm') : '-'),
     },
   ];
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void fetchData()} skeletonRows={6} />;
 
   return (
     <div>

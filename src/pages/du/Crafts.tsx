@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Drawer, Form, Input, InputNumber, Modal, Space, Table, Tag, message } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 
 interface CraftStep {
   seq: number;
@@ -35,6 +36,7 @@ interface MatchResp {
 export default function Crafts() {
   const [rows, setRows] = useState<CraftRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CraftRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -44,11 +46,12 @@ export default function Crafts() {
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const data = await apiGet<CraftRow[]>('/crafts');
       setRows(Array.isArray(data) ? data : []);
-    } catch (e: unknown) {
+    } catch (e: unknown) { setLoadError(true);
       message.error(e instanceof Error ? e.message : '加载失败');
     } finally {
       setLoading(false);
@@ -164,6 +167,9 @@ export default function Crafts() {
       ),
     },
   ];
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void load()} skeletonRows={6} />;
 
   return (
     <div>

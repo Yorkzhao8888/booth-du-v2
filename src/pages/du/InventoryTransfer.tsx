@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Card, Tag, Button, Modal, Form, Input, InputNumber, Select, message, Space, Popconfirm, Steps, Descriptions } from 'antd';
 import { PlusOutlined, CheckOutlined, CloseOutlined, SendOutlined } from '@ant-design/icons';
 import { api } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 
 interface TransferOrder {
   id: number;
@@ -42,6 +43,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 export default function InventoryTransfer() {
   const [transfers, setTransfers] = useState<TransferOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [modalVisible, setModalVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<TransferOrder | null>(null);
@@ -50,13 +52,14 @@ export default function InventoryTransfer() {
   const [skus, setSkus] = useState<any[]>([]);
 
   const fetchTransfers = async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const res = await api.get<any>('/du/transfers?pageSize=50');
       if (res) { // api.ts 解包后 res 即业务数据
         setTransfers(res.items || []);
       }
-    } catch (err) {
+    } catch (err) { setLoadError(true);
       console.error(err);
     }
     setLoading(false);
@@ -68,7 +71,7 @@ export default function InventoryTransfer() {
       if (res) { // api.ts 解包后 res 即业务数据
         setSkus(res.items || []);
       }
-    } catch (err) {
+    } catch (err) { setLoadError(true);
       console.error(err);
     }
   };
@@ -235,6 +238,9 @@ export default function InventoryTransfer() {
       ),
     },
   ];
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void fetchTransfers()} skeletonRows={6} />;
 
   return (
     <div style={{ padding: 24 }}>

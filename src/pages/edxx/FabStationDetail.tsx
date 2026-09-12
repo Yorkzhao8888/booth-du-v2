@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Tag, Progress, Button, Descriptions, Tabs, Table, Space, Modal, Select, Input, Statistic, Row, Col, message, Spin, Badge, Alert, Timeline, Empty } from 'antd';
+import EvidenceUploadModal from '../../components/EvidenceUploadModal'; // [W1-D3] Station 内完工上报闭环
 import {
   ArrowLeftOutlined,
   ReloadOutlined,
   ApiOutlined,
+  CheckCircleOutlined,
   ThunderboltOutlined,
   WarningOutlined,
   PauseCircleOutlined,
@@ -92,6 +94,7 @@ export default function FabStationDetail() {
   const [newStatus, setNewStatus] = useState<string>();
   const [faultReason, setFaultReason] = useState('');
   const [faultStrategy, setFaultStrategy] = useState<string>('bypass');
+  const [evidenceOpen, setEvidenceOpen] = useState(false); // [W1-D3]
 
   const fetchStation = useCallback(async () => {
     if (!id) return;
@@ -221,7 +224,8 @@ export default function FabStationDetail() {
         }
         extra={
           <Space>
-            <Button size="small" icon={<PlayCircleOutlined />} disabled={isReadOnly} onClick={() => { setNewStatus(station.state === 'busy' ? 'idle' : 'busy'); setStatusModal(true); }}>上报状态</Button>
+            <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />} disabled={isReadOnly || !station.current_work_order} onClick={() => setEvidenceOpen(true)}>完工上报</Button>
+                        <Button size="small" icon={<PlayCircleOutlined />} disabled={isReadOnly} onClick={() => { setNewStatus(station.state === 'busy' ? 'idle' : 'busy'); setStatusModal(true); }}>上报状态</Button>
             <Button size="small" danger icon={<WarningOutlined />} disabled={isReadOnly} onClick={() => setFaultModal(true)}>发起故障</Button>
             <Button size="small" icon={<ApiOutlined />} disabled={isReadOnly} onClick={deployAgent}>部署 Agent</Button>
           </Space>
@@ -320,6 +324,14 @@ export default function FabStationDetail() {
       </Modal>
 
       {/* 故障弹窗 */}
+      {/* [W1-D3] Station 内闭环: 看任务 → 执行上报 → 签退拿凭证 */}
+      <EvidenceUploadModal
+        open={evidenceOpen}
+        workOrderId={station?.current_work_order?.id ?? null}
+        workOrderNo={station?.current_work_order?.job_id}
+        onClose={() => setEvidenceOpen(false)}
+        onCompleted={fetchStation}
+      />
       <Modal title={`发起故障 — ${station.code}`} open={faultModal} onOk={submitFault} onCancel={() => setFaultModal(false)} okText="上报故障" okButtonProps={{ danger: true }} cancelText="取消">
         <Space direction="vertical" style={{ width: '100%' }}>
           <Alert type="info" showIcon message={`传播策略: ${FAULT_LABELS[faultStrategy]} — ${faultStrategy === 'stop_all' ? '停该站全部作业' : faultStrategy === 'bypass' ? '停受影响作业 + 下调 traffic_cap' : '继续，不阻断'}`} />

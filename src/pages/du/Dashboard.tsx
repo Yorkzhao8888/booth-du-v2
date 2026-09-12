@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiGet } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 import { fmtMoney, fmtPercent } from '../../utils/format';
 import { ExecutionStatusBar } from '../../components/booth/ExecutionStatusBar';
 import { KpiCard } from '../../components/booth/KpiCard';
@@ -59,6 +60,7 @@ const monoFont = "'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace
 const DuDashboard: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [trendRange, setTrendRange] = useState<string>('7天');
   // [Xfactory-ONBOARDING] 首次使用横幅 + EDU 演示数据卡
   const [onboardStatus, setOnboardStatus] = useState<OnboardingStatus | null>(null);
@@ -81,10 +83,11 @@ const DuDashboard: React.FC = () => {
   }, [fetchOnboardStatus]);
 
   const fetchData = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     try {
       const res = await apiGet<DashboardData>('/du/dashboard');
       setData(res);
-    } catch {
+    } catch { setLoadError(true);
       // ignore
     } finally {
       setLoading(false);
@@ -112,6 +115,9 @@ const DuDashboard: React.FC = () => {
   const capacityLoad = data?.preparingWorkOrders ? Math.min((data.preparingWorkOrders / 20) * 100, 120) : 45;
 
   const hasData = data && (data.todayOrders > 0 || statusEntries.length > 0);
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void fetchData()} skeletonRows={6} />;
 
   return (
     <div>

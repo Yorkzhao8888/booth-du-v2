@@ -2,6 +2,13 @@ import { pool } from '../db.js';
 import { broadcast } from '../sse.js';
 import { TOPIC } from './event-topics.js';
 
+// [W1-FIX] OAS 用户本地缺失兼容: userId 无效或未同步 booth_users 时返回 NULL（FK safe）——与 G-005 evidences EXISTS guard 同口径
+async function resolveOperatorId(client: { query: Function }, userId: number): Promise<number | null> {
+  if (!userId || userId <= 0) return null;
+  const r = await client.query('SELECT 1 FROM booth_users WHERE id = $1', [userId]);
+  return r.rows.length > 0 ? userId : null;
+}
+
 // [SHOP-CONT-BOOTH] 生产单编号: PROD-<yyyyMMdd>-<4位流水>（当日序号，UNIQUE 索引兜底防重）
 async function nextProductionNo(client: { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> }): Promise<string> {
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -71,12 +78,14 @@ export async function acceptWorkOrder(id: number, userId: number) {
       throw { statusCode: 400, code: 'INVALID_STATE', error: `Cannot accept work order in ${wo.status} state` };
     }
 
+    // [W1-FIX] accepted_by FK guard: OAS 用户未同步 booth_users 时 NULL 化, 避免 FK violation 500
+    const operatorId = await resolveOperatorId(client, userId);
     const updated = await client.query(
       `UPDATE booth_work_orders
        SET status = 'accepted', accepted_by = $1, accepted_at = NOW()
        WHERE id = $2
        RETURNING *`,
-      [userId, id]
+      [operatorId, id]
     );
 
     await client.query('COMMIT');
@@ -161,7 +170,10 @@ export async function startWorkOrder(id: number, userId: number) {
       throw { statusCode: 409, code: 'INSUFFICIENT_STOCK', error: 'Insufficient stock', shortages };
     }
 
-    // Deduct inventory using FEFO (First Expiry First Out) batch deduction
+    // [W1-FIX] start 链路三处 operator_id FK guard（trace/txn/work_order）
+    const opId = await resolveOperatorId(client, userId);
+
+        // Deduct inventory using FEFO (First Expiry First Out) batch deduction
     for (const [skuId, req] of requiredMap) {
       let remaining = req.qty;
 
@@ -185,7 +197,7 @@ export async function startWorkOrder(id: number, userId: number) {
         await client.query(
           `INSERT INTO booth_trace_links (org_id, work_order_id, batch_id, direction, relation_type, qty, operator_id)
            VALUES ($1, $2, $3, 'in', 'consume', $4, $5)`,
-          [wo.org_id, id, batch.id, deduct, userId]
+          [wo.org_id, id, batch.id, deduct, opId]
         );
         remaining -= deduct;
       }
@@ -205,7 +217,7 @@ export async function startWorkOrder(id: number, userId: number) {
       await client.query(
         `INSERT INTO booth_inventory_txn (org_id, sku_id, qty_change, type, ref_type, ref_id, operator_id)
          VALUES ($1, $2, $3, 'wo_issue', 'work_order', $4, $5)`,
-        [wo.org_id, skuId, -req.qty, id, userId]
+        [wo.org_id, skuId, -req.qty, id, opId]
       );
     }
 
@@ -215,7 +227,7 @@ export async function startWorkOrder(id: number, userId: number) {
        SET status = 'preparing', started_at = NOW(), operator_id = $1, progress = 10
        WHERE id = $2
        RETURNING *`,
-      [userId, id]
+      [opId, id]
     );
 
     // [BOOTH-PK-02] 契约推进: 工单 start → Scheduling → Executing(里程碑自动写入)

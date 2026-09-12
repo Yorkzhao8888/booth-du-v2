@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Badge, Button, Descriptions, Drawer, Modal, Space, Table, Tag, Tooltip, message } from 'antd';
 import { ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { apiGet, apiPost } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 
 const PROD_STATUS_META: Record<string, { label: string; color: string }> = {
   pending_dispatch: { label: '待下发', color: 'default' },
@@ -97,6 +98,7 @@ const ORDER_TYPE_LABEL: Record<string, string> = { outsource: '外发', self_mad
 export default function ProductionOrders() {
   const [rows, setRows] = useState<ProductionOrderRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>(''); // [G-006] 任务级筛选
   const [woStatusFilter, setWoStatusFilter] = useState<string>(''); // [G-006] 工单级筛选
@@ -105,6 +107,7 @@ export default function ProductionOrders() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const ps = new URLSearchParams();
@@ -114,7 +117,7 @@ export default function ProductionOrders() {
       const qs = ps.toString() ? `?${ps.toString()}` : '';
       const data = await apiGet<ProductionOrderRow[]>(`/production-orders${qs}`);
       setRows(Array.isArray(data) ? data : []);
-    } catch (e: unknown) {
+    } catch (e: unknown) { setLoadError(true);
       message.error(e instanceof Error ? e.message : '加载失败');
     } finally {
       setLoading(false);
@@ -295,6 +298,9 @@ export default function ProductionOrders() {
   ];
 
   const po = detail?.productionOrder;
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void load()} skeletonRows={6} />;
 
   return (
     <div>

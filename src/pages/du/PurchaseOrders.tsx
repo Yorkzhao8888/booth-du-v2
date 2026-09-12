@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select, message, Card, Descriptions, Steps, Popconfirm, DatePicker } from 'antd';
 import { PlusOutlined, ShoppingCartOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { api } from '../../api';
+import PageState from '../../components/PageState'; // [W1-E] 三态兜底
 import { getCurrentRole } from '../../utils/jwt';
 
 const statusMap: Record<string, { color: string; label: string }> = {
@@ -31,6 +32,7 @@ interface PurchaseOrder {
 const PurchaseOrders: React.FC = () => {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false); // [W1-E]
   const [createVisible, setCreateVisible] = useState(false);
   const [receiveVisible, setReceiveVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -42,11 +44,12 @@ const PurchaseOrders: React.FC = () => {
   const isDu = role === 'du';
 
   const fetchOrders = async () => {
+    setLoadError(false); // [W1-E] 重试复位
     setLoading(true);
     try {
       const res = await api.get('/du/purchase-orders');
       setOrders(res.items || []);
-    } catch (e) { /* ignore */ }
+    } catch (e) { setLoadError(true); /* ignore */ }
     setLoading(false);
   };
 
@@ -54,7 +57,7 @@ const PurchaseOrders: React.FC = () => {
     try {
       const res = await api.get('/du/skus?pageSize=200');
       setSkuOptions(res.items || []);
-    } catch (e) { /* ignore */ }
+    } catch (e) { setLoadError(true); /* ignore */ }
   };
 
   useEffect(() => { fetchOrders(); fetchSkus(); }, []);
@@ -140,6 +143,9 @@ const PurchaseOrders: React.FC = () => {
       ),
     },
   ];
+
+  // [W1-E] 错误兜底: 断网/服务异常 → PageState error + 重试（避免静默白页）
+  if (loadError) return <PageState error onRetry={() => void fetchOrders()} skeletonRows={6} />;
 
   return (
     <div>

@@ -1,0 +1,162 @@
+[
+  {
+    "name": "经营看板",
+    "path": "/du",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "订单管理",
+    "path": "/du/orders",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "订单管理 · Xfactory"
+  },
+  {
+    "name": "生产单全链路",
+    "path": "/du/production-orders",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "生产单 · Xfactory"
+  },
+  {
+    "name": "工艺管理",
+    "path": "/du/crafts",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "工艺管理 · Xfactory"
+  },
+  {
+    "name": "商品BOM",
+    "path": "/du/boms",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "采购管理",
+    "path": "/du/purchase-orders",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "供应商管理",
+    "path": "/du/suppliers",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "供应商 · Xfactory"
+  },
+  {
+    "name": "供给订单",
+    "path": "/du/supply-orders",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": true,
+    "errorState": true,
+    "retry": false,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "工单管理",
+    "path": "/du/work-orders",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "作业流",
+    "path": "/du/fab/flow",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "Station 作业站",
+    "path": "/du/station",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": true,
+    "errorState": true,
+    "retry": true,
+    "title": "经营看板 · Xfactory"
+  },
+  {
+    "name": "设备台账",
+    "path": "/du/fab/equipment",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": true,
+    "errorState": true,
+    "retry": true,
+    "title": "设备台账 · Xfactory"
+  },
+  {
+    "name": "批次库存",
+    "path": "/du/batches",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "批次台账 · Xfactory"
+  },
+  {
+    "name": "库存总览",
+    "path": "/du/inventory",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "库存台账 · Xfactory"
+  },
+  {
+    "name": "库存调拨",
+    "path": "/du/inventory-transfer",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "库存台账 · Xfactory"
+  },
+  {
+    "name": "AU 店长台",
+    "path": "/au",
+    "menu": true,
+    "broken": false,
+    "emptyOrData": false,
+    "errorState": true,
+    "retry": true,
+    "title": "Xfactory · 供给履约系统"
+  }
+]
