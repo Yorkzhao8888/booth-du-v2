@@ -12,8 +12,8 @@ interface HatItem {
 }
 
 const CONTAINER_TITLE: Record<'xhpz' | 'xepz', string> = {
-  xhpz: 'Booth 个人版 · 选择工作帽',
-  xepz: 'Booth 企业版 · 选择工作帽',
+  xhpz: 'Xfactory 个人版 · 选择工作帽',
+  xepz: 'Xfactory 企业版 · 选择工作帽',
 };
 
 /**

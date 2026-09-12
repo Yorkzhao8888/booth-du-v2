@@ -10,8 +10,8 @@ import {
 import { useAuthStore } from '../store';
 
 const CONTAINER_META: Record<'xhpz' | 'xepz', { label: string; sub: string; color: string }> = {
-  xhpz: { label: 'Booth 个人版', sub: '客户视图 · 消费与交付 · Booth 履约端', color: 'purple' },
-  xepz: { label: 'Booth 企业版', sub: '经营者视角 · 铺子履约 · Booth 履约端', color: 'geekblue' },
+  xhpz: { label: 'Xfactory 个人版', sub: '客户视图 · 消费与交付 · Xfactory 履约端', color: 'purple' },
+  xepz: { label: 'Xfactory 企业版', sub: '经营者视角 · 铺子履约 · Xfactory 履约端', color: 'geekblue' },
 };
 
 const HAT_LABELS: Record<string, string> = {
@@ -66,8 +66,8 @@ export const PortalShell: React.FC<{
           </div>
         </div>
         <Space wrap size={8} style={{ justifyContent: 'flex-end' }}>
-          <Tooltip title="产品定位: Booth 履约端">
-            <Tag color="gold" style={hatTagStyle}>Booth 履约端</Tag>
+          <Tooltip title="产品定位: Xfactory 履约端">
+            <Tag color="gold" style={hatTagStyle}>Xfactory 履约端</Tag>
           </Tooltip>
           {hat ? (
             <Tooltip title={`当前视角: ${HAT_LABELS[hat] || hat} (${hat})`}>
@@ -98,7 +98,7 @@ export const PortalShell: React.FC<{
         </Space>
       </header>
       <main style={mainStyle}>{children}</main>
-      <footer style={footerStyle}>Booth 双端 · {meta.label} P0 骨架</footer>
+      <footer style={footerStyle}>Xfactory 双端 · {meta.label} P0 骨架</footer>
     </div>
   );
 };

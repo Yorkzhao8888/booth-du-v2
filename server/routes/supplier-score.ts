@@ -223,7 +223,7 @@ router.get('/fab/score/:boothId', requireFabRead, async (req: any, res, next) =>
     }
     // org 限定: 本环境 Booth 档案即本 org; 其他 Booth 暂无可披露档案(如实 404, 不造分)
     if (boothId !== orgId) {
-      return res.status(404).json({ success: false, error: 'SCORE_NOT_AVAILABLE', message: '该 Booth 暂无可披露的供给信用档案' });
+      return res.status(404).json({ success: false, error: 'SCORE_NOT_AVAILABLE', message: '该制造厂暂无可披露的供给信用档案' });
     }
     const cfg = await getConfig(orgId);
     const { row, agg, overall, insufficient, status } = await computeAndUpsert(orgId, boothId, cfg);

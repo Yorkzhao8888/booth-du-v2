@@ -189,7 +189,7 @@ const MobileLayout: React.FC = () => {
           lineHeight: '48px',
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 600, flexShrink: 0, width: 42, overflow: 'hidden' }}>Booth</span>
+        <span style={{ fontSize: 14, fontWeight: 600, flexShrink: 0, width: 70, overflow: 'hidden' }}>Xfactory</span>
         {showSwitch && (
           <div style={{ flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
             <Segmented

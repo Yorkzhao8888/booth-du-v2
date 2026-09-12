@@ -117,7 +117,7 @@ export default function ExxFabSupplierScore() {
       const res = await api.get(`/edxx/fab/score/${id}`);
       setOutCard(res || null);
     } catch (e: any) {
-      setOutErr(e?.message || '该 Booth 暂无可披露的供给信用档案');
+      setOutErr(e?.message || '该制造厂暂无可披露的供给信用档案');
     }
   };
 
@@ -138,7 +138,7 @@ export default function ExxFabSupplierScore() {
   ] : [];
 
   const renderOutCard = (card: any) => (
-    <Card title={`Booth #${card.booth_id} 履约信用`} extra={card.status === 'scored' ? <Tag color="gold">综合 {Number(card.overall_score).toFixed(1)}</Tag> : <Tag color="orange">样本不足</Tag>}>
+    <Card title={`制造厂 #${card.booth_id} 履约信用`} extra={card.status === 'scored' ? <Tag color="gold">综合 {Number(card.overall_score).toFixed(1)}</Tag> : <Tag color="orange">样本不足</Tag>}>
       <Row gutter={[12, 12]}>
         {Object.entries(card.metrics || {}).map(([k, v]: [string, any]) => (
           <Col span={8} key={k}>
@@ -173,7 +173,7 @@ export default function ExxFabSupplierScore() {
                       <Statistic title="综合履约信用分"
                         value={dash.overall_score === null || dash.overall_score === undefined ? 'N/A' : Number(dash.overall_score).toFixed(1)}
                         suffix={dash.status === 'scored' ? <Tag color="gold">scored</Tag> : <Tag color="orange">insufficient</Tag>} />
-                      <Text type="secondary" style={{ fontSize: 12 }}>统计日 {dash.score_date} · Booth #{dash.booth_id}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>统计日 {dash.score_date} · 制造厂 #{dash.booth_id}</Text>
                       <div style={{ marginTop: 8 }}>
                         <Space>
                           <Button size="small" icon={<ReloadOutlined />} onClick={refresh}>重算</Button>
@@ -226,13 +226,13 @@ export default function ExxFabSupplierScore() {
               <Space direction="vertical" style={{ width: '100%' }} size={12}>
                 <Card size="small">
                   <Space>
-                    <Input style={{ width: 200 }} placeholder="输入 Booth ID(如 1)" value={outBoothId} onChange={(e: any) => setOutBoothId(e.target.value)} onPressEnter={searchOut} />
+                    <Input style={{ width: 200 }} placeholder="输入制造厂 ID(如 1)" value={outBoothId} onChange={(e: any) => setOutBoothId(e.target.value)} onPressEnter={searchOut} />
                     <Button type="primary" onClick={searchOut}>检索信用</Button>
                   </Space>
                 </Card>
                 {outErr && <Alert type="info" showIcon message="无可披露档案" description={outErr} />}
                 {outCard && renderOutCard(outCard)}
-                {!outCard && !outErr && <Empty description="输入 Booth ID 检索其履约信用(与 Market 撮合同口径)" />}
+                {!outCard && !outErr && <Empty description="输入制造厂 ID 检索其履约信用(与 Market 撮合同口径)" />}
               </Space>
             ),
           },

@@ -100,7 +100,7 @@ router.get('/timeline', requireAuth, async (req, res, next) => {
         { key: 'placed', label: 'Market 下单', at: row.created_at ? new Date(row.created_at as string).toISOString() : null, state: 'done', actor: sourceActor },
         {
           key: 'accepted',
-          label: '供给铺接单 (Booth-E)',
+          label: '供给铺接单 (Xfactory)',
           at: row.created_at ? new Date(row.created_at as string).toISOString() : null,
           state: contractStatus ? 'done' : 'pending',
           actor,

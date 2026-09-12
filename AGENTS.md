@@ -187,3 +187,14 @@ src/
 - **背景**：供给执行成熟件已被 ZiwayDS 评估吸收——拆单引擎（split-service 四铺拆单）+ waveNo→productionNo 透传链路（outbox）代码平移至 ZiwayDS factory 模块；G-005 凭证/履约时间线由 ZiwayDS 按"回执=责任转移=Case结算触发"口径重写
 - **冻结范围**：split-service / fulfillment-service / work-order-service / inventory-service / outbox-service 三渠路由 / supply-orders 契约 / delivery-receipts / stock 出入库 / edxx FAB+WH 执行端 / 波次与生产单回执
 - **不受影响（照常迭代）**：双端工作台（#xhpz/#xepz 门户/帽/工作台）、Market 对接（观察窗/timeline/事件链路/XBUS 入站幂等承接）、双端帽权限基础层
+
+## Xfactory 壳层重构换装（XFACTORY-BRAND，2026-09-12）
+- **品牌定版**：产品名 **Xfactory**（无连字符；X-Factory/Ziway Factory 写法废止）。用户可见面 Booth 字样清零：index.html title/favicon、AppLayout/MobileLayout 品牌区、登录页、PortalShell/ContainerPortal/HatSelect/ForbiddenPage、FabSupplierScore（信用档案页）、RealtimeDashboard 大屏标题、fulfillment timeline 节点 label（供给铺接单 → (Xfactory)）、supplier-score 404 message、auth dev-token 错误文案；中文形态名「制造厂」保留用于副标题/身份卡场景；**内部工程标识一律不动**（booth_* / api/booth / BoothUser 类型 / 组件与 SQL 注释）；运行时 DOM 验证 4 页面（login /du /containers /xepz/hats）Booth 文本残留=0（browser/screenshots/dom-check.cjs）
+- **favicon**：public/favicon.svg（深藏青底 XF 白字）+ index.html link icon
+- **登录修信用 [Xfactory-B4]**：auth.ts `humanizeLoginError`——401 归一化「账号或密码不正确」；OAS 锁定类错误解析剩余秒数返回 `lockSeconds` 字段；前端 Login 页倒计时显示+禁用提交（固定秒数语义，不再"越试越锁顺延"提示）
+- **演示账号 [Xfactory-B5]**：登录页三卡一键登录（admin=SU·经营者 / operator=AU·执行者 / customer=CU·铺员 × test123），走真实 OAS RS256 登录链；内测期全环境展示
+- **路由 [Xfactory-B6/B7]**：`/exx`（含子路径）→ `/edxx` **301**；`/ex` `/exModules` `/em` `/job` 旧裸挂点补 `requireAuth`（PROD 无 token 401 实测通过）
+- **菜单三层重组 [Xfactory-C8]**：26 菜单按 `wrapMenuGroups` 重组为 **经营/作业/台账** 三组（label 前缀归类：MKT/Market/EM/经营决策/一线经营→经营，FAB/DL/SVC/业务执行线/运营线→作业，WH→台账；菜单项文字措辞本轮不改，术语口径待拍板）+ Sider **身份帽卡**（EDU 经营帽/EDX 执行帽/DEU 分身，按 role+actingAs 判定显隐）；findOpenKeys 改递归支持三层展开链路
+- **EMBED 免登钩子 [Xfactory-C9]**：Login 监听 `postMessage{source:'ziway-ds-embed',type:'auth:token'}` → `GET /api/booth/auth/me`（requireAuth，RS256 验签）拉身份 → applySession → 回执 `{source:'booth',type:'embed:ready'}`；origin 白名单 `EMBED_ORIGIN_WHITELIST=['*']`（联调期配置，上线收紧）
+- **新增 GET /api/booth/auth/me**：requireAuth 后返回 req.user（EMBED 链路与调试用）
+- **验收证据**：server tsc 0 错 + vite build 0 错；前端全量 tsc 80 错=存量基线（stash 前后等量，本单零新增）；/exx 301 实测（→/edxx、→/edxx/fab）；错密码返回「账号或密码不正确」；admin/test123 真实 OAS RS256 登录 200；375px 截图 browser/screenshots/{login-375,workbench-375}.png

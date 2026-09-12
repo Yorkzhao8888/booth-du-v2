@@ -67,7 +67,7 @@ const EnterpriseWorkbench: React.FC = () => {
             <Card
               hoverable
               style={{ borderRadius: 14 }}
-              onClick={() => message.info('铺子详情 P1 接 Booth 六版本实例')}
+              onClick={() => message.info('铺子详情 P1 接 Xfactory 六版本实例')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span style={shopIconStyle}>{shop.icon}</span>

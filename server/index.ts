@@ -71,6 +71,12 @@ app.get('/api/booth/stream', requireAuth, (req, res) => {
   });
 });
 
+// [Xfactory-B6] 旧路径 /exx → /edxx 301 重定向 (bundle 历史残留/书签场景)
+app.use('/exx', (req: import('express').Request, res: import('express').Response) => {
+  const rest = req.originalUrl.replace(/^\/exx/, '');
+  res.redirect(301, `/edxx${rest.startsWith('/') || rest === '' ? rest : `/${rest}`}`);
+});
+
 // Mount routes
 app.use('/api/booth/auth', authRoutes);
 // [BOOTH-CONN-01] Market 观察窗配套: SSE 履约推送 + 全链路时间线
@@ -80,17 +86,17 @@ app.use('/events', internalAliasRoutes);         // [BOOTH-LINK-01] 根级别名
 // /api/booth/du 聚合挂载: suppliers(前置)/核心看板/purchase-orders/dl+svc+profit+wh+fabqc/supply
 // (TECH-DEBT-4: 原 5 个分散挂载点收敛进 routes/du/index.ts, 挂载顺序不变)
 app.use('/api/booth/du', duRoutes);
-app.use('/api/booth/ex', exRoutes);
+app.use('/api/booth/ex', requireAuth, exRoutes); // [Xfactory-B7] 补鉴权 (09-10 遗留裸挂)
 // FIX3: modules 前置(带独立 requireAuth) — edxx.ts 的 router.use(requireRole('edxx'))
 // 会全局拦截同前缀请求, du/dx/edx 的产线只读 GET 需先经 edxx-modules 的 requireFabRead 放行
 app.use('/api/booth/edxx', requireAuth, stripXExecutorPrices, exxModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价 // /api/booth/edxx/fab/*, /wh/*, /dl/*, /svc/*
 // New module routes
-app.use('/api/booth/ex', stripXExecutorPrices, exModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价
+app.use('/api/booth/ex', requireAuth, stripXExecutorPrices, exModulesRoutes); // [BOOTH-PRD-002] X 层执行剥售价 // [Xfactory-B7] 补鉴权
 // DEU 分身入口: DU 以分身身份进入履约铺后台 (仅挂分身标记, 不重复挂 EDX 路由 — 数据权限随用户身份)  // /api/booth/ex/dl/*, /svc/*, /wh/*, /fab/*, /inventory/alerts
 app.use('/api/booth/edxx', requireAuth, stripXExecutorPrices, exxRoutes); // [BOOTH-PRD-002] X 层执行剥售价
-app.use('/api/booth/em', emRoutes);
+app.use('/api/booth/em', requireAuth, emRoutes); // [Xfactory-B7] 补鉴权
 app.use('/api/booth/market', marketRoutes);    // /api/booth/market/* (C3 Market 通货售卖)
-app.use('/api/booth/job', jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型)
+app.use('/api/booth/job', requireAuth, jobRoutes);          // /api/booth/job/* (FAB-OPT-01 Job 模型) // [Xfactory-B7] 补鉴权
 // BOOTH-PK-02: SupplyOrder 显式契约 (shop 下单→报价→追踪→签收闭环, 契约载体=booth_fulfillments 方案A)
 app.use('/api/booth/supply-orders', requireAuth, supplyOrdersRouter);
 app.use('/api/booth/deliveries', requireAuth, deliveriesRouter);

@@ -8,7 +8,7 @@ import { SafetyCertificateOutlined } from '@ant-design/icons';
  */
 export const ForbiddenPage: React.FC<{ container: 'xhpz' | 'xepz' }> = ({ container }) => {
   const navigate = useNavigate();
-  const label = container === 'xhpz' ? 'Booth 个人版' : 'Booth 企业版';
+  const label = container === 'xhpz' ? 'Xfactory 个人版' : 'Xfactory 企业版';
   return (
     <div
       style={{

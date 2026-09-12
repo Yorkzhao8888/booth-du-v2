@@ -170,7 +170,7 @@ export default function RealtimeDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <h1 style={{ margin: 0, fontSize: 32, fontWeight: 700, color: '#fff' }}>
-          Booth-DU 实时运营大屏
+          Xfactory-DU 实时运营大屏
         </h1>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 24, fontWeight: 600, color: '#1890ff' }}>

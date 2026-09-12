@@ -291,6 +291,18 @@ const getMenuItemsByRole = (role: string, actingDeuMode = false) => {
   return items.filter(item => item.children && item.children.length > 0);
 };
 
+// [Xfactory-C8] 26 菜单三层重组: 经营/作业/台账 三组 (菜单项文字措辞不动, 术语口径待定)
+const wrapMenuGroups = (items: any[]): any[] => {
+  const groups: Array<{ key: string; icon: React.ReactNode; label: string; pred: (l: string) => boolean }> = [
+    { key: 'grp-biz', icon: <DollarOutlined />, label: '经营', pred: (l) => /^(MKT|Market|EM |经营决策|一线经营)/.test(l) },
+    { key: 'grp-ops', icon: <ToolOutlined />, label: '作业', pred: (l) => /^(FAB|DL|SVC|业务执行线|运营线)/.test(l) },
+    { key: 'grp-ledger', icon: <DatabaseOutlined />, label: '台账', pred: (l) => /^WH/.test(l) },
+  ];
+  return groups
+    .map((g) => ({ key: g.key, icon: g.icon, label: g.label, children: items.filter((i) => g.pred(String(i.label || ''))) }))
+    .filter((g) => g.children.length > 0);
+};
+
 const AppLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -300,7 +312,17 @@ const AppLayout: React.FC = () => {
   const actingDeu = user?.role === 'du' && !!localStorage.getItem('booth-acting-deu');
   const setActingDeu = (v: boolean) => { if (v) localStorage.setItem('booth-acting-deu', '1'); else localStorage.removeItem('booth-acting-deu'); };
 
-  const menuItems = getMenuItemsByRole(user?.role || 'du', actingDeu);
+  // [Xfactory-C8] 菜单三层重组: 域组包入 经营/作业/台账 三大组
+  const menuItems = wrapMenuGroups(getMenuItemsByRole(user?.role || 'du', actingDeu));
+
+  // [Xfactory-C8] 身份帽卡: EDU(经营线)/EDX(执行线) 按登录身份显隐
+  const capCard = (() => {
+    if (!user) return null;
+    if (actingDeu || user.actingAs === 'deu') return { code: 'EDX', label: '执行帽 · DEU 分身' };
+    if (['du', 'dx', 'dm', 'em', 'emxx', 'emx'].includes(user.role)) return { code: 'EDU', label: '经营帽' };
+    if (['ex', 'edx', 'edxx'].includes(user.role)) return { code: 'EDX', label: '执行帽' };
+    return null;
+  })();
 
   // 找到当前选中的菜单项
   const findSelectedKey = (items: any[]): string => {
@@ -316,20 +338,19 @@ const AppLayout: React.FC = () => {
 
   const selectedKey = findSelectedKey(menuItems);
 
-  // 找到展开的子菜单
+  // 找到展开的子菜单 ([Xfactory-C8] 递归支持三层: 组→域→项)
   const findOpenKeys = (items: any[], targetPath: string): string[] => {
-    const openKeys: string[] = [];
-    for (const item of items) {
-      if (item.children) {
-        const hasMatch = item.children.some((child: any) =>
-          child.key === targetPath || location.pathname.startsWith(child.key)
-        );
-        if (hasMatch && item.key) {
-          openKeys.push(item.key);
+    const walk = (list: any[], ancestors: string[]): string[] | null => {
+      for (const item of list) {
+        if (item.key === targetPath) return ancestors;
+        if (item.children?.length) {
+          const found = walk(item.children, item.key && typeof item.key === 'string' ? [...ancestors, item.key] : ancestors);
+          if (found) return found;
         }
       }
-    }
-    return openKeys;
+      return null;
+    };
+    return walk(items, []) ?? [];
   };
 
   const openKeys = findOpenKeys(menuItems, location.pathname);
@@ -357,17 +378,33 @@ const AppLayout: React.FC = () => {
     // [G-001] 全局布局约束: 滚动独立 —— Header/Sider 固定, Content 独立滚动
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider width={220} style={{ background: '#1F3A5F', overflow: 'auto', flexShrink: 0 }}>
-        <div style={{ 
-          padding: '16px', 
-          textAlign: 'center', 
-          fontWeight: 'bold', 
-          fontSize: '16px', 
+        <div style={{
+          padding: '14px 16px 10px',
+          textAlign: 'center',
+          fontWeight: 'bold',
+          fontSize: '17px',
           color: '#FFFFFF',
           borderBottom: '1px solid rgba(255,255,255,0.1)',
           letterSpacing: '0.05em'
         }}>
-          Booth 供给系统
+          Xfactory
+          <div style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.55)', marginTop: 2, letterSpacing: '0.2em' }}>制 造 厂</div>
         </div>
+        {capCard && (
+          <div style={{
+            margin: '10px 12px 4px', padding: '7px 10px', borderRadius: 8,
+            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ background: capCard.code === 'EDU' ? '#C9A227' : '#2F6BFF', color: '#fff', borderRadius: 6, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
+              {capCard.code}
+            </span>
+            <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{capCard.label}</span>
+            {user?.hats?.length ? (
+              <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{user.hats.join('/')}</span>
+            ) : null}
+          </div>
+        )}
         <Menu
           mode="inline"
           theme="dark"
@@ -393,7 +430,7 @@ const AppLayout: React.FC = () => {
           flexShrink: 0,
         }}>
           <div style={{ fontSize: '14px', color: '#1F3A5F', fontWeight: 500 }}>
-            Booth 供给履约系统
+            Xfactory 制造厂 · 供给履约系统
           </div>
           <Space>
             {/* [BOOTH-PRD-002 PM-004] DEU 分身入口: DU 可切换进入履约铺后台 (保留经营决策权) */}

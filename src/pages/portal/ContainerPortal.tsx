@@ -76,7 +76,7 @@ export const ContainerPortal: React.FC = () => {
   return (
     <div style={pageStyle}>
       <div style={headStyle}>
-        <div style={logoStyle}>Booth</div>
+        <div style={logoStyle}>Xfactory</div>
         <Typography.Title level={4} style={{ color: '#fff', margin: '8px 0 2px' }}>
           选择进入的工作容器
         </Typography.Title>

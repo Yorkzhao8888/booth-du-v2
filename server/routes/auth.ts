@@ -6,6 +6,26 @@ import { AUTH_OPEN, buildAnonymousUser, requireAuth } from '../auth.js';
 const router = Router();
 
 /**
+ * [Xfactory-B4] 登录失败文案中文化 + 锁定剩余秒数解析
+ * OAS 原始错误(英文)归一化为用户可见中文; 锁定类错误提取剩余秒数供前端倒计时,
+ * 提示固定展示解锁秒数 (不再出现"越试越锁顺延"语义)。
+ */
+const humanizeLoginError = (raw: unknown, status: number): { error: string; lockSeconds?: number } => {
+  const msg = typeof raw === 'string' ? raw : raw instanceof Error ? raw.message : '';
+  if (status === 502 || status === 503 || /timeout|ECONN|unreachable|not ready/i.test(msg)) {
+    return { error: '登录服务暂不可用，请稍后重试' };
+  }
+  if (/lock|锁定/i.test(msg)) {
+    const m = /(\d+)\s*(?:秒|s\b|sec|second)/i.exec(msg) ?? /(?:after|in)\s+(\d+)/i.exec(msg);
+    const secs = m ? Math.max(1, parseInt(m[1], 10)) : undefined;
+    return secs
+      ? { error: `账号已临时锁定，${secs} 秒后自动解锁，请勿反复尝试`, lockSeconds: secs }
+      : { error: '账号已临时锁定，请稍后重试，请勿反复尝试' };
+  }
+  return { error: '账号或密码不正确' };
+};
+
+/**
  * [BOOTH-R7-01] POST /login —— 已收口为 OAS AMS 单一登录源
  *
  * 用户名/密码透传 OAS AMS 代理: POST /api/v1/os/booth/proxy/ams/auth/login
@@ -40,9 +60,12 @@ router.post('/login', async (req, res, next) => {
         result: 'failure',
         detail: { reason: oas.error || `OAS ${oas.status}` },
       });
+      // [Xfactory-B4] 错误文案中文归一化 + 锁定秒数透出
+      const human = humanizeLoginError(oas.error, oas.status);
       return res.status(oas.status === 502 || oas.status === 503 ? 502 : 401).json({
         success: false,
-        error: oas.error || 'Invalid credentials (OAS AMS)',
+        error: human.error,
+        ...(human.lockSeconds ? { lockSeconds: human.lockSeconds } : {}),
         code: 'INVALID_CREDENTIALS',
       });
     }
@@ -106,6 +129,13 @@ router.post('/login', async (req, res, next) => {
  * token claims 与正式登录一致, 验签走 Booth 已配置的 OAS 公钥 (显式 PEM 或 JWKS 自动发现), 无豁免。
  * 生成即验签: 保证返回给前端的 token 一定能通过 Booth 认证中间件。
  */
+// [Xfactory-C9] EMBED 免登链路支撑: 前端持 OAS token 调用本端点走 requireAuth RS256 验签并取回用户身份
+router.get('/me', requireAuth, (req, res) => {
+  const user = (req as import('express').Request & { user?: BoothUser }).user;
+  if (!user) return res.status(401).json({ success: false, error: '未认证', code: 'E_NO_TOKEN' });
+  res.json({ success: true, data: { user } });
+});
+
 router.post('/dev-token', async (req, res, next) => {
   try {
     if (process.env.COZE_PROJECT_ENV === 'PROD') {
@@ -150,7 +180,7 @@ router.post('/dev-token', async (req, res, next) => {
         result: 'failure',
         detail: { reason: `token verify: ${v.reason}` },
       });
-      return res.status(502).json({ success: false, error: `dev-token rejected by Booth verify: ${v.reason}`, code: 'E_INVALID_TOKEN' });
+      return res.status(502).json({ success: false, error: `dev-token rejected by Xfactory verify: ${v.reason}`, code: 'E_INVALID_TOKEN' });
     }
 
     const user = toBoothUser(v.payload, Number(v.payload.org_id ?? 1) || 1);
