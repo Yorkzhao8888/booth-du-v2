@@ -51,6 +51,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return (data.data !== undefined ? data.data : data) as T;
 }
 
+/**
+ * 兼容直返/包壳两种响应结构的取值辅助。
+ * request() 已剥壳返回 data 层; 历史调用点存在 resp.data 双层取写法, 统一走此函数兜底。
+ */
+export function unwrapData<T>(v: T | { data?: T } | undefined): T {
+  if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v) && 'data' in (v as Record<string, unknown>)) {
+    const d = (v as { data?: T }).data;
+    if (d !== undefined) return d;
+  }
+  return v as T;
+}
+
 export function apiGet<T = unknown>(path: string): Promise<T> {
   return request<T>(path, { method: 'GET' });
 }

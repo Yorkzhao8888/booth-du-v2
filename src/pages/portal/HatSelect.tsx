@@ -5,6 +5,7 @@ import { AimOutlined, ArrowLeftOutlined, SafetyOutlined } from '@ant-design/icon
 import { apiGet } from '../../api';
 import { useAuthStore } from '../../store';
 import PersonalGuideCard, { isPersonalOASRole } from '../../components/PersonalGuideCard';
+import { CONTAINER_META, type ContainerKey } from '../../types/containers';
 
 interface HatItem {
   key: string;
@@ -12,16 +13,18 @@ interface HatItem {
   isDefault: boolean;
 }
 
-const CONTAINER_TITLE: Record<'xhpz' | 'xepz', string> = {
-  xhpz: 'Xfactory 个人版 · 选择工作帽',
-  xepz: 'Xfactory 企业版 · 选择工作帽',
+const CONTAINER_TITLE: Record<ContainerKey, string> = {
+  xhpz: `${CONTAINER_META.xhpz.label} · 选择工作帽`,
+  xepz: `${CONTAINER_META.xepz.label} · 选择工作帽`,
+  xdpz: `${CONTAINER_META.xdpz.label} · 选择工作帽`,
+  xvpz: `${CONTAINER_META.xvpz.label} · 选择工作帽`,
 };
 
 /**
- * [DUAL-PORTAL-P0] 角色层: 帽卡片选择页
+ * [DUAL-PORTAL-P0/XDP-ECO] 角色层: 帽卡片选择页
  * OAS 三权 checkPower 动态帽列表 + 默认帽标记 (端点不可达时降级登录态组装, source 标注)
  */
-export const HatSelect: React.FC<{ container: 'xhpz' | 'xepz' }> = ({ container }) => {
+export const HatSelect: React.FC<{ container: ContainerKey }> = ({ container }) => {
   const navigate = useNavigate();
   const setHat = useAuthStore((s) => s.setHat);
   const [loading, setLoading] = useState(true);
@@ -30,11 +33,13 @@ export const HatSelect: React.FC<{ container: 'xhpz' | 'xepz' }> = ({ container 
 
   useEffect(() => {
     let alive = true;
-    apiGet<{ success: boolean; data: { hats: HatItem[]; source: string } }>('/auth/hats')
+    // [XDP-ECO] 兼容 apiGet 剥壳(envelope data 已解) 与未剥壳两种响应结构
+    apiGet<{ data?: { hats?: HatItem[]; source?: string }; hats?: HatItem[]; source?: string }>('/auth/hats')
       .then((resp) => {
         if (!alive) return;
-        setHats(resp?.data?.hats ?? []);
-        setSource(resp?.data?.source ?? '');
+        const payload = resp?.data ?? resp ?? {};
+        setHats(payload.hats ?? []);
+        setSource(payload.source ?? '');
       })
       .catch(() => {
         if (alive) setHats([]);

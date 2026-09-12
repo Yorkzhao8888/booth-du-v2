@@ -1,0 +1,20 @@
+const { chromium } = require('playwright-core');
+const CHROME = require('os').homedir() + '/.cache/ms-playwright/chromium-1161/chrome-linux/chrome';
+const BASE = 'http://localhost:5000';
+(async () => {
+  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true });
+  const page = await ctx.newPage();
+  page.on('console', m => { if (m.type() === 'error') console.log('CONSOLE-ERR:', m.text().slice(0, 300)); });
+  const resp = await fetch(BASE + '/api/booth/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: 'test123' }) });
+  const j = await resp.json();
+  console.log('login:', j.success, 'subRole:', j.data?.user?.subRole, 'role:', j.data?.user?.role);
+  await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(([t, u]) => { localStorage.setItem('booth_token', t); localStorage.setItem('booth_user', JSON.stringify(u)); }, [j.data.token, j.data.user]);
+  await page.goto(BASE + '/xvpz', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  console.log('URL:', page.url());
+  const text = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' | ').slice(0, 500));
+  console.log('BODY:', text);
+  await browser.close();
+})().catch(e => { console.error('FATAL:', e.message); process.exit(1); });

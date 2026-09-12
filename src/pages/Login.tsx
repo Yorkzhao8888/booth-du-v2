@@ -281,6 +281,33 @@ const Login: React.FC = () => {
             快速上手 · 三条动线指南
           </Button>
         </div>
+        {/* [XDP-ECO] 四主体分流文案: 个人/企业/经营户/平台方 */}
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+          {[
+            { k: '#xhpz', t: '个人', d: '消费与派岗' },
+            { k: '#xepz', t: '企业', d: '开店经营' },
+            { k: '#xdpz', t: '经营户', d: '铺位管理' },
+            { k: '#xvpz', t: '平台方', d: '生态治理 · VEM' },
+          ].map((c) => (
+            <div
+              key={c.k}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 8,
+                padding: '6px 8px',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontFamily: 'SFMono, Consolas, monospace', fontSize: 10.5, color: 'rgba(255,255,255,0.75)' }}>{c.k}</div>
+              <div style={{ fontSize: 11.5, color: '#fff', fontWeight: 600 }}>{c.t}</div>
+              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.65)' }}>{c.d}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 8, fontSize: 11.5, color: 'rgba(255,255,255,0.7)' }}>
+          登录后按身份进入对应主体控制台 · 四主体口径以 OAS 建号为准
+        </div>
       </Card>
     </div>
   );

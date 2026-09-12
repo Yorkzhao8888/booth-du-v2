@@ -4,52 +4,57 @@ import { useNavigate } from 'react-router-dom';
 import {
   ApiOutlined,
   ArrowRightOutlined,
-  BankOutlined,
   LockOutlined,
   ShopOutlined,
   TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { apiGet } from '../../api';
 import { useAuthStore } from '../../store';
+import { FOUR_SUBJECT_LINES, type ContainerAccess, type ContainerKey } from '../../types/containers';
 
-interface ContainersResp {
-  xhpz: boolean;
-  xepz: boolean;
+interface ContainersResp extends Partial<ContainerAccess> {
   roleKey?: string;
   subRole?: string | null;
 }
 
 interface PortalCard {
-  id: 'xhpz' | 'xepz' | 'xopz' | 'xgpz';
-  label: string;
-  desc: string;
+  id: ContainerKey;
   icon: React.ReactNode;
   allowed?: boolean;
-  reserved?: boolean;
 }
 
 /**
- * [DUAL-PORTAL-P0] OAS 登录后容器分流页
- * 两张可进卡 (#xhpz 个人 / #xepz 企业) + 两张置灰预留卡 (#xopz 生态主体 / #xgpz 政府)
+ * [DUAL-PORTAL-P0/XDP-ECO] OAS 登录后容器分流页 (生态四主体)
+ * 个人 #xhpz · 消费与派岗 / 企业 #xepz · 开店经营 / 经营户 #xdpz · 铺位管理 / 平台方 #xvpz · 生态治理
+ * 可进性由 /auth/containers 按 OAS 原角色判定; 未开通容器显示「未开通」
  */
 export const ContainerPortal: React.FC = () => {
   const navigate = useNavigate();
   const setContainer = useAuthStore((s) => s.setContainer);
   const setContainers = useAuthStore((s) => s.setContainers);
   const [loading, setLoading] = useState(true);
-  const [allowed, setAllowed] = useState<ContainersResp>({ xhpz: true, xepz: true });
+  const [allowed, setAllowed] = useState<ContainerAccess>({ xhpz: true, xepz: true, xdpz: false, xvpz: false });
 
   useEffect(() => {
     let alive = true;
     apiGet<{ success: boolean; data: ContainersResp }>('/auth/containers')
       .then((resp) => {
         if (!alive) return;
-        const data = resp?.data ?? { xhpz: true, xepz: true };
-        setAllowed({ xhpz: !!data.xhpz, xepz: !!data.xepz, roleKey: data.roleKey, subRole: data.subRole });
-        setContainers({ xhpz: !!data.xhpz, xepz: !!data.xepz });
+        // [XDP-ECO] 兼容 apiGet 剥壳(envelope data 已解) 与未剥壳两种响应结构
+        const envelope = resp as { data?: Partial<ContainersResp> } & Partial<ContainersResp>;
+        const data = envelope?.data ?? envelope ?? {};
+        const next: ContainerAccess = {
+          xhpz: data.xhpz !== false,
+          xepz: data.xepz !== false,
+          xdpz: !!data.xdpz,
+          xvpz: !!data.xvpz,
+        };
+        setAllowed(next);
+        setContainers(next);
       })
       .catch(() => {
-        // 拉取失败按双容器放行 (登录态真实存在, 后续跨端访问由容器守卫兜底)
+        // 拉取失败按个人/企业双容器放行 (登录态真实存在, 后续跨端访问由容器守卫兜底)
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -60,14 +65,14 @@ export const ContainerPortal: React.FC = () => {
   }, [setContainers]);
 
   const cards: PortalCard[] = [
-    { id: 'xhpz', label: '个人版', desc: '我的消费 · 我的接单 · 我的小铺', icon: <ShopOutlined />, allowed: allowed.xhpz },
-    { id: 'xepz', label: '企业版', desc: '我的铺子 · 经营系统 · 采购供给', icon: <TeamOutlined />, allowed: allowed.xepz },
-    { id: 'xopz', label: '生态主体', desc: '生态伙伴协同入口', icon: <ApiOutlined />, reserved: true },
-    { id: 'xgpz', label: '政府', desc: '政企对接入口', icon: <BankOutlined />, reserved: true },
+    { id: 'xhpz', icon: <UserOutlined />, allowed: allowed.xhpz },
+    { id: 'xepz', icon: <TeamOutlined />, allowed: allowed.xepz },
+    { id: 'xdpz', icon: <ShopOutlined style={{ color: '#13c2c2' }} />, allowed: allowed.xdpz },
+    { id: 'xvpz', icon: <ApiOutlined />, allowed: allowed.xvpz },
   ];
 
   const enter = (id: PortalCard['id']) => {
-    if (id === 'xhpz' || id === 'xepz') {
+    if (allowed[id]) {
       setContainer(id);
       navigate(`/${id}/hats`);
     }
@@ -81,7 +86,7 @@ export const ContainerPortal: React.FC = () => {
           选择进入的工作容器
         </Typography.Title>
         <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>
-          同账号多容器可随时切换; 置灰容器为平台预留
+          生态四主体 · 同账号多容器可随时切换; 未开通容器由平台方审核开通
         </div>
       </div>
       <div style={gridStyle}>
@@ -92,25 +97,22 @@ export const ContainerPortal: React.FC = () => {
               </Card>
             ))
           : cards.map((c) => {
-              const enabled = !!c.allowed && !c.reserved;
+              const line = FOUR_SUBJECT_LINES[c.id];
+              const enabled = !!c.allowed;
               const card = (
                 <Card
                   hoverable={enabled}
                   style={{ ...cardStyle, ...(enabled ? {} : reservedCardStyle) }}
-                  onClick={() => (enabled ? enter(c.id) : message.info('该容器为平台预留, 敬请期待'))}
+                  onClick={() => (enabled ? enter(c.id) : message.info(`${line.title} 容器未开通, 由平台方审核开通`))}
                 >
                   <div style={cardHeadStyle}>
                     <span style={{ ...iconStyle, ...(enabled ? {} : reservedIconStyle) }}>{c.icon}</span>
                     <span style={hashStyle}>#{c.id}</span>
                   </div>
-                  <div style={cardTitleStyle}>{c.label}</div>
-                  <div style={cardDescStyle}>{c.desc}</div>
+                  <div style={cardTitleStyle}>{line.title}</div>
+                  <div style={cardDescStyle}>{line.desc}</div>
                   <div style={cardFootStyle}>
-                    {c.reserved ? (
-                      <span style={reservedTagStyle}>
-                        <LockOutlined /> 预留
-                      </span>
-                    ) : enabled ? (
+                    {enabled ? (
                       <span style={enterStyle}>
                         进入 <ArrowRightOutlined />
                       </span>
@@ -122,12 +124,12 @@ export const ContainerPortal: React.FC = () => {
                   </div>
                 </Card>
               );
-              return c.reserved ? (
-                <Tooltip key={c.id} title="预留">
+              return enabled ? (
+                <React.Fragment key={c.id}>{card}</React.Fragment>
+              ) : (
+                <Tooltip key={c.id} title={`${line.title} · 未开通`}>
                   {card}
                 </Tooltip>
-              ) : (
-                <React.Fragment key={c.id}>{card}</React.Fragment>
               );
             })}
       </div>

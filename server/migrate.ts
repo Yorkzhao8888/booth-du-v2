@@ -446,6 +446,39 @@ CREATE TABLE IF NOT EXISTS booth_onboarding_profile (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ====== [XDP-ECO] 生态版四主体 MVP：加盟入驻申请 + 生态铺位(直营/加盟 + 协议费率) ======
+-- 分成台账红线: 本表族只记"结算触发事件 + 协议费率 = 应收分成记录", 严禁金额字段(金额级分账随 ERP 账本线另单)
+CREATE TABLE IF NOT EXISTS booth_eco_applications (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  applicant TEXT NOT NULL,                     -- 申请主体名称(企业)
+  contact TEXT NOT NULL DEFAULT '',
+  shop_name TEXT NOT NULL,                     -- 拟开铺名
+  category TEXT NOT NULL DEFAULT '',           -- 经营类目
+  apply_note TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  reject_reason TEXT,
+  rate_bps INTEGER,                            -- 审核通过时落库的协议费率(万分比, 如 300=3%)
+  reviewed_by TEXT,
+  reviewed_at TIMESTAMPTZ,
+  is_demo BOOLEAN NOT NULL DEFAULT false,      -- 演示标记隔离(清理仅按此标记, 绝不触碰真实申请)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_eco_applications_org ON booth_eco_applications (org_id, status);
+CREATE TABLE IF NOT EXISTS booth_eco_shops (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES booth_orgs(id),
+  shop_name TEXT NOT NULL,
+  eco_type TEXT NOT NULL DEFAULT 'franchise' CHECK (eco_type IN ('direct','franchise')),
+  category TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+  rate_bps INTEGER NOT NULL DEFAULT 300,       -- 协议抽成比例(万分比, MVP 固定比例可配置)
+  source_application_id INTEGER REFERENCES booth_eco_applications(id),
+  is_demo BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_eco_shops_org ON booth_eco_shops (org_id, status);
+
 -- ====== [BOOTH-PRD-002] 铺面管理+权限（阶段一）：供应铺 / 订单类型字典 / 生产单类型列 ======
 ALTER TABLE booth_production_orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'self_made';
 CREATE TABLE IF NOT EXISTS booth_supply_shops (
@@ -1740,6 +1773,43 @@ export async function migrate() {
         console.log('[migrate] BOOTH-CONN-02: seeded EX-2026-0020 fulfillment sample (fulfilling).');
       }
 
+      // ===== [XDP-ECO] 生态四主体 MVP 种子 (存量库幂等): 直营旗舰铺(总部配置, 非演示) + 演示加盟铺 + 演示待审申请 =====
+      const ecoDirectCheck = await client.query(
+        `SELECT 1 FROM booth_eco_shops WHERE org_id = 1 AND shop_name = $1 LIMIT 1`,
+        ['Xfactory 旗舰制造厂'],
+      );
+      if (ecoDirectCheck.rowCount === 0) {
+        await client.query(
+          `INSERT INTO booth_eco_shops (org_id, shop_name, eco_type, category, status, rate_bps, is_demo)
+           VALUES (1, $1, 'direct', '食品加工', 'active', 300, false)`,
+          ['Xfactory 旗舰制造厂'],
+        );
+        console.log('[migrate] XDP-ECO: seeded direct flagship eco shop.');
+      }
+      const ecoDemoShopCheck = await client.query(
+        `SELECT 1 FROM booth_eco_shops WHERE org_id = 1 AND shop_name = $1 LIMIT 1`,
+        ['演示·新味食品加盟铺'],
+      );
+      if (ecoDemoShopCheck.rowCount === 0) {
+        await client.query(
+          `INSERT INTO booth_eco_shops (org_id, shop_name, eco_type, category, status, rate_bps, is_demo)
+           VALUES (1, $1, 'franchise', '食品加工', 'active', 500, true)`,
+          ['演示·新味食品加盟铺'],
+        );
+      }
+      const ecoDemoApplyCheck = await client.query(
+        `SELECT 1 FROM booth_eco_applications WHERE org_id = 1 AND applicant = $1 LIMIT 1`,
+        ['演示·烘焙工坊（企业主体）'],
+      );
+      if (ecoDemoApplyCheck.rowCount === 0) {
+        await client.query(
+          `INSERT INTO booth_eco_applications (org_id, applicant, contact, shop_name, category, apply_note, status, is_demo)
+           VALUES (1, $1, '演示数据', $2, '烘焙食品', '演示入驻申请, 用于 VEM 审核流演示 (is_demo 隔离)', 'pending', true)`,
+          ['演示·烘焙工坊（企业主体）', '演示·烘焙工坊铺'],
+        );
+        console.log('[migrate] XDP-ECO: seeded demo franchise shop + demo pending application.');
+      }
+
       await client.query('COMMIT');
       console.log('[migrate] Tables verified, seed data already exists.');
       return;
@@ -1853,6 +1923,17 @@ export async function migrate() {
          (org_id, shop_order_id, status, contract_status, source, items, wave_no, created_at)
        VALUES (1, 'EX-2026-0020', 'in_progress', 'Created', 'mall',
                '[{"product_name":"知味臻选礼盒 (Market 履约样板)","qty":2}]'::jsonb, NULL, NOW())`,
+    );
+
+    // ===== [XDP-ECO] 新库初始化分支同落生态种子 (直营旗舰铺 + 演示加盟铺 + 演示待审申请) =====
+    await client.query(
+      `INSERT INTO booth_eco_shops (org_id, shop_name, eco_type, category, status, rate_bps, is_demo)
+       VALUES (1, 'Xfactory 旗舰制造厂', 'direct', '食品加工', 'active', 300, false),
+              (1, '演示·新味食品加盟铺', 'franchise', '食品加工', 'active', 500, true)`,
+    );
+    await client.query(
+      `INSERT INTO booth_eco_applications (org_id, applicant, contact, shop_name, category, apply_note, status, is_demo)
+       VALUES (1, '演示·烘焙工坊（企业主体）', '演示数据', '演示·烘焙工坊铺', '烘焙食品', '演示入驻申请, 用于 VEM 审核流演示 (is_demo 隔离)', 'pending', true)`,
     );
 
     await client.query('COMMIT');

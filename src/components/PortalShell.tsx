@@ -8,11 +8,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store';
-
-const CONTAINER_META: Record<'xhpz' | 'xepz', { label: string; sub: string; color: string }> = {
-  xhpz: { label: 'Xfactory 个人版', sub: '客户视图 · 消费与交付 · Xfactory 履约端', color: 'purple' },
-  xepz: { label: 'Xfactory 企业版', sub: '经营者视角 · 铺子履约 · Xfactory 履约端', color: 'geekblue' },
-};
+import { CONTAINER_META, CONTAINER_SWITCH_TO, type ContainerKey } from '../types/containers';
 
 const HAT_LABELS: Record<string, string> = {
   FAB: '制作',
@@ -24,11 +20,11 @@ const HAT_LABELS: Record<string, string> = {
 };
 
 /**
- * [DUAL-PORTAL-P0] 双端轻量工作台壳 (#xhpz/#xepz 共用)
+ * [DUAL-PORTAL-P0/XDP-ECO] 四主体轻量工作台壳 (个人/企业/经营户/平台方共用)
  * 顶栏: 容器徽标 + 当前帽视角 + 切换角色(视角清空重建) + 切换端 + 退出; 375px 单列友好
  */
 export const PortalShell: React.FC<{
-  container: 'xhpz' | 'xepz';
+  container: ContainerKey;
   children: React.ReactNode;
 }> = ({ container, children }) => {
   const navigate = useNavigate();
@@ -46,8 +42,8 @@ export const PortalShell: React.FC<{
     }
   }, [user]);
 
-  // 同账号双容器时显示另一端切换入口
-  const other = container === 'xhpz' ? 'xepz' : 'xhpz';
+  // [XDP-ECO] 同账号多容器切换入口 (映射表: xhpz↔xepz 互切; 经营户/平台方切对应端)
+  const other = CONTAINER_SWITCH_TO[container];
   const canSwitch = containers ? containers[other] : false;
 
   const handleSwitchRole = () => {

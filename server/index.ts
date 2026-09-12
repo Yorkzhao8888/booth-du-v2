@@ -13,6 +13,7 @@ import type { JwtPayload } from './auth.js';
 import authRoutes from './routes/auth.js';
 import fulfillmentRoutes from './routes/fulfillment.js';
 import onboardingRoutes from './routes/onboarding.js';
+import ecoRoutes from './routes/eco.js';
 import internalRoutes from './routes/internal.js';
 import { aliasRouter as internalAliasRoutes } from './routes/internal.js'; // [BOOTH-LINK-01] 根级别名 router (Shop XBUS 直调 /events/*)
 import duRoutes from './routes/du/index.js';   // /api/booth/du 聚合入口 (TECH-DEBT-4)
@@ -81,6 +82,7 @@ app.use('/exx', (req: import('express').Request, res: import('express').Response
 // Mount routes
 app.use('/api/booth/auth', authRoutes);
 app.use('/api/booth/onboarding', requireAuth, onboardingRoutes); // [ONBOARDING-P0] 快速上手包 (EDU 向导+演示数据)
+app.use('/api/booth/eco', requireAuth, ecoRoutes); // [XDP-ECO] 生态四主体 (VEM 控制台+入驻流+经营户铺位)
 // [BOOTH-CONN-01] Market 观察窗配套: SSE 履约推送 + 全链路时间线
 app.use('/api/booth/fulfillment', fulfillmentRoutes);
 app.use('/api/booth/internal', internalRoutes);

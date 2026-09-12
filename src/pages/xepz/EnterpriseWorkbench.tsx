@@ -15,6 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { PortalShell } from '../../components/PortalShell';
 import { FulfillmentTimeline } from '../../components/FulfillmentTimeline';
+import JoinApplyCard from './JoinApplyCard'; // [XDP-ECO] 加盟入驻 (申请→VEM 审核→开通 Booth-EDP 铺)
 
 /**
  * [DUAL-PORTAL-P0 工单二] booth 企业台框架 (#xepz)
@@ -85,6 +86,16 @@ const EnterpriseWorkbench: React.FC = () => {
             </Card>
           </Col>
         ))}
+      </Row>
+
+      {/* [XDP-ECO] 加盟入驻动线: 主体信息+经营类目 → VEM 审核 → 开通 Booth-EDP 铺+协议费率 */}
+      <Typography.Title level={5} style={{ color: '#fff', margin: '20px 0 10px' }}>
+        生态入驻
+      </Typography.Title>
+      <Row gutter={[12, 12]}>
+        <Col xs={24} sm={16}>
+          <JoinApplyCard />
+        </Col>
       </Row>
 
       {/* 经营系统入口区 */}

@@ -106,8 +106,12 @@ import { ForbiddenPage } from './pages/portal/ForbiddenPage';
 import { PortalShell } from './components/PortalShell';
 import PersonalWorkbench from './pages/xhpz/PersonalWorkbench';
 import EnterpriseWorkbench from './pages/xepz/EnterpriseWorkbench';
+// [XDP-ECO] 生态版四主体: 经营户台 + VEM 平台方控制台
+import ShopOwnerWorkbench from './pages/xdpz/ShopOwnerWorkbench';
+import VemConsole from './pages/xvpz/VemConsole';
+import type { ContainerKey } from './types/containers';
 
-const CONTAINER_PATHS = ['/containers', '/xhpz', '/xepz'];
+const CONTAINER_PATHS = ['/containers', '/xhpz', '/xepz', '/xdpz', '/xvpz'];
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user, applySession } = useAuthStore();
@@ -185,7 +189,7 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 // [DUAL-PORTAL-P0] 容器层守卫: 单容器账号跨端访问 → 无权限友好页 (不白屏); containers 结果会话内缓存
-const RequireContainer: React.FC<{ container: 'xhpz' | 'xepz'; children: React.ReactNode }> = ({ container, children }) => {
+const RequireContainer: React.FC<{ container: ContainerKey; children: React.ReactNode }> = ({ container, children }) => {
   const { containers, setContainers } = useAuthStore();
   const [checked, setChecked] = useState<boolean>(!!containers);
 
@@ -202,14 +206,20 @@ const RequireContainer: React.FC<{ container: 'xhpz' | 'xepz'; children: React.R
       .then((d) => {
         const body = d?.data ?? d;
         if (alive) {
-          setContainers({ xhpz: body?.xhpz !== false, xepz: body?.xepz !== false });
+          // [XDP-ECO] 四主体容器: xhpz/xepz/xdpz/xvpz (xdpz/xvpz 默认 false, 以后端判定为准)
+          setContainers({
+            xhpz: body?.xhpz !== false,
+            xepz: body?.xepz !== false,
+            xdpz: body?.xdpz === true,
+            xvpz: body?.xvpz === true,
+          });
           setChecked(true);
         }
       })
       .catch(() => {
         // containers 接口不可达: 会话真实存在则放行, 细粒度权限由后端各接口兜底
         if (alive) {
-          setContainers({ xhpz: true, xepz: true });
+          setContainers({ xhpz: true, xepz: true, xdpz: true, xvpz: true });
           setChecked(true);
         }
       });
@@ -224,7 +234,7 @@ const RequireContainer: React.FC<{ container: 'xhpz' | 'xepz'; children: React.R
 };
 
 // [DUAL-PORTAL-P0] 视角层守卫: 有 token 未选帽 → 角色选择页 (切换角色=回此页重进, 视角状态清空重建)
-const RequireHat: React.FC<{ container: 'xhpz' | 'xepz'; children: React.ReactNode }> = ({ container, children }) => {
+const RequireHat: React.FC<{ container: ContainerKey; children: React.ReactNode }> = ({ container, children }) => {
   const hat = useAuthStore((s) => s.hat);
   if (!hat) return <Navigate to={`/${container}/hats`} replace />;
   return <>{children}</>;
@@ -538,6 +548,66 @@ const App: React.FC = () => {
               <RequireContainer container="xepz">
                 <ErrorBoundary>
                   <HatSelect container="xepz" />
+                </ErrorBoundary>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+
+        {/* [XDP-ECO] 经营户 (#xdpz) 铺位管理动线 */}
+        <Route
+          path="/xdpz"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xdpz">
+                <RequireHat container="xdpz">
+                  <PortalShell container="xdpz">
+                    <ErrorBoundary>
+                      <ShopOwnerWorkbench />
+                    </ErrorBoundary>
+                  </PortalShell>
+                </RequireHat>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/xdpz/hats"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xdpz">
+                <ErrorBoundary>
+                  <HatSelect container="xdpz" />
+                </ErrorBoundary>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+
+        {/* [XDP-ECO] 平台方 (#xvpz · VEM) 生态治理控制台 */}
+        <Route
+          path="/xvpz"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xvpz">
+                <RequireHat container="xvpz">
+                  <PortalShell container="xvpz">
+                    <ErrorBoundary>
+                      <VemConsole />
+                    </ErrorBoundary>
+                  </PortalShell>
+                </RequireHat>
+              </RequireContainer>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/xvpz/hats"
+          element={
+            <RequireAuth>
+              <RequireContainer container="xvpz">
+                <ErrorBoundary>
+                  <HatSelect container="xvpz" />
                 </ErrorBoundary>
               </RequireContainer>
             </RequireAuth>

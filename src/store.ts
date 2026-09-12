@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { apiPost } from './api';
+import type { ContainerKey, ContainerAccess } from './types/containers';
 
 export interface AuthUser {
   id: number;
@@ -19,14 +20,14 @@ interface AuthState {
   /** [BOOTH-PRD-002] DU 履约铺分身切换 (前端视图层; 后端以 X-Acting-As 头同步) */
   actingAsDeu: boolean;
   setActingAsDeu: (on: boolean) => void;
-  /** [DUAL-PORTAL-P0] 当前容器 (#xhpz 个人 / #xepz 企业) */
-  container: 'xhpz' | 'xepz' | null;
+  /** [DUAL-PORTAL-P0/XDP-ECO] 当前容器 (#xhpz 个人 / #xepz 企业 / #xdpz 经营户 / #xvpz 平台方) */
+  container: ContainerKey | null;
   /** [DUAL-PORTAL-P0] 当前帽(角色视角); 切换角色=清空重建 */
   hat: string | null;
   /** [DUAL-PORTAL-P0] 容器可进性缓存 (会话级, /auth/containers 结果) */
-  containers: { xhpz: boolean; xepz: boolean } | null;
-  setContainers: (c: { xhpz: boolean; xepz: boolean }) => void;
-  setContainer: (c: 'xhpz' | 'xepz') => void;
+  containers: ContainerAccess | null;
+  setContainers: (c: ContainerAccess) => void;
+  setContainer: (c: ContainerKey) => void;
   setHat: (hat: string | null) => void;
   /** 切换角色: 视角状态清空重建 (回角色选择页重进) */
   resetPerspective: () => void;
@@ -49,7 +50,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   })(),
   loading: false,
   actingAsDeu: false,
-  container: (localStorage.getItem('booth_container') as 'xhpz' | 'xepz' | null) || null,
+  container: (localStorage.getItem('booth_container') as ContainerKey | null) || null,
   hat: localStorage.getItem('booth_hat') || null,
   containers: null,
 

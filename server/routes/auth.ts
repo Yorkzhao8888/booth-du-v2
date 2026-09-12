@@ -241,6 +241,10 @@ router.post('/logout', (_req, res) => {
 
 /** 个人容器专属 OAS 原角色 (仅 #xhpz, 无 #xepz 企业容器) */
 const PERSONAL_ONLY_ROLES = new Set(['CUSTOMER', 'VIEWER', 'CU', 'GU']);
+/** [XDP-ECO] 经营户角色 (#xdpz 铺位管理): SU 经营者 / EM 运营 */
+const XDPZ_ROLES = new Set(['SU', 'EM']);
+/** [XDP-ECO] 平台方角色 (#xvpz · VEM 生态治理): SU/admin 专属 */
+const XVPZ_ROLES = new Set(['SU', 'ADMIN']);
 /** 帽中文展示名 (checkPower/降级组装共用) */
 const HAT_LABELS: Record<string, string> = {
   FAB: '制作工坊',
@@ -260,19 +264,29 @@ function parseOASRole(raw: unknown): string[] {
     .filter(Boolean);
 }
 
-/** 容器可进性: 企业系角色双容器; 个人专属角色(CUSTOMER/VIEWER)仅 #xhpz; 无角色信息(开发匿名态)双容器演示 */
-function resolveContainers(subRole: string | null): { xhpz: boolean; xepz: boolean } {
+/** 容器可进性 [XDP-ECO 四主体]: 个人(#xhpz 全员) / 企业(#xepz 非个人专属) / 经营户(#xdpz SU·EM) / 平台方(#xvpz SU·admin);
+ *  无角色信息(开发匿名态)四容器全开演示; isDevAnon(匿名会话)同演示口径, PROD fail-safe 下匿名态不存在 */
+function resolveContainers(
+  subRole: string | null,
+  isDevAnon = false,
+): { xhpz: boolean; xepz: boolean; xdpz: boolean; xvpz: boolean } {
   const parts = parseOASRole(subRole ?? '');
-  if (parts.length === 0) return { xhpz: true, xepz: true };
+  if (parts.length === 0) return { xhpz: true, xepz: true, xdpz: true, xvpz: true };
   const personalOnly = parts.every((p) => PERSONAL_ONLY_ROLES.has(p));
-  return { xhpz: true, xepz: !personalOnly };
+  return {
+    xhpz: true,
+    xepz: !personalOnly,
+    xdpz: isDevAnon || parts.some((p) => XDPZ_ROLES.has(p)),
+    xvpz: isDevAnon || parts.some((p) => XVPZ_ROLES.has(p)),
+  };
 }
 
 /** 从会话提取 OAS 原角色与帽列表 (token 重验优先, 降级会话字段) */
-function sessionPortalContext(req: { headers: { authorization?: unknown }; user?: { roleKey?: string; hats?: unknown; subRole?: string; oasRole?: string } }): {
+function sessionPortalContext(req: { headers: { authorization?: unknown }; user?: { roleKey?: string; hats?: unknown; subRole?: string; oasRole?: string; identity_id?: string } }): {
   subRole: string | null;
   boothRoleKey: string | null;
   hats: string[];
+  identityId: string;
 } {
   const user = req.user;
   const authHeader = String(req.headers.authorization ?? '');
@@ -284,7 +298,7 @@ function sessionPortalContext(req: { headers: { authorization?: unknown }; user?
   }
   if (!subRole) subRole = String(user?.subRole ?? user?.oasRole ?? '') || null;
   const hats = Array.isArray(user?.hats) ? (user?.hats as unknown[]).filter((h): h is string => typeof h === 'string') : [];
-  return { subRole, boothRoleKey: user?.roleKey ?? null, hats };
+  return { subRole, boothRoleKey: user?.roleKey ?? null, hats, identityId: String(user?.identity_id ?? '') };
 }
 
 /**
@@ -292,7 +306,9 @@ function sessionPortalContext(req: { headers: { authorization?: unknown }; user?
  */
 router.get('/containers', requireAuth, (req, res) => {
   const ctx = sessionPortalContext(req);
-  const containers = resolveContainers(ctx.subRole);
+  // [XDP-ECO] 开发匿名会话(identity_id=dev-anonymous)按四容器全开演示; RS256 真实态按 OAS 原角色判定
+  const isDevAnon = ctx.identityId === 'dev-anonymous';
+  const containers = resolveContainers(ctx.subRole, isDevAnon);
   res.json({ success: true, data: { ...containers, roleKey: ctx.boothRoleKey, subRole: ctx.subRole } });
 });
 
